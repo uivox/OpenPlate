@@ -47,7 +47,7 @@ Apple only lets apps signed with a free Apple ID run for 7 days. **SideStore** r
 **Add OpenPlate**
 
 1. In SideStore → *Sources* → **+**, add:
-   `https://github.com/uivox/openplate/releases/latest/download/source.json`
+   `https://github.com/uivox/OpenPlate/releases/latest/download/source.json`
 2. Tap **Get** next to OpenPlate.
 3. New versions show up in SideStore with an **Update** button. Your data stays.
 
