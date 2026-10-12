@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "OpenPlate",
+    "slug": "openplate",
+    "scheme": "openplate",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "org.openplate.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "OpenPlate uses the camera to scan barcodes and photograph meals.",
+        "NSPhotoLibraryUsageDescription": "OpenPlate lets you pick meal photos for AI recognition.",
+        "NSMotionUsageDescription": "OpenPlate reads your step count to show daily activity.",
+        "NSLocalNetworkUsageDescription": "OpenPlate can talk to an AI model running on your own computer.",
+        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+      }
+    },
+    "android": {
+      "package": "org.openplate.app",
+      "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#1E7552" }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-secure-store",
+      ["expo-camera", { "cameraPermission": "OpenPlate uses the camera to scan barcodes and photograph meals." }],
+      ["expo-image-picker", { "photosPermission": "OpenPlate lets you pick meal photos for AI recognition." }],
+      ["expo-sensors", { "motionPermission": "OpenPlate reads your step count to show daily activity." }],
+      "expo-notifications"
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}
