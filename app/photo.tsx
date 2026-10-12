@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, TextInput, View } from 'react-native';
+import { Sprout } from '../src/components/Sprout';
 import { Banner, Button, Card, ChipGroup, Divider, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { analyzeMeal, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
 import { dayKey } from '../src/lib/dates';
@@ -12,7 +13,7 @@ import { leaveToDiary } from '../src/lib/nav';
 import { per100From } from '../src/lib/nutrition';
 import { getApiKey } from '../src/lib/secure';
 import { useStore } from '../src/lib/store';
-import { useColors } from '../src/lib/theme';
+import { fonts, useColors } from '../src/lib/theme';
 import { MEALS, type AIItem, type Food, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
@@ -99,7 +100,7 @@ export default function PhotoScreen() {
     return (
       <Screen>
         <Card style={{ alignItems: 'center', gap: 12 }}>
-          <Ionicons name="sparkles" size={40} color={c.accent} />
+          <Sprout size={110} mood="surprised" />
           <Txt v="h2" center>
             {t('ai_setup_title')}
           </Txt>
@@ -118,8 +119,8 @@ export default function PhotoScreen() {
 
       {phase === 'pick' ? (
         <>
-          <Card style={{ alignItems: 'center', gap: 10 }}>
-            <Ionicons name="camera" size={40} color={c.accent} />
+          <Card r="xl" style={{ alignItems: 'center', gap: 10, paddingVertical: 24 }}>
+            <Sprout size={96} mood="surprised" />
             <Txt v="h2" center>
               {t('ai_photo_title')}
             </Txt>
@@ -185,7 +186,7 @@ export default function PhotoScreen() {
                     <TextInput
                       value={it.name}
                       onChangeText={(name) => setItems((all) => all.map((x) => (x.key === it.key ? { ...x, name } : x)))}
-                      style={{ flex: 1, fontSize: 16, fontWeight: '600', color: c.text, paddingVertical: 6 }}
+                      style={{ flex: 1, fontSize: 16, fontFamily: fonts.bodySemi, color: c.text, paddingVertical: 6 }}
                     />
                     <Txt v="sub">{Math.round(s.kcal)} kcal</Txt>
                   </Row>

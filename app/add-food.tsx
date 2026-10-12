@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Card, Divider, Field, ListRow, Screen, SectionTitle, Txt } from '../src/components/ui';
+import { Sprout } from '../src/components/Sprout';
+import { Card, Divider, Field, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
 import { putFood } from '../src/lib/foodCache';
 import { foodSubtitle } from '../src/lib/format';
@@ -91,11 +92,11 @@ export default function AddFoodScreen() {
         clearButtonMode="while-editing"
       />
 
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Action icon="barcode-outline" label={t('scan')} onPress={() => router.push({ pathname: '/scan', params: { meal, date } })} />
-        <Action icon="camera-outline" label={t('ai_photo_short')} onPress={() => router.push({ pathname: '/photo', params: { meal, date } })} />
-        <Action icon="flash-outline" label={t('quick_add')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, mode: 'quick' } })} />
-        <Action icon="create-outline" label={t('create_food_short')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date } })} />
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Action icon="barcode-outline" bg={c.meal.breakfast.tile} color={c.meal.breakfast.icon} label={t('scan')} onPress={() => router.push({ pathname: '/scan', params: { meal, date } })} />
+        <Action icon="sparkles" bg={c.accent} color={c.accentText} label={t('ai_photo_short')} onPress={() => router.push({ pathname: '/photo', params: { meal, date } })} />
+        <Action icon="flash" bg={c.meal.dinner.tile} color={c.meal.dinner.icon} label={t('quick_add')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, mode: 'quick' } })} />
+        <Action icon="create" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} label={t('create_food_short')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date } })} />
       </View>
 
       {q ? (
@@ -128,30 +129,39 @@ export default function AddFoodScreen() {
               </Card>
             </>
           ) : null}
-          {recent.length === 0 && custom.length === 0 ? <Txt v="sub">{t('add_food_empty')}</Txt> : null}
+          {recent.length === 0 && custom.length === 0 ? (
+            <View style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
+              <Sprout size={100} />
+              <Txt v="sub" center style={{ maxWidth: 280 }}>
+                {t('add_food_empty')}
+              </Txt>
+            </View>
+          ) : null}
         </>
       )}
     </Screen>
   );
 }
 
-function Action({ icon, label, onPress }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; onPress: () => void }) {
+function Action({ icon, label, onPress, bg, color }: { icon: IconName; label: string; onPress: () => void; bg: string; color: string }) {
   const c = useColors();
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed }) => ({
         flex: 1,
         backgroundColor: c.card,
-        borderRadius: 14,
+        borderRadius: 20,
         paddingVertical: 14,
         alignItems: 'center',
-        gap: 6,
-        opacity: pressed ? 0.7 : 1,
+        gap: 8,
+        transform: [{ scale: pressed ? 0.96 : 1 }],
       })}
     >
-      <Ionicons name={icon} size={24} color={c.accent} />
-      <Txt v="small" color={c.text} center numberOfLines={1}>
+      <Tile icon={icon} bg={bg} color={color} size={42} />
+      <Txt v="label" color={c.text} center numberOfLines={1}>
         {label}
       </Txt>
     </Pressable>

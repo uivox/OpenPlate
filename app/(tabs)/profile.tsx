@@ -3,6 +3,8 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Alert, Share, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Sprout } from '../../src/components/Sprout';
+import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { PROVIDER_NAMES } from '../../src/lib/ai';
 import { dayKey } from '../../src/lib/dates';
@@ -48,23 +50,22 @@ export default function ProfileScreen() {
     : t('not_set_up');
 
   return (
-    <Screen style={{ paddingTop: insets.top + 8 }}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
       <Txt v="title">{t('tab_profile')}</Txt>
 
-      <Card>
-        <Txt v="small">{t(`goal_${profile.goal}`)}</Txt>
-        <Row style={{ alignItems: 'flex-end' }}>
-          <Txt v="big">{goals.kcal}</Txt>
-          <Txt v="sub" style={{ marginBottom: 6 }}>
-            {t('kcal_per_day')}
-          </Txt>
+      <Card r="xl" tone="beet" style={{ paddingVertical: 22 }}>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Txt v="label">{t(`goal_${profile.goal}`)}</Txt>
+            <Txt v="big">{goals.kcal}</Txt>
+            <Txt v="sub">{t('kcal_per_day')}</Txt>
+          </View>
+          <Sprout size={84} />
         </Row>
         <Txt v="sub">
-          {t('carbs')} {goals.macros.carbs} g · {t('protein')} {goals.macros.protein} g · {t('fat')} {goals.macros.fat} g
+          {t('macro_line', { c: goals.macros.carbs, p: goals.macros.protein, f: goals.macros.fat })}
         </Txt>
-        <Txt v="sub">
-          {profile.startWeightKg} kg → {profile.targetWeightKg} kg
-        </Txt>
+        <Txt v="sub">{t('weight_path', { from: profile.startWeightKg, to: profile.targetWeightKg })}</Txt>
       </Card>
 
       <Card>

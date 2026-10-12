@@ -6,6 +6,7 @@ export function buildProfile(d: ProfileDraft, base?: Partial<Profile>): Profile 
   const weight = d.startWeightKg!;
   const split = base?.macroSplit ?? (d.goal === 'gain' ? MACRO_PRESETS[1].split : MACRO_PRESETS[0].split);
   return {
+    name: base?.name,
     sex: d.sex,
     birthYear: d.birthYear!,
     heightCm: d.heightCm!,

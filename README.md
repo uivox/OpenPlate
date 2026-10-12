@@ -1,6 +1,6 @@
 # OpenPlate
 
-A free, open-source calorie tracker for iPhone, built with Expo (React Native).
+A free, open-source calorie tracker for iPhone and Android, built with Expo (React Native).
 German and English, light and dark mode, all data stays on the phone.
 
 **Features**
@@ -14,33 +14,57 @@ German and English, light and dark mode, all data stays on the phone.
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
-- **Steps** from the iPhone motion sensor, optionally added to the calorie budget
+- **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only; Android doesn't offer daily step history to apps without Health Connect)
 - **Export** all data as JSON
+
+Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.md).
 
 ---
 
-## Run it on your iPhone from a Windows PC
+## Install on your phone
 
-You need: a Windows PC, an iPhone, both on the same Wi-Fi. No Mac and no Apple developer account.
+Every push to `main` builds both apps on GitHub for free (Actions tab → *Build apps*, about 30 minutes) and publishes them under **[Releases](../../releases/latest)**.
 
-1. **Install Node.js** (LTS) from <https://nodejs.org>.
-2. **Install Expo Go** on the iPhone from the App Store.
-3. **Check the Expo SDK.** This project targets **SDK 54**, the newest Expo Go version confirmed on the App Store when it was written (newer ones were stuck in review). Open Expo Go → Settings to see which SDK your copy supports. If it's newer, run in the project folder:
-   ```powershell
-   npx expo install expo@^<SDK>.0.0
-   npx expo install --fix
-   ```
-4. **Install and start** (PowerShell in the project folder):
-   ```powershell
-   npm install
-   npx expo install --fix
-   npx expo start
-   ```
-5. Scan the QR code with the iPhone **Camera** app → it opens in Expo Go.
-   - Windows Firewall asks about Node.js: allow it on **private networks**.
-   - Not on the same network (or the QR code won't connect)? Use `npm run tunnel`.
+### Android
 
-> Expo Go loads the app from your PC, so `npx expo start` must be running when you open it. Your diary data is stored on the phone (inside Expo Go) and survives restarts. Deleting Expo Go deletes it, so use *Profile → Export data* now and then.
+1. On the phone, open the latest release and download **OpenPlate.apk**.
+2. Open it and allow *Install unknown apps* for your browser when asked.
+3. Updates: download the newer APK and install it over the old one. Your data stays.
+
+### iPhone (free, with SideStore)
+
+Apple only lets apps signed with a free Apple ID run for 7 days. **SideStore** renews the signature on the phone itself, so after a one-time setup with your PC you don't need to do anything.
+
+**One-time setup on Windows**
+
+1. Install **iTunes** from apple.com (the download from apple.com, not the Microsoft Store version) so Windows can talk to the iPhone.
+2. Install **iloader** (the `.msi` from <https://github.com/nab138/iloader/releases>).
+3. On the iPhone, install **LocalDevVPN** from the App Store, open it and tap *Connect*.
+4. Plug the iPhone into the PC, tap *Trust*. In iloader, sign in with your normal Apple ID and click **SideStore (Stable)**.
+5. On the iPhone: *Settings → General → VPN & Device Management* → trust your Apple ID. Then *Settings → Privacy & Security → Developer Mode* → on (the phone restarts).
+6. Open SideStore and sign in with the same Apple ID.
+
+**Add OpenPlate**
+
+1. In SideStore → *Sources* → **+**, add:
+   `https://github.com/uivox/openplate/releases/latest/download/source.json`
+2. Tap **Get** next to OpenPlate.
+3. New versions show up in SideStore with an **Update** button. Your data stays.
+
+Keep LocalDevVPN installed; SideStore uses it to renew apps in the background. If OpenPlate ever stops opening, open SideStore and tap *Refresh All*.
+Limits set by Apple for free Apple IDs: 3 sideloaded apps at once (SideStore counts as one) and 10 installs per week.
+
+## Develop on your PC (optional)
+
+Live-reload while changing the code, using the Expo Go app:
+
+```powershell
+npm install
+npx expo install --fix
+npx expo start
+```
+
+Scan the QR code with the phone camera. The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
 
 ## Set up the AI photo feature
 
@@ -67,15 +91,6 @@ Model names are editable in the app; defaults are `gemini-3.8-flash`, `claude-so
 A local 7B model on a normal PC takes roughly 10–60 seconds per photo and is less accurate than the cloud models; using it as primary with Gemini as fallback works well.
 
 API keys are stored in the iOS Keychain (expo-secure-store) and only ever sent to the provider they belong to.
-
-## Put it on GitHub
-
-```powershell
-git remote add origin https://github.com/<you>/openplate.git
-git push -u origin main
-```
-
-Then replace the placeholder URL in `USER_AGENT` in `src/lib/openFoodFacts.ts` with your repository URL. Open Food Facts asks apps to identify themselves.
 
 ## Project layout
 
@@ -107,11 +122,11 @@ Checks: `npm run check` (TypeScript) and `npm test` (logic tests).
 
 ## Not included yet
 
-These need more work or a native build that Expo Go can't run:
+On the list for later:
 
-- **Apple Health sync** needs a custom native build, which requires a Mac or a paid Apple developer account. Steps work without it via the motion sensor.
-- **Recipes**, meal plans, Apple Watch app, cloud sync / accounts.
-- A standalone App Store install (same reason as Apple Health).
+- **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
+- **Recipes**, meal plans, watch apps, cloud sync / accounts.
+- App Store / Play Store listings.
 
 ## Credits and licence
 

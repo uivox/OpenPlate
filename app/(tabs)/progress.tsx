@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarChart, LineChart } from '../../src/components/charts';
+import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Button, Card, ChipGroup, NumField, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { addDays, dayKey, lastNDays, locale, parseDayKey } from '../../src/lib/dates';
 import { goalsFor } from '../../src/lib/hooks';
@@ -61,10 +62,10 @@ export default function ProgressScreen() {
   const loggedToday = weights.some((w) => w.date === today);
 
   return (
-    <Screen style={{ paddingTop: insets.top + 8 }}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
       <Txt v="title">{t('tab_progress')}</Txt>
 
-      <Card>
+      <Card r="xl" style={{ paddingVertical: 22 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <View>
             <Txt v="small">{t('current_weight')}</Txt>

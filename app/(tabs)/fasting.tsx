@@ -4,6 +4,8 @@ import React from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ring } from '../../src/components/Ring';
+import { Sprout } from '../../src/components/Sprout';
+import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Chip, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { dayKey, formatDuration, formatShortDate, formatTime, locale, weekdayOf } from '../../src/lib/dates';
 import { cancelNotification, scheduleAt } from '../../src/lib/device';
@@ -81,7 +83,7 @@ export default function FastingScreen() {
   const todayIsFastDay = plan.kind === 'weekly' && profile.fastingDays.includes(weekdayOf(dayKey()));
 
   return (
-    <Screen style={{ paddingTop: insets.top + 8 }}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
       <Txt v="title">{t('tab_fasting')}</Txt>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -107,44 +109,63 @@ export default function FastingScreen() {
       </Txt>
 
       {plan.kind === 'daily' || active ? (
-        <Card style={{ alignItems: 'center', gap: 14, paddingVertical: 24 }}>
-          <Ring size={250} stroke={18} progress={progress} color={progress >= 1 ? c.coral : c.accent} overflowColor={c.coral}>
+        <Card tone="night" r="xl" style={{ alignItems: 'center', gap: 16, paddingVertical: 28 }}>
+          <Ring
+            size={250}
+            stroke={16}
+            progress={progress}
+            color={progress >= 1 ? c.carbs : c.nightText}
+            overflowColor={c.carbs}
+            trackColor="#ffffff1f"
+          >
             {active ? (
               <>
-                <Txt v="small">{t('elapsed')}</Txt>
-                <Txt v="big">{formatDuration(elapsedMs)}</Txt>
-                <Txt v="sub">
+                <Txt v="small" color={c.nightText}>
+                  {t('elapsed')}
+                </Txt>
+                <Txt v="big" color={c.nightText} style={{ fontVariant: ['tabular-nums'] }}>
+                  {formatDuration(elapsedMs)}
+                </Txt>
+                <Txt v="sub" color={c.nightText}>
                   {remainingMs > 0 ? t('remaining', { time: formatDuration(remainingMs) }) : t('goal_reached')}
                 </Txt>
               </>
             ) : (
               <>
-                <Ionicons name="timer-outline" size={42} color={c.accent} />
-                <Txt v="h2">{t('ready_to_fast')}</Txt>
-                <Txt v="sub">{t('target_hours', { h: targetHours })}</Txt>
+                <Sprout size={78} mood="sleepy" />
+                <Txt v="h2" color={c.nightText}>
+                  {t('ready_to_fast')}
+                </Txt>
+                <Txt v="sub" color={c.nightText}>
+                  {t('target_hours', { h: targetHours })}
+                </Txt>
               </>
             )}
           </Ring>
           {active ? (
             <>
               <Row gap={8}>
-                <Button small kind="secondary" title="−30 min" onPress={() => shiftStart(-30)} />
-                <Txt v="sub">{t('started_at', { time: formatTime(active.start, lang) })}</Txt>
-                <Button small kind="secondary" title="+30 min" onPress={() => shiftStart(30)} />
+                <Button small kind="night" title="−30 min" onPress={() => shiftStart(-30)} />
+                <Txt v="sub" color={c.nightText}>
+                  {t('started_at', { time: formatTime(active.start, lang) })}
+                </Txt>
+                <Button small kind="night" title="+30 min" onPress={() => shiftStart(30)} />
               </Row>
-              <Txt v="sub">{t('ends_at', { time: formatTime(active.start + active.targetHours * 3600000, lang) })}</Txt>
-              <Button title={t('end_fast')} icon="stop" kind={progress >= 1 ? 'primary' : 'danger'} onPress={stop} style={{ alignSelf: 'stretch' }} />
+              <Txt v="sub" color={c.nightText}>
+                {t('ends_at', { time: formatTime(active.start + active.targetHours * 3600000, lang) })}
+              </Txt>
+              <Button title={t('end_fast')} icon="sunny" kind="night" onPress={stop} style={{ alignSelf: 'stretch' }} />
             </>
           ) : (
-            <Button title={t('start_fast')} icon="play" onPress={start} style={{ alignSelf: 'stretch' }} />
+            <Button title={t('start_fast')} icon="moon" kind="night" onPress={start} style={{ alignSelf: 'stretch' }} />
           )}
         </Card>
       ) : null}
 
       {active ? (
-        <Card>
+        <Card r="l">
           <Row>
-            <Ionicons name="pulse" size={20} color={c.accent} />
+            <Ionicons name="sparkles" size={20} color={c.protein} />
             <Txt v="h3">{t(stage.key)}</Txt>
           </Row>
           <Txt v="sub">{t(`${stage.key}_text`)}</Txt>

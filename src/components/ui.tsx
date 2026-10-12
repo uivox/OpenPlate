@@ -13,7 +13,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { radius, space, useColors } from '../lib/theme';
+import { fonts, radius, space, useColors } from '../lib/theme';
 
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -22,11 +22,13 @@ export function Screen({
   scroll = true,
   padded = true,
   style,
+  bottomInset = 48,
 }: {
   children?: React.ReactNode;
   scroll?: boolean;
   padded?: boolean;
   style?: StyleProp<ViewStyle>;
+  bottomInset?: number;
 }) {
   const c = useColors();
   const inner = [padded && { padding: space.l, gap: space.m }, style];
@@ -34,7 +36,7 @@ export function Screen({
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={[inner, { paddingBottom: 48 }]}
+      contentContainerStyle={[inner, { paddingBottom: bottomInset }]}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
@@ -43,20 +45,33 @@ export function Screen({
   );
 }
 
-export function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Card({
+  children,
+  style,
+  tone = 'card',
+  r = 'm',
+}: {
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  tone?: 'card' | 'inset' | 'night' | 'beet';
+  r?: keyof typeof radius;
+}) {
   const c = useColors();
-  return <View style={[{ backgroundColor: c.card, borderRadius: radius.m, padding: space.l, gap: space.s }, style]}>{children}</View>;
+  const bg = tone === 'inset' ? c.cardAlt : tone === 'night' ? c.night : tone === 'beet' ? c.accentSoft : c.card;
+  return <View style={[{ backgroundColor: bg, borderRadius: radius[r], padding: space.l, gap: space.s }, style]}>{children}</View>;
 }
 
-type TxtVariant = 'title' | 'h2' | 'h3' | 'body' | 'sub' | 'small' | 'big';
+type TxtVariant = 'hero' | 'big' | 'title' | 'h2' | 'h3' | 'body' | 'sub' | 'small' | 'label';
 const TXT: Record<TxtVariant, TextStyle> = {
-  big: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  title: { fontSize: 26, fontWeight: '800', letterSpacing: -0.3 },
-  h2: { fontSize: 19, fontWeight: '700' },
-  h3: { fontSize: 16, fontWeight: '700' },
-  body: { fontSize: 16 },
-  sub: { fontSize: 14 },
-  small: { fontSize: 12 },
+  hero: { fontFamily: fonts.displayHeavy, fontSize: 52, lineHeight: 56, letterSpacing: -1.5 },
+  big: { fontFamily: fonts.displayHeavy, fontSize: 34, lineHeight: 38, letterSpacing: -0.8 },
+  title: { fontFamily: fonts.displayHeavy, fontSize: 28, lineHeight: 32, letterSpacing: -0.5 },
+  h2: { fontFamily: fonts.display, fontSize: 21, lineHeight: 26, letterSpacing: -0.2 },
+  h3: { fontFamily: fonts.bodyBold, fontSize: 16, lineHeight: 21 },
+  body: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22 },
+  sub: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19 },
+  small: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 17 },
+  label: { fontFamily: fonts.bodySemi, fontSize: 13, lineHeight: 17 },
 };
 
 export function Txt({
@@ -67,7 +82,7 @@ export function Txt({
   numberOfLines,
   center,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   v?: TxtVariant;
   color?: string;
   style?: StyleProp<TextStyle>;
@@ -75,15 +90,19 @@ export function Txt({
   center?: boolean;
 }) {
   const c = useColors();
-  const defaultColor = v === 'sub' || v === 'small' ? c.sub : c.text;
+  const defaultColor = v === 'sub' || v === 'small' || v === 'label' ? c.sub : c.text;
   return (
-    <Text numberOfLines={numberOfLines} style={[TXT[v], { color: color ?? defaultColor }, center && { textAlign: 'center' }, style]}>
+    <Text
+      numberOfLines={numberOfLines}
+      maxFontSizeMultiplier={1.4}
+      style={[TXT[v], { color: color ?? defaultColor }, center && { textAlign: 'center' }, style]}
+    >
       {children}
     </Text>
   );
 }
 
-export function Row({ children, style, gap = space.s }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
+export function Row({ children, style, gap = space.s }: { children?: React.ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap }, style]}>{children}</View>;
 }
 
@@ -99,7 +118,7 @@ export function Button({
 }: {
   title: string;
   onPress: () => void;
-  kind?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  kind?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'night';
   icon?: IconName;
   disabled?: boolean;
   loading?: boolean;
@@ -107,30 +126,40 @@ export function Button({
   small?: boolean;
 }) {
   const c = useColors();
-  const bg = kind === 'primary' ? c.accent : kind === 'secondary' ? c.accentSoft : kind === 'danger' ? c.danger : 'transparent';
-  const fg = kind === 'primary' ? c.accentText : kind === 'danger' ? '#fff' : c.accent;
+  const bg = {
+    primary: c.accent,
+    secondary: c.accentSoft,
+    ghost: 'transparent',
+    danger: c.danger,
+    night: c.nightText,
+  }[kind];
+  const fg = { primary: c.accentText, secondary: c.accent, ghost: c.accent, danger: '#fff', night: c.night }[kind];
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
+      accessibilityState={{ disabled: !!(disabled || loading) }}
       style={({ pressed }) => [
         {
           backgroundColor: bg,
           borderRadius: 999,
-          paddingVertical: small ? 8 : 14,
-          paddingHorizontal: small ? 14 : 20,
+          minHeight: small ? 38 : 54,
+          paddingHorizontal: small ? 14 : 22,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
           gap: 8,
-          opacity: disabled ? 0.45 : pressed ? 0.8 : 1,
+          opacity: disabled ? 0.4 : 1,
+          transform: [{ scale: pressed ? 0.97 : 1 }],
         },
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={fg} /> : icon ? <Ionicons name={icon} size={small ? 16 : 19} color={fg} /> : null}
-      <Text style={{ color: fg, fontWeight: '700', fontSize: small ? 14 : 16 }}>{title}</Text>
+      {loading ? <ActivityIndicator color={fg} /> : icon ? <Ionicons name={icon} size={small ? 16 : 20} color={fg} /> : null}
+      <Text style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: small ? 14 : 16.5 }} maxFontSizeMultiplier={1.3}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -142,6 +171,7 @@ export function IconButton({
   size = 22,
   bg,
   label,
+  border,
 }: {
   icon: IconName;
   onPress: () => void;
@@ -149,21 +179,25 @@ export function IconButton({
   size?: number;
   bg?: string;
   label: string;
+  border?: string;
 }) {
   const c = useColors();
   return (
     <Pressable
       onPress={onPress}
       accessibilityLabel={label}
+      accessibilityRole="button"
       hitSlop={8}
       style={({ pressed }) => ({
-        width: size + 18,
-        height: size + 18,
+        width: size + 20,
+        height: size + 20,
         borderRadius: 999,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: bg ?? 'transparent',
-        opacity: pressed ? 0.6 : 1,
+        borderWidth: border ? 1.5 : 0,
+        borderColor: border,
+        transform: [{ scale: pressed ? 0.92 : 1 }],
       })}
     >
       <Ionicons name={icon} size={size} color={color ?? c.accent} />
@@ -176,16 +210,19 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   return (
     <Pressable
       onPress={onPress}
-      style={{
-        paddingVertical: 8,
-        paddingHorizontal: 14,
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!selected }}
+      style={({ pressed }) => ({
+        paddingVertical: 9,
+        paddingHorizontal: 15,
         borderRadius: 999,
-        backgroundColor: selected ? c.accent : c.cardAlt,
-        borderWidth: 1,
-        borderColor: selected ? c.accent : c.line,
-      }}
+        backgroundColor: selected ? c.text : c.cardAlt,
+        transform: [{ scale: pressed ? 0.96 : 1 }],
+      })}
     >
-      <Text style={{ color: selected ? c.accentText : c.text, fontWeight: '600', fontSize: 14 }}>{label}</Text>
+      <Text style={{ color: selected ? c.bg : c.text, fontFamily: fonts.bodySemi, fontSize: 14 }} maxFontSizeMultiplier={1.3}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -208,27 +245,22 @@ export function ChipGroup<T extends string | number>({
   );
 }
 
+const inputBox = (c: ReturnType<typeof useColors>): ViewStyle => ({
+  backgroundColor: c.cardAlt,
+  borderRadius: radius.s,
+  paddingHorizontal: 14,
+});
+
 export function Field({ label, hint, style, ...props }: TextInputProps & { label?: string; hint?: string }) {
   const c = useColors();
   return (
     <View style={{ gap: 6 }}>
-      {label ? <Txt v="sub">{label}</Txt> : null}
+      {label ? <Txt v="label">{label}</Txt> : null}
       <TextInput
         placeholderTextColor={c.sub}
+        selectionColor={c.accent}
         {...props}
-        style={[
-          {
-            backgroundColor: c.cardAlt,
-            borderRadius: radius.s,
-            borderWidth: 1,
-            borderColor: c.line,
-            paddingHorizontal: 14,
-            paddingVertical: 12,
-            fontSize: 16,
-            color: c.text,
-          },
-          style,
-        ]}
+        style={[inputBox(c), { paddingVertical: 13, fontSize: 16, color: c.text, fontFamily: fonts.body }, style]}
       />
       {hint ? <Txt v="small">{hint}</Txt> : null}
     </View>
@@ -261,18 +293,8 @@ export function NumField({
   const c = useColors();
   return (
     <View style={{ gap: 6, flex: 1 }}>
-      {label ? <Txt v="sub">{label}</Txt> : null}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: c.cardAlt,
-          borderRadius: radius.s,
-          borderWidth: 1,
-          borderColor: c.line,
-          paddingHorizontal: 14,
-        }}
-      >
+      {label ? <Txt v="label">{label}</Txt> : null}
+      <View style={[inputBox(c), { flexDirection: 'row', alignItems: 'center' }]}>
         <TextInput
           value={text}
           onChangeText={(t) => {
@@ -280,9 +302,11 @@ export function NumField({
             onChange(parseNum(t));
           }}
           keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
-          style={{ flex: 1, paddingVertical: 12, fontSize: 16, color: c.text }}
+          selectionColor={c.accent}
+          style={{ flex: 1, paddingVertical: 13, fontSize: 17, color: c.text, fontFamily: fonts.bodySemi }}
           placeholderTextColor={c.sub}
           placeholder="0"
+          accessibilityLabel={label}
         />
         {suffix ? <Txt v="sub">{suffix}</Txt> : null}
       </View>
@@ -296,9 +320,9 @@ export function parseNum(t: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+export function SectionTitle({ children, right }: { children?: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <Row style={{ justifyContent: 'space-between', marginTop: space.s }}>
+    <Row style={{ justifyContent: 'space-between', marginTop: space.m, paddingHorizontal: 4 }}>
       <Txt v="h2">{children}</Txt>
       {right}
     </Row>
@@ -326,17 +350,20 @@ export function ListRow({
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={!onPress && !onLongPress}
+      accessibilityRole={onPress ? 'button' : undefined}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        paddingVertical: 10,
+        paddingVertical: 11,
         opacity: pressed ? 0.6 : 1,
       })}
     >
       {icon ? <Ionicons name={icon} size={22} color={c.accent} /> : null}
       <View style={{ flex: 1 }}>
-        <Txt numberOfLines={1}>{title}</Txt>
+        <Txt numberOfLines={1} style={{ fontFamily: fonts.bodyMedium }}>
+          {title}
+        </Txt>
         {subtitle ? (
           <Txt v="sub" numberOfLines={1}>
             {subtitle}
@@ -348,21 +375,24 @@ export function ListRow({
   );
 }
 
-export function Divider() {
+export function Divider({ inset = 0 }: { inset?: number }) {
   const c = useColors();
-  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line }} />;
+  return <View style={{ height: StyleSheet.hairlineWidth * 2, backgroundColor: c.line, marginLeft: inset }} />;
 }
 
 export function MacroBar({ label, value, goal, color }: { label: string; value: number; goal: number; color: string }) {
   const c = useColors();
   const pct = goal > 0 ? Math.min(1, value / goal) : 0;
   return (
-    <View style={{ flex: 1, gap: 6 }}>
-      <Txt v="small" style={{ fontWeight: '700' }} color={c.text}>
-        {label}
-      </Txt>
-      <View style={{ height: 6, borderRadius: 3, backgroundColor: c.ringTrack, overflow: 'hidden' }}>
-        <View style={{ width: `${pct * 100}%`, height: 6, borderRadius: 3, backgroundColor: color }} />
+    <View style={{ flex: 1, gap: 6 }} accessible accessibilityLabel={`${label} ${Math.round(value)} / ${Math.round(goal)} g`}>
+      <Row gap={6}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+        <Txt v="label" color={c.text}>
+          {label}
+        </Txt>
+      </Row>
+      <View style={{ height: 7, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden' }}>
+        <View style={{ width: `${pct * 100}%`, height: 7, borderRadius: 4, backgroundColor: color }} />
       </View>
       <Txt v="small">
         {Math.round(value)} / {Math.round(goal)} g
@@ -371,24 +401,25 @@ export function MacroBar({ label, value, goal, color }: { label: string; value: 
   );
 }
 
-export function Banner({ icon, text, tone = 'accent' }: { icon: IconName; text: string; tone?: 'accent' | 'warn' }) {
+export function Banner({ icon, text, tone = 'accent' }: { icon: IconName; text: string; tone?: 'accent' | 'warn' | 'leaf' }) {
   const c = useColors();
-  const color = tone === 'warn' ? c.coral : c.accent;
+  const color = tone === 'warn' ? c.coral : tone === 'leaf' ? c.leaf : c.accent;
+  const bg = tone === 'warn' ? `${c.coral}22` : tone === 'leaf' ? c.meal.lunch.tile : c.accentSoft;
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        gap: 10,
-        alignItems: 'center',
-        backgroundColor: tone === 'warn' ? `${c.coral}22` : c.accentSoft,
-        padding: space.m,
-        borderRadius: radius.s,
-      }}
-    >
+    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: bg, padding: space.m, borderRadius: radius.m }}>
       <Ionicons name={icon} size={20} color={color} />
       <Txt v="sub" color={c.text} style={{ flex: 1 }}>
         {text}
       </Txt>
+    </View>
+  );
+}
+
+/** Rounded square with an icon, used for meals and feature entry points. */
+export function Tile({ icon, bg, color, size = 46 }: { icon: IconName; bg: string; color: string; size?: number }) {
+  return (
+    <View style={{ width: size, height: size, borderRadius: size * 0.32, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name={icon} size={size * 0.48} color={color} />
     </View>
   );
 }

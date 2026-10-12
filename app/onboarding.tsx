@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityField, BodyFields, GoalField, WeightFields, draftErrors, type ProfileDraft } from '../src/components/ProfileFields';
-import { Button, Card, ChipGroup, Row, Screen, Txt } from '../src/components/ui';
+import { Sprout } from '../src/components/Sprout';
+import { Button, Card, ChipGroup, Field, Row, Screen, Txt } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
 import { bmi, dailyKcalGoal, macroGrams } from '../src/lib/nutrition';
 import { buildProfile } from '../src/lib/profile';
@@ -36,6 +36,7 @@ export default function Onboarding() {
     paceKgPerWeek: 0.5,
   });
   const set = (patch: Partial<ProfileDraft>) => setDraft((d) => ({ ...d, ...patch }));
+  const [name, setName] = useState('');
 
   const stepError = (): string | null => {
     const year = new Date().getFullYear();
@@ -54,7 +55,7 @@ export default function Onboarding() {
 
   const finish = () => {
     if (!preview) return;
-    setProfile(preview);
+    setProfile({ ...preview, name: name.trim() || undefined });
     logWeight(dayKey(), preview.startWeightKg);
     router.replace('/');
   };
@@ -68,15 +69,14 @@ export default function Onboarding() {
       </Row>
 
       {step === 0 ? (
-        <View style={{ gap: 16, marginTop: 24 }}>
-          <View style={{ backgroundColor: c.accentSoft, width: 84, height: 84, borderRadius: 26, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="leaf" size={44} color={c.accent} />
-          </View>
-          <Txt v="big">OpenPlate</Txt>
-          <Txt v="h3" style={{ fontWeight: '500' }}>
+        <View style={{ gap: 16, marginTop: 12 }}>
+          <Sprout size={150} />
+          <Txt v="hero">OpenPlate</Txt>
+          <Txt v="h2" style={{ maxWidth: 340 }}>
             {t('welcome_text')}
           </Txt>
-          <Txt v="sub">{t('language')}</Txt>
+          <Field label={t('your_name')} placeholder={t('your_name_ph')} value={name} onChangeText={setName} autoCapitalize="words" maxLength={24} />
+          <Txt v="label">{t('language')}</Txt>
           <ChipGroup<LanguagePref>
             options={[
               { value: 'system', label: t('lang_system') },
@@ -90,14 +90,14 @@ export default function Onboarding() {
       ) : null}
 
       {step === 1 ? (
-        <Card style={{ gap: 14 }}>
+        <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_goal')}</Txt>
           <GoalField draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
       {step === 2 ? (
-        <Card style={{ gap: 14 }}>
+        <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_body')}</Txt>
           <Txt v="sub">{t('q_body_text')}</Txt>
           <BodyFields draft={draft} set={set} t={t} />
@@ -105,21 +105,21 @@ export default function Onboarding() {
       ) : null}
 
       {step === 3 ? (
-        <Card style={{ gap: 14 }}>
+        <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_weight')}</Txt>
           <WeightFields draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
       {step === 4 ? (
-        <Card style={{ gap: 14 }}>
+        <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_activity')}</Txt>
           <ActivityField draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
       {step === 5 && preview && macros ? (
-        <Card style={{ gap: 12, alignItems: 'center' }}>
+        <Card r="xl" style={{ gap: 12, alignItems: 'center', padding: 22 }}>
           <Txt v="title" center>
             {t('your_plan')}
           </Txt>

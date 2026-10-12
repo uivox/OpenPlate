@@ -10,6 +10,7 @@ export function Ring({
   progress,
   color,
   overflowColor,
+  trackColor,
   children,
 }: {
   size: number;
@@ -17,6 +18,7 @@ export function Ring({
   progress: number;
   color: string;
   overflowColor?: string;
+  trackColor?: string;
   children?: React.ReactNode;
 }) {
   const c = useColors();
@@ -27,7 +29,7 @@ export function Ring({
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.ringTrack} strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={trackColor ?? c.ringTrack} strokeWidth={stroke} fill="none" />
         {main > 0 ? (
           <Circle
             cx={size / 2}

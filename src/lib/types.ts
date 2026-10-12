@@ -54,6 +54,8 @@ export interface MacroSplit {
 }
 
 export interface Profile {
+  /** Optional first name for the greeting. */
+  name?: string;
   sex: Sex;
   birthYear: number;
   heightCm: number;

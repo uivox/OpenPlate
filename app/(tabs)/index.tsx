@@ -4,22 +4,23 @@ import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ring } from '../../src/components/Ring';
-import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, Txt } from '../../src/components/ui';
+import { PlateRing } from '../../src/components/PlateRing';
+import { TAB_BAR_SPACE } from '../../src/components/TabBar';
+import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
 import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/dates';
 import { amountText } from '../../src/lib/format';
 import { goalsFor, useNow, useSteps } from '../../src/lib/hooks';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
 import { useStore } from '../../src/lib/store';
-import { useColors } from '../../src/lib/theme';
+import { radius, useColors } from '../../src/lib/theme';
 import { MEALS, type DiaryEntry, type MealType } from '../../src/lib/types';
 import { useT } from '../../src/lib/useT';
 
-const MEAL_ICONS: Record<MealType, React.ComponentProps<typeof Ionicons>['name']> = {
-  breakfast: 'cafe',
-  lunch: 'restaurant',
+const MEAL_ICONS: Record<MealType, IconName> = {
+  breakfast: 'sunny',
+  lunch: 'leaf',
   dinner: 'moon',
-  snack: 'nutrition',
+  snack: 'ice-cream',
 };
 
 export default function DiaryScreen() {
@@ -43,33 +44,56 @@ export default function DiaryScreen() {
   const remaining = Math.round(budget - totals.kcal);
 
   const dateLabel = date === today ? t('today') : date === addDays(today, -1) ? t('yesterday') : formatShortDate(date, lang);
+  const hour = new Date().getHours();
+  const greeting = t(hour < 11 ? 'greet_morning' : hour < 18 ? 'greet_day' : 'greet_evening');
 
   return (
-    <Screen style={{ paddingTop: insets.top + 8 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <IconButton icon="chevron-back" label={t('previous_day')} onPress={() => setDate(addDays(date, -1))} />
-        <Pressable onPress={() => setDate(today)}>
-          <Txt v="h2">{dateLabel}</Txt>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
+      <Row style={{ justifyContent: 'space-between', paddingHorizontal: 4 }}>
+        <View style={{ flex: 1 }}>
+          <Txt v="title" numberOfLines={1}>
+            {profile.name ? `${greeting}, ${profile.name}` : greeting}
+          </Txt>
+        </View>
+      </Row>
+
+      <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
+        <IconButton icon="chevron-back" size={18} label={t('previous_day')} onPress={() => setDate(addDays(date, -1))} color={c.text} />
+        <Pressable onPress={() => setDate(today)} accessibilityRole="button" accessibilityHint={t('today')} style={{ minWidth: 92, alignItems: 'center' }}>
+          <Txt v="h3">{dateLabel}</Txt>
         </Pressable>
         <IconButton
           icon="chevron-forward"
+          size={18}
           label={t('next_day')}
           onPress={() => setDate(addDays(date, 1))}
-          color={date >= today ? c.line : c.accent}
+          color={date >= today ? c.line : c.text}
         />
       </Row>
 
-      <Card style={{ alignItems: 'center', gap: 16 }}>
-        <Row style={{ justifyContent: 'space-between', alignSelf: 'stretch' }}>
+      <Card r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
+        <PlateRing
+          size={236}
+          budget={budget}
+          eatenKcal={totals.kcal}
+          carbsKcal={totals.carbs * 4}
+          proteinKcal={totals.protein * 4}
+          fatKcal={totals.fat * 9}
+        >
+          <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
+            {Math.abs(remaining)}
+          </Txt>
+          <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
+        </PlateRing>
+
+        <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
+          <Stat label={t('goal')} value={goals.kcal} />
+          <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
           <Stat label={t('eaten')} value={Math.round(totals.kcal)} />
-          <Ring size={170} stroke={14} progress={budget > 0 ? totals.kcal / budget : 0} color={c.accent}>
-            <Txt v="big" color={remaining < 0 ? c.coral : c.text}>
-              {Math.abs(remaining)}
-            </Txt>
-            <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
-          </Ring>
+          <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
           <Stat label={t('burned')} value={burned} />
         </Row>
+
         <Row gap={14} style={{ alignSelf: 'stretch' }}>
           <MacroBar label={t('carbs')} value={totals.carbs} goal={goals.macros.carbs} color={c.carbs} />
           <MacroBar label={t('protein')} value={totals.protein} goal={goals.macros.protein} color={c.protein} />
@@ -77,9 +101,10 @@ export default function DiaryScreen() {
         </Row>
       </Card>
 
-      {goals.fastDay ? <Banner icon="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
+      {goals.fastDay ? <Banner icon="leaf" tone="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
       {fastingActive && date === today ? <FastingMini start={fastingActive.start} target={fastingActive.targetHours} /> : null}
 
+      <SectionTitle>{t('meals')}</SectionTitle>
       {MEALS.map((meal) => (
         <MealCard
           key={meal}
@@ -90,24 +115,27 @@ export default function DiaryScreen() {
         />
       ))}
 
+      <SectionTitle>{t('habits')}</SectionTitle>
       <WaterCard date={date} />
 
-      <Card>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Row>
-            <Ionicons name="walk" size={22} color={c.accent} />
+      <Card r="l">
+        <Row gap={12}>
+          <Tile icon="footsteps" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} />
+          <View style={{ flex: 1, gap: 2 }}>
             <Txt v="h3">{t('steps')}</Txt>
-          </Row>
-          <Txt v="sub">{steps === null ? t('steps_unavailable') : `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`}</Txt>
+            <Txt v="sub">
+              {steps === null ? t('steps_unavailable') : `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`}
+            </Txt>
+          </View>
         </Row>
         {steps !== null ? (
           <>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden' }}>
-              <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, backgroundColor: c.accent }} />
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden', marginTop: 4 }}>
+              <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.leaf }} />
             </View>
             <Txt v="small">
               {t('steps_kcal', { kcal: stepKcal })}
-              {profile.addActivityCalories ? '' : ` · ${t('steps_not_added')}`}
+              {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
             </Txt>
           </>
         ) : null}
@@ -118,7 +146,7 @@ export default function DiaryScreen() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <View style={{ alignItems: 'center', width: 70 }}>
+    <View style={{ alignItems: 'center', minWidth: 70 }}>
       <Txt v="h2">{value}</Txt>
       <Txt v="small">{label}</Txt>
     </View>
@@ -129,15 +157,23 @@ function FastingMini({ start, target }: { start: number; target: number }) {
   const now = useNow(1000);
   const { t } = useT();
   const c = useColors();
+  const pct = Math.min(1, (now - start) / (target * 3600000));
   return (
-    <Pressable onPress={() => router.push('/fasting')}>
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Ionicons name="timer" size={24} color={c.accent} />
-        <View style={{ flex: 1 }}>
-          <Txt v="h3">{t('fasting_running')}</Txt>
-          <Txt v="sub">{t('fasting_mini', { elapsed: formatDuration(now - start), target })}</Txt>
+    <Pressable onPress={() => router.push('/fasting')} accessibilityRole="button">
+      <Card tone="night" r="l" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <Ionicons name="moon" size={24} color={c.nightText} />
+        <View style={{ flex: 1, gap: 6 }}>
+          <Txt v="h3" color={c.nightText}>
+            {t('fasting_running')}
+          </Txt>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: '#ffffff22', overflow: 'hidden' }}>
+            <View style={{ width: `${pct * 100}%`, height: 6, borderRadius: 3, backgroundColor: c.nightText }} />
+          </View>
+          <Txt v="small" color={c.nightText}>
+            {t('fasting_mini', { elapsed: formatDuration(now - start), target })}
+          </Txt>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={c.sub} />
+        <Ionicons name="chevron-forward" size={20} color={c.nightText} />
       </Card>
     </Pressable>
   );
@@ -149,52 +185,48 @@ function MealCard({ meal, date, entries, target }: { meal: MealType; date: strin
   const copyMeal = useStore((s) => s.copyMeal);
   const yesterdayHas = useStore((s) => s.entries.some((e) => e.date === addDays(date, -1) && e.meal === meal));
   const total = Math.round(sumEntries(entries).kcal);
+  const add = () => router.push({ pathname: '/add-food', params: { meal, date } });
 
   return (
-    <Card>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row>
-          <View style={{ backgroundColor: c.accentSoft, borderRadius: 999, padding: 8 }}>
-            <Ionicons name={MEAL_ICONS[meal]} size={18} color={c.accent} />
-          </View>
-          <View>
-            <Txt v="h3">{t(`meal_${meal}`)}</Txt>
-            <Txt v="small">
-              {total} / {target} kcal
-            </Txt>
-          </View>
-        </Row>
-        <IconButton
-          icon="add"
-          label={t('add_food')}
-          bg={c.accent}
-          color={c.accentText}
-          size={20}
-          onPress={() => router.push({ pathname: '/add-food', params: { meal, date } })}
-        />
+    <Card r="l" style={{ gap: 4 }}>
+      <Row gap={12}>
+        <Tile icon={MEAL_ICONS[meal]} bg={c.meal[meal].tile} color={c.meal[meal].icon} />
+        <Pressable style={{ flex: 1, gap: 2 }} onPress={add} accessibilityRole="button">
+          <Txt v="h3">{t(`meal_${meal}`)}</Txt>
+          <Txt v="sub">
+            {total} / {target} kcal
+          </Txt>
+        </Pressable>
+        <IconButton icon="add" label={`${t('add_food')}: ${t(`meal_${meal}`)}`} bg={c.accentSoft} color={c.accent} size={22} onPress={add} />
       </Row>
-      {entries.length > 0 ? <Divider /> : null}
-      {entries.map((e) => (
-        <ListRow
-          key={e.id}
-          title={e.food.name}
-          subtitle={amountText(e, t('quick_entry'))}
-          right={<Txt v="sub">{Math.round(entryNutrients(e).kcal)} kcal</Txt>}
-          onPress={() => router.push({ pathname: '/food', params: { entryId: e.id } })}
-        />
+      {entries.length > 0 ? <View style={{ height: 6 }} /> : null}
+      {entries.map((e, i) => (
+        <View key={e.id}>
+          {i > 0 ? <Divider inset={58} /> : null}
+          <View style={{ paddingLeft: 58 }}>
+            <ListRow
+              title={e.food.name}
+              subtitle={amountText(e, t('quick_entry'))}
+              right={<Txt v="label">{Math.round(entryNutrients(e).kcal)} kcal</Txt>}
+              onPress={() => router.push({ pathname: '/food', params: { entryId: e.id } })}
+            />
+          </View>
+        </View>
       ))}
       {entries.length === 0 && yesterdayHas ? (
-        <Button
-          small
-          kind="ghost"
-          icon="copy-outline"
-          title={t('copy_yesterday')}
-          style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
-          onPress={() => {
-            copyMeal(addDays(date, -1), date, meal);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-          }}
-        />
+        <View style={{ paddingLeft: 50 }}>
+          <Button
+            small
+            kind="ghost"
+            icon="copy-outline"
+            title={t('copy_yesterday')}
+            style={{ alignSelf: 'flex-start' }}
+            onPress={() => {
+              copyMeal(addDays(date, -1), date, meal);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            }}
+          />
+        </View>
       ) : null}
     </Card>
   );
@@ -218,27 +250,42 @@ function WaterCard({ date }: { date: string }) {
   };
 
   return (
-    <Card>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row>
-          <Ionicons name="water" size={22} color={c.water} />
+    <Card r="l">
+      <Row gap={12}>
+        <Tile icon="water" bg={`${c.water}22`} color={c.water} />
+        <View style={{ flex: 1, gap: 2 }}>
           <Txt v="h3">{t('water')}</Txt>
-        </Row>
-        <Txt v="sub">
-          {(ml / 1000).toLocaleString(lang, { maximumFractionDigits: 2 })} / {(profile.waterGoalMl / 1000).toLocaleString(lang)} l
-        </Txt>
+          <Txt v="sub">
+            {(ml / 1000).toLocaleString(lang, { maximumFractionDigits: 2 })} / {(profile.waterGoalMl / 1000).toLocaleString(lang)} l
+          </Txt>
+        </View>
+        <IconButton icon="remove" size={18} label={`− ${glass} ml`} border={c.line} color={c.text} onPress={() => ml > 0 && addWater(date, -glass)} />
+        <IconButton icon="add" size={18} label={`+ ${glass} ml`} bg={c.water} color="#fff" onPress={() => addWater(date, glass)} />
       </Row>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
         {Array.from({ length: count }).map((_, i) => (
-          <Pressable key={i} onPress={() => tapGlass(i)} accessibilityLabel={t('glass_n', { n: i + 1 })} hitSlop={4}>
-            <Ionicons name={i < filled ? 'water' : 'water-outline'} size={30} color={i < filled ? c.water : c.line} />
+          <Pressable
+            key={i}
+            onPress={() => tapGlass(i)}
+            accessibilityRole="button"
+            accessibilityLabel={t('glass_n', { n: i + 1 })}
+            hitSlop={4}
+            style={{
+              width: 34,
+              height: 42,
+              borderRadius: radius.s - 2,
+              borderBottomLeftRadius: 14,
+              borderBottomRightRadius: 14,
+              backgroundColor: i < filled ? c.water : c.cardAlt,
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              paddingBottom: 6,
+            }}
+          >
+            <Ionicons name={i < filled ? 'water' : 'add'} size={14} color={i < filled ? '#fff' : c.sub} />
           </Pressable>
         ))}
       </View>
-      <Row>
-        <Button small kind="secondary" icon="remove" title={`${glass} ml`} onPress={() => addWater(date, -glass)} disabled={ml <= 0} />
-        <Button small kind="secondary" icon="add" title={`${glass} ml`} onPress={() => addWater(date, glass)} />
-      </Row>
     </Card>
   );
 }

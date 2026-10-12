@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Switch } from 'react-native';
 import { ActivityField, BodyFields, GoalField, WeightFields, draftErrors, type ProfileDraft } from '../src/components/ProfileFields';
-import { Button, Card, ChipGroup, NumField, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
+import { Button, Card, ChipGroup, Field, NumField, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { MACRO_PRESETS } from '../src/lib/nutrition';
 import { buildProfile, draftFromProfile } from '../src/lib/profile';
 import { useStore } from '../src/lib/store';
@@ -24,6 +24,7 @@ export default function EditProfileScreen() {
   const [glass, setGlass] = useState(profile.glassMl);
   const [stepGoal, setStepGoal] = useState<number | null>(profile.stepGoal);
   const [addActivity, setAddActivity] = useState(profile.addActivityCalories);
+  const [name, setName] = useState(profile.name ?? '');
 
   const error = draftErrors(draft, t) ?? (!water || water < 500 ? t('err_water') : !stepGoal || stepGoal < 1000 ? t('err_steps') : null);
 
@@ -33,6 +34,7 @@ export default function EditProfileScreen() {
     setProfile(
       buildProfile(draft, {
         ...profile,
+        name: name.trim() || undefined,
         macroSplit: split,
         waterGoalMl: Math.round(water!),
         glassMl: glass,
@@ -54,6 +56,7 @@ export default function EditProfileScreen() {
 
       <SectionTitle>{t('body')}</SectionTitle>
       <Card style={{ gap: 14 }}>
+        <Field label={t('your_name')} placeholder={t('your_name_ph')} value={name} onChangeText={setName} autoCapitalize="words" maxLength={24} />
         <BodyFields draft={draft} set={set} t={t} />
         <Txt v="sub">{t('activity')}</Txt>
         <ActivityField draft={draft} set={set} t={t} />
