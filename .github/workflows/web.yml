@@ -1,0 +1,48 @@
+name: Web app
+
+# Builds the browser version (installable on the iPhone home screen) and publishes it on
+# GitHub Pages: https://<owner>.github.io/<repo>/
+# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      WEB_BASE_URL: /${{ github.event.repository.name }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
+      - run: bash scripts/ci-run.sh npx expo install --fix
+      - name: Export web build
+        run: bash scripts/ci-run.sh npx expo export --platform web --output-dir dist
+      - run: node scripts/web-pwa.mjs dist "$WEB_BASE_URL"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

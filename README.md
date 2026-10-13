@@ -1,7 +1,7 @@
 # OpenPlate
 
-A free, open-source calorie tracker for iPhone and Android, built with Expo (React Native).
-German and English, light and dark mode, all data stays on the phone.
+A free, open-source calorie tracker for iPhone, Android and the browser, built with Expo (React Native).
+German and English, light and dark mode, all data stays on your device.
 
 **Features**
 
@@ -15,7 +15,8 @@ German and English, light and dark mode, all data stays on the phone.
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
 - **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only; Android doesn't offer daily step history to apps without Health Connect)
-- **Export** all data as JSON
+- **Export** all data as JSON (the web version can also import it)
+- **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.md).
 
@@ -24,6 +25,20 @@ Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.m
 ## Install on your phone
 
 Every push to `main` builds both apps on GitHub for free (Actions tab → *Build apps*, about 30 minutes) and publishes them under **[Releases](../../releases/latest)**.
+
+### iPhone or any phone, in the browser (no install tools needed)
+
+The web version runs in Safari and can be added to the home screen, where it opens full-screen like an app and works offline.
+
+1. On the iPhone, open **<https://uivox.github.io/OpenPlate/>** in **Safari**.
+2. Tap the **Share** button → **Add to Home Screen** → **Add**.
+3. Open OpenPlate from the home screen icon.
+
+Your data is stored only in that home-screen app on this phone (IndexedDB). It does not sync and is separate from Safari tabs and from the SideStore app. Use *Profile → Export data* now and then as a backup; *Import data* restores an export, including one from the native app.
+
+Differences to the native app: no step counter (browsers can't read it); the fasting notification only fires while the app is open; a local AI server (Ollama / LM Studio) must be reachable over https, because browsers block plain http from an https page. Claude, OpenAI and Gemini work as in the app. API keys are kept in this browser instead of the Keychain.
+
+Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a few minutes). One-time setup in the repository: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
 
 ### Android
 
@@ -64,7 +79,7 @@ npx expo install --fix
 npx expo start
 ```
 
-Scan the QR code with the phone camera. The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
+Scan the QR code with the phone camera. `npm run web` opens the web version on the PC; `npm run build:web` writes the installable build to `dist/` (set `WEB_BASE_URL=/OpenPlate` when it is served from a sub-folder). The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
 
 ## Set up the AI photo feature
 
@@ -114,7 +129,11 @@ src/lib/
   genericFoods.ts       built-in basic foods
   fasting.ts            plans and phases
   i18n.ts               German and English texts
-  store.ts              persisted state (zustand + AsyncStorage)
+  store.ts              persisted state (zustand + AsyncStorage; IndexedDB on the web)
+  backup.ts             export / import format
+  *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
+public/icons/           home-screen icons for the web version
+scripts/web-pwa.mjs     turns the web export into an installable, offline web app
 tests/logic.test.ts     tests for the logic modules (npm test)
 ```
 

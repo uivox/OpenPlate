@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ring } from '../../src/components/Ring';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Chip, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
+import { showAlert } from '../../src/lib/alert';
 import { dayKey, formatDuration, formatShortDate, formatTime, locale, weekdayOf } from '../../src/lib/dates';
 import { cancelNotification, scheduleAt } from '../../src/lib/device';
 import { completedFasts, FASTING_PLANS, longestFastHours, planById, sessionHours, stageFor } from '../../src/lib/fasting';
@@ -53,7 +54,7 @@ export default function FastingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     };
     if (sessionHours(active, now) < active.targetHours) {
-      Alert.alert(t('end_early_q'), t('end_early_text'), [
+      showAlert(t('end_early_q'), t('end_early_text'), [
         { text: t('cancel'), style: 'cancel' },
         { text: t('end_fast'), style: 'destructive', onPress: done },
       ]);
@@ -94,7 +95,7 @@ export default function FastingScreen() {
             selected={p.id === plan.id}
             onPress={() => {
               if (active) {
-                Alert.alert(t('plan_locked'), t('plan_locked_text'));
+                showAlert(t('plan_locked'), t('plan_locked_text'));
                 return;
               }
               updateProfile({ fastingPlanId: p.id });
@@ -219,7 +220,7 @@ export default function FastingScreen() {
                     subtitle={`${formatDuration(hours * 3600000)} / ${s.targetHours} h`}
                     right={<Ionicons name={reached ? 'checkmark-circle' : 'close-circle-outline'} size={22} color={reached ? c.accent : c.sub} />}
                     onLongPress={() =>
-                      Alert.alert(t('delete_fast_q'), undefined, [
+                      showAlert(t('delete_fast_q'), undefined, [
                         { text: t('cancel'), style: 'cancel' },
                         { text: t('delete'), style: 'destructive', onPress: () => removeFast(s.id) },
                       ])

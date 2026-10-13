@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarChart, LineChart } from '../../src/components/charts';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Button, Card, ChipGroup, NumField, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
+import { showAlert } from '../../src/lib/alert';
 import { addDays, dayKey, lastNDays, locale, parseDayKey } from '../../src/lib/dates';
 import { goalsFor } from '../../src/lib/hooks';
 import { bmi, bmiCategory, sumEntries } from '../../src/lib/nutrition';
@@ -107,7 +108,7 @@ export default function ProgressScreen() {
             title={t('remove_today_weight')}
             style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
             onPress={() =>
-              Alert.alert(t('remove_today_weight'), undefined, [
+              showAlert(t('remove_today_weight'), undefined, [
                 { text: t('cancel'), style: 'cancel' },
                 { text: t('delete'), style: 'destructive', onPress: () => removeWeight(today) },
               ])

@@ -73,6 +73,15 @@
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#EEF2E5"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./public/icons/favicon-32.png",
+      "name": "OpenPlate",
+      "shortName": "OpenPlate",
+      "themeColor": "#EEF2E5",
+      "backgroundColor": "#EEF2E5"
     }
   }
 }

@@ -27,6 +27,8 @@ export interface Colors {
   nightSoft: string;
   nightText: string;
   leaf: string;
+  /** Dimmed backdrop behind dialogs. */
+  scrim: string;
   meal: Record<MealType, { tile: string; icon: string }>;
 }
 
@@ -51,6 +53,7 @@ const light: Colors = {
   nightSoft: '#E3E2F5',
   nightText: '#F3F1FF',
   leaf: '#5E9A3B',
+  scrim: 'rgba(42, 30, 51, 0.45)',
   meal: {
     breakfast: { tile: '#FCEBC4', icon: '#A86A00' },
     lunch: { tile: '#DDEBCF', icon: '#3F7A22' },
@@ -80,6 +83,7 @@ const dark: Colors = {
   nightSoft: '#2A2747',
   nightText: '#F3F1FF',
   leaf: '#8CC46A',
+  scrim: 'rgba(0, 0, 0, 0.6)',
   meal: {
     breakfast: { tile: '#3D3020', icon: '#F2B947' },
     lunch: { tile: '#26331F', icon: '#8CC46A' },
