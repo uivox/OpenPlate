@@ -5,17 +5,17 @@ name: Web app
 # One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
 on:
   push:
-    branches: [main, web-app]
+    branches: [main]
     paths-ignore: ['**.md', 'docs/**']
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
 concurrency:
-  group: web-${{ github.ref }}
+  group: web-pages
   cancel-in-progress: true
 
 jobs:
@@ -28,35 +28,16 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: mkdir -p _logs
-      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund 2>&1 | tee _logs/install.txt
-      - run: bash scripts/ci-run.sh npx expo install --fix 2>&1 | tee _logs/fix.txt
-      - name: Type check and tests (logged, not blocking)
-        continue-on-error: true
-        run: |
-          npx tsc --noEmit > _logs/tsc.txt 2>&1; echo "exit $?" >> _logs/tsc.txt
-          npm test > _logs/test.txt 2>&1; echo "exit $?" >> _logs/test.txt
+      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
+      - run: bash scripts/ci-run.sh npx expo install --fix
       - name: Export web build
-        run: bash scripts/ci-run.sh npx expo export --platform web --output-dir dist 2>&1 | tee _logs/export.txt
-      - run: node scripts/web-pwa.mjs dist "$WEB_BASE_URL" 2>&1 | tee _logs/pwa.txt
-      - if: github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v3
+        run: bash scripts/ci-run.sh npx expo export --platform web --output-dir dist
+      - run: node scripts/web-pwa.mjs dist "$WEB_BASE_URL"
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-      # Development preview: the build and logs go to the web-preview branch.
-      - name: Push preview
-        if: always() && github.ref != 'refs/heads/main'
-        run: |
-          mkdir -p /tmp/preview && cp -r _logs /tmp/preview/ && { [ -d dist ] && cp -r dist /tmp/preview/ || true; }
-          cd /tmp/preview
-          git init -q -b web-preview
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A && git commit -qm "Web preview of ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" web-preview
 
   deploy:
-    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

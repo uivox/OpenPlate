@@ -5,7 +5,8 @@ name: Build apps
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**']
+    # Web-only files don't change the apps, so they don't trigger a release.
+    paths-ignore: ['**.md', 'docs/**', 'public/**', '**/*.web.ts', '**/*.web.tsx', 'scripts/web-pwa.mjs', '.github/workflows/web.yml']
   workflow_dispatch:
 
 permissions:
