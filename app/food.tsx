@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Image, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
+import { showAlert } from '../src/lib/alert';
 import { dayKey } from '../src/lib/dates';
 import { getFood } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
@@ -77,7 +78,7 @@ export default function FoodScreen() {
   };
 
   const remove = () =>
-    Alert.alert(t('delete_entry_q'), food.name, [
+    showAlert(t('delete_entry_q'), food.name, [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete'),

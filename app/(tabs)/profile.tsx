@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { Alert, Share, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { PROVIDER_NAMES } from '../../src/lib/ai';
+import { showAlert } from '../../src/lib/alert';
+import { buildBackup, parseBackup } from '../../src/lib/backup';
 import { dayKey } from '../../src/lib/dates';
+import { canPickFiles, pickTextFile, shareExport } from '../../src/lib/device';
 import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
 import { clearAllKeys } from '../../src/lib/secure';
@@ -26,13 +29,41 @@ export default function ProfileScreen() {
   const chevron = <Ionicons name="chevron-forward" size={18} color={c.sub} />;
 
   const exportData = async () => {
-    const { profile: p, entries, customFoods, water, weights, fastingHistory, ai, language } = useStore.getState();
-    const data = { app: 'OpenPlate', exportedAt: new Date().toISOString(), profile: p, language, entries, customFoods, water, weights, fastingHistory, ai };
-    await Share.share({ message: JSON.stringify(data, null, 2), title: 'openplate-export.json' });
+    const { profile: p, language, entries, customFoods, recentFoods, water, weights, fastingActive, fastingHistory, ai } = useStore.getState();
+    const data = buildBackup({ profile: p, language, entries, customFoods, recentFoods, water, weights, fastingActive, fastingHistory, ai });
+    await shareExport(JSON.stringify(data, null, 2), `openplate-export-${dayKey()}.json`);
+  };
+
+  const importData = async () => {
+    const text = await pickTextFile();
+    if (!text) return;
+    const data = (() => {
+      try {
+        return parseBackup(text);
+      } catch {
+        return null;
+      }
+    })();
+    if (!data) {
+      showAlert(t('import_invalid'));
+      return;
+    }
+    showAlert(t('import_q'), t('import_text', { n: data.entries.length }), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('import_replace'),
+        style: 'destructive',
+        onPress: () => {
+          useStore.getState().importBackup(data);
+          if (!data.profile) router.replace('/onboarding');
+          else showAlert(t('import_done'));
+        },
+      },
+    ]);
   };
 
   const resetAll = () =>
-    Alert.alert(t('delete_all_q'), t('delete_all_text'), [
+    showAlert(t('delete_all_q'), t('delete_all_text'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete_all'),
@@ -98,7 +129,7 @@ export default function ProfileScreen() {
                   title={f.name}
                   subtitle={foodSubtitle(f)}
                   onLongPress={() =>
-                    Alert.alert(t('delete_food_q'), f.name, [
+                    showAlert(t('delete_food_q'), f.name, [
                       { text: t('cancel'), style: 'cancel' },
                       { text: t('delete'), style: 'destructive', onPress: () => state.removeCustomFood(f.id) },
                     ])
@@ -115,8 +146,15 @@ export default function ProfileScreen() {
       <Card>
         <ListRow icon="share-outline" title={t('export_data')} subtitle={t('export_data_sub')} onPress={exportData} />
         <Divider />
+        {canPickFiles ? (
+          <>
+            <ListRow icon="download-outline" title={t('import_data')} subtitle={t('import_data_sub')} onPress={importData} />
+            <Divider />
+          </>
+        ) : null}
         <ListRow icon="trash-outline" title={t('delete_all')} onPress={resetAll} />
       </Card>
+      {Platform.OS === 'web' ? <Txt v="small">{t('web_data_note')}</Txt> : null}
 
       <SectionTitle>{t('about')}</SectionTitle>
       <Card>

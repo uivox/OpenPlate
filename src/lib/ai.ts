@@ -139,7 +139,13 @@ export async function callProvider(req: ProviderRequest, fetchImpl: FetchLike = 
 
     if (provider === 'anthropic') {
       url = 'https://api.anthropic.com/v1/messages';
-      headers = { ...headers, 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01' };
+      // The extra header lets the web version call the API straight from the browser (CORS); harmless in the app.
+      headers = {
+        ...headers,
+        'x-api-key': apiKey ?? '',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      };
       const content: unknown[] = [];
       if (imageBase64) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } });
       content.push({ type: 'text', text: prompt });

@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeMeal, buildMealPrompt, callProvider, parseMealJson, providerOrder, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
+import { buildBackup, parseBackup } from '../src/lib/backup';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
@@ -233,4 +234,42 @@ test('provider requests are shaped correctly', async () => {
   await assert.rejects(callProvider({ ...base, provider: 'openai', config: { model: 'm' }, apiKey: null }), /No API key/);
   const err = async () => new Response(JSON.stringify({ error: { message: 'invalid key' } }), { status: 401 });
   await assert.rejects(callProvider({ ...base, provider: 'openai', config: { model: 'm' }, apiKey: 'x' }, err), /HTTP 401: invalid key/);
+});
+
+test('backup round-trips and drops invalid rows', () => {
+  const food = { id: 'g:apple', source: 'generic' as const, name: 'Apple', per100: { kcal: 52, protein: 0.3, carbs: 14, fat: 0.2 }, servings: [] };
+  const data = {
+    profile,
+    language: 'de' as const,
+    entries: [{ id: 'e1', date: '2026-10-01', meal: 'lunch' as const, food, grams: 150, createdAt: 1 }],
+    customFoods: [food],
+    recentFoods: [],
+    water: { '2026-10-01': 500 },
+    weights: [{ date: '2026-10-02', kg: 71.5 }, { date: '2026-10-01', kg: 72 }],
+    fastingActive: { id: 'f1', start: 10, targetHours: 16, planId: '16:8', notificationId: 'n1' },
+    fastingHistory: [],
+    ai: DEFAULT_AI_SETTINGS,
+  };
+  const json = JSON.stringify(buildBackup(data, new Date(0)));
+  const back = parseBackup(json);
+  assert.equal(back.language, 'de');
+  assert.equal(back.entries.length, 1);
+  assert.equal(back.profile?.heightCm, 168);
+  assert.deepEqual(back.weights.map((w) => w.date), ['2026-10-01', '2026-10-02']);
+  assert.equal(back.fastingActive?.notificationId, undefined);
+  assert.equal(back.water['2026-10-01'], 500);
+
+  const messy = JSON.parse(json);
+  messy.entries.push({ id: 'bad', date: '01.10.2026', meal: 'lunch', food, grams: 1 }, null, { id: 'x' });
+  messy.water.nope = 'a';
+  messy.language = 'fr';
+  delete messy.recentFoods;
+  const cleaned = parseBackup(messy && JSON.stringify(messy));
+  assert.equal(cleaned.entries.length, 1);
+  assert.deepEqual(Object.keys(cleaned.water), ['2026-10-01']);
+  assert.equal(cleaned.language, 'system');
+  assert.deepEqual(cleaned.recentFoods, []);
+
+  assert.throws(() => parseBackup('not json'), /INVALID_BACKUP/);
+  assert.throws(() => parseBackup('{"app":"Other"}'), /INVALID_BACKUP/);
 });

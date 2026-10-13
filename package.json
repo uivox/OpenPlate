@@ -2,7 +2,7 @@
   "name": "openplate",
   "version": "1.0.0",
   "private": true,
-  "description": "Free, open-source calorie tracker for iPhone with AI photo logging, barcode scanner, fasting timer, water, weight and steps.",
+  "description": "Free, open-source calorie tracker for iPhone and the web with AI photo logging, barcode scanner, fasting timer, water, weight and steps.",
   "license": "MIT",
   "main": "expo-router/entry",
   "scripts": {
@@ -10,13 +10,18 @@
     "tunnel": "expo start --tunnel",
     "check": "tsc --noEmit",
     "fix-deps": "expo install --fix",
-    "test": "tsc -p tests/tsconfig.json && node --test .test-build/tests/logic.test.js"
+    "test": "tsc -p tests/tsconfig.json && node --test .test-build/tests/logic.test.js",
+    "web": "expo start --web",
+    "build:web": "expo export --platform web && node scripts/web-pwa.mjs dist"
   },
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.0",
     "@expo-google-fonts/figtree": "^0.4.0",
+    "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "expo": "~54.0.0",
     "expo-build-properties": "~1.0.10",
     "expo-camera": "~17.0.0",
@@ -33,10 +38,12 @@
     "expo-sensors": "~15.0.0",
     "expo-status-bar": "~3.0.0",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.4",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

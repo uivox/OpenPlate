@@ -9,7 +9,9 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
+import { DialogHost } from '../src/components/DialogHost';
 import { setupNotifications } from '../src/lib/device';
+import { requestPersistentStorage } from '../src/lib/storage';
 import { useHydrated } from '../src/lib/store';
 import { fonts, useColors } from '../src/lib/theme';
 import { useT } from '../src/lib/useT';
@@ -29,6 +31,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     setupNotifications();
+    requestPersistentStorage();
   }, []);
 
   // If fonts fail to load the app still works with system fonts.
@@ -57,6 +60,7 @@ export default function RootLayout() {
         <Stack.Screen name="ai-settings" options={{ title: t('ai_settings') }} />
         <Stack.Screen name="edit-profile" options={{ title: t('edit_profile') }} />
       </Stack>
+      <DialogHost />
     </>
   );
 }

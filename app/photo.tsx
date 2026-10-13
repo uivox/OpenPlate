@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, TextInput, View } from 'react-native';
 import { Sprout } from '../src/components/Sprout';
 import { Banner, Button, Card, ChipGroup, Divider, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
+import { showAlert } from '../src/lib/alert';
 import { analyzeMeal, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
 import { dayKey } from '../src/lib/dates';
 import { pickMealPhoto, type PreparedPhoto } from '../src/lib/device';
@@ -68,7 +69,7 @@ export default function PhotoScreen() {
       await run(p);
     } catch (e) {
       const msg = (e as Error).message;
-      Alert.alert(t('error'), msg === 'CAMERA_DENIED' ? t('camera_needed_text') : msg);
+      showAlert(t('error'), msg === 'CAMERA_DENIED' ? t('camera_needed_text') : msg);
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { Banner, Button, Card, ChipGroup, Field, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { DEFAULT_AI_SETTINGS, KEY_OPTIONAL, PROVIDER_NAMES, testProvider } from '../src/lib/ai';
 import { getApiKey, setApiKey } from '../src/lib/secure';
@@ -25,7 +25,7 @@ export default function AISettingsScreen() {
   return (
     <Screen>
       <Txt v="sub">{t('ai_settings_intro')}</Txt>
-      <Banner icon="lock-closed" text={t('ai_privacy')} />
+      <Banner icon="lock-closed" text={t(Platform.OS === 'web' ? 'ai_privacy_web' : 'ai_privacy')} />
 
       <Card style={{ gap: 12 }}>
         <Txt v="h3">{t('ai_primary')}</Txt>
@@ -141,7 +141,11 @@ function ProviderCard({ provider, t }: { provider: AIProviderId; t: TFn }) {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            hint={provider === 'local' ? t('server_url_hint') : undefined}
+            hint={
+              provider === 'local'
+                ? [t('server_url_hint'), Platform.OS === 'web' ? t('server_url_web_note') : ''].filter(Boolean).join('\n')
+                : undefined
+            }
           />
         ) : null}
         <Button kind="secondary" small icon="pulse" title={t('test_connection')} onPress={test} loading={testing} />

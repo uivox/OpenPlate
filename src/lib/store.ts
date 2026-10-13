@@ -1,9 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS } from './ai';
+import type { BackupData } from './backup';
 import { newId } from './id';
+import { appStorage } from './storage';
 import type {
   AIProviderConfig,
   AIProviderId,
@@ -50,6 +51,8 @@ interface State {
   setAI: (patch: Partial<AISettings>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
   resetAll: () => void;
+  /** Replaces all data with an imported backup (see backup.ts). */
+  importBackup: (d: BackupData) => void;
 }
 
 const initial = {
@@ -119,11 +122,21 @@ export const useStore = create<State>()(
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
 
       resetAll: () => set({ ...initial }),
+      importBackup: (d) =>
+        set({
+          ...initial,
+          ...d,
+          ai: {
+            ...DEFAULT_AI_SETTINGS,
+            ...(d.ai ?? {}),
+            providers: { ...DEFAULT_AI_SETTINGS.providers, ...(d.ai?.providers ?? {}) },
+          },
+        }),
     }),
     {
       name: 'openplate-v1',
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => appStorage),
       partialize: (s) => ({
         profile: s.profile,
         language: s.language,

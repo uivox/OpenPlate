@@ -2,6 +2,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
+import { Share } from 'react-native';
 import { endOfDay, startOfDay } from './dates';
 
 /* ---------- Photos ---------- */
@@ -27,6 +28,20 @@ export async function pickMealPhoto(source: 'camera' | 'library'): Promise<Prepa
   const out = await image.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
   if (!out.base64) throw new Error('Could not read the photo.');
   return { uri: out.uri, base64: out.base64 };
+}
+
+/* ---------- Data files ---------- */
+
+/** Picking a backup file needs a document picker; only the web build has one (device.web.ts). */
+export const canPickFiles = false;
+
+export async function pickTextFile(): Promise<string | null> {
+  return null;
+}
+
+/** Hands the exported JSON to the share sheet. */
+export async function shareExport(json: string, filename: string): Promise<void> {
+  await Share.share({ message: json, title: filename });
 }
 
 /* ---------- Notifications ---------- */
