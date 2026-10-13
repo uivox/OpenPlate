@@ -3,14 +3,15 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { importBackupFlow } from '../../src/components/importBackup';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { PROVIDER_NAMES } from '../../src/lib/ai';
 import { showAlert } from '../../src/lib/alert';
-import { buildBackup, parseBackup } from '../../src/lib/backup';
+import { buildBackup } from '../../src/lib/backup';
 import { dayKey } from '../../src/lib/dates';
-import { canPickFiles, pickTextFile, shareExport } from '../../src/lib/device';
+import { canPickFiles, shareExport } from '../../src/lib/device';
 import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
 import { clearAllKeys } from '../../src/lib/secure';
@@ -34,33 +35,7 @@ export default function ProfileScreen() {
     await shareExport(JSON.stringify(data, null, 2), `openplate-export-${dayKey()}.json`);
   };
 
-  const importData = async () => {
-    const text = await pickTextFile();
-    if (!text) return;
-    const data = (() => {
-      try {
-        return parseBackup(text);
-      } catch {
-        return null;
-      }
-    })();
-    if (!data) {
-      showAlert(t('import_invalid'));
-      return;
-    }
-    showAlert(t('import_q'), t('import_text', { n: data.entries.length }), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('import_replace'),
-        style: 'destructive',
-        onPress: () => {
-          useStore.getState().importBackup(data);
-          if (!data.profile) router.replace('/onboarding');
-          else showAlert(t('import_done'));
-        },
-      },
-    ]);
-  };
+  const importData = () => importBackupFlow(t);
 
   const resetAll = () =>
     showAlert(t('delete_all_q'), t('delete_all_text'), [

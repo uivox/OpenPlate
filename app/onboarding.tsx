@@ -2,10 +2,12 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { importBackupFlow } from '../src/components/importBackup';
 import { ActivityField, BodyFields, GoalField, WeightFields, draftErrors, type ProfileDraft } from '../src/components/ProfileFields';
 import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Field, Row, Screen, Txt } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
+import { canPickFiles } from '../src/lib/device';
 import { bmi, dailyKcalGoal, macroGrams } from '../src/lib/nutrition';
 import { buildProfile } from '../src/lib/profile';
 import { useStore } from '../src/lib/store';
@@ -86,6 +88,16 @@ export default function Onboarding() {
             value={language}
             onChange={setLanguage}
           />
+          {canPickFiles ? (
+            <Button
+              small
+              kind="ghost"
+              icon="download-outline"
+              title={t('import_existing')}
+              onPress={() => importBackupFlow(t)}
+              style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
+            />
+          ) : null}
         </View>
       ) : null}
 
