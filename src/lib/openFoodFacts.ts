@@ -84,7 +84,9 @@ async function getJson(url: string, timeoutMs = 12000): Promise<Json> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: ctrl.signal });
+    // Browsers don't let pages set User-Agent (or turn it into a CORS preflight), so the web version sends only Accept.
+    const headers: Record<string, string> = typeof document === 'undefined' ? { 'User-Agent': USER_AGENT, Accept: 'application/json' } : { Accept: 'application/json' };
+    const res = await fetch(url, { headers, signal: ctrl.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as Json;
   } finally {

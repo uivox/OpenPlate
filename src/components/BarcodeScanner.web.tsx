@@ -1,9 +1,10 @@
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { Stack } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { space, useColors } from '../lib/theme';
+import { fonts, space, useColors } from '../lib/theme';
 import { useT } from '../lib/useT';
 import type { BarcodeScannerProps } from './BarcodeScanner';
 import { Button, Field, Row, Screen, Txt } from './ui';
@@ -72,6 +73,8 @@ export function BarcodeScanner({ onScan, paused, children }: BarcodeScannerProps
       />
       {camera === 'off' ? (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: c.bg }]}>
+          {/* Without the camera picture the white header would vanish on the light background. */}
+          <Stack.Screen options={{ headerTintColor: c.accent, headerTitleStyle: { color: c.text, fontFamily: fonts.display } }} />
           <Screen style={{ paddingTop: insets.top + 64 }}>
             <Txt v="h2">{t('camera_needed')}</Txt>
             <Txt v="sub">{t('camera_needed_web')}</Txt>
