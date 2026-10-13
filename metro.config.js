@@ -8,7 +8,8 @@ const upstream = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const resolve = upstream ?? context.resolveRequest;
   if (platform === 'web' && (moduleName === 'zustand' || moduleName.startsWith('zustand/'))) {
-    return resolve({ ...context, unstable_conditionNames: ['browser', 'require', 'default'] }, moduleName, platform);
+    // Node resolves with the "require" condition, which picks zustand's CommonJS files.
+    return { type: 'sourceFile', filePath: require.resolve(moduleName, { paths: [__dirname] }) };
   }
   return resolve(context, moduleName, platform);
 };
