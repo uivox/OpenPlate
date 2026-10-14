@@ -10,7 +10,10 @@ German and English, light and dark mode, all data stays on your device.
 - **Barcode scanner** (EAN-13/8, UPC) with Open Food Facts lookup; unknown products can be created on the spot
 - **AI photo logging** with *your own* AI: Claude, OpenAI, Google Gemini (free tier), or a model running on your own PC via Ollama / LM Studio. Primary + fallback provider; the fallback is asked when the first fails or is unsure, and the more confident answer wins. Every item and portion can be corrected before saving.
 - **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**
-- **Personal plan** from a short onboarding (Mifflin-St Jeor + activity level + weekly pace), four macro presets
+- **My meals**: save the foods you always eat together (e.g. your breakfast) and log them with one tap, at any portion size. Build them from search, recent foods and the barcode scanner, or save a meal straight from the diary.
+- **Personal plan** from a short onboarding (Mifflin-St Jeor + activity level + weekly pace). Or set it exactly: your own daily kcal, any weekly pace (e.g. +0.4 kg), your own activity factor or maintenance calories, macros as presets, custom percentages or grams.
+- **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and whether you hit your goal (±5 %; when losing anything below counts, when gaining anything above)
+- **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
@@ -121,10 +124,18 @@ app/                    screens (expo-router, file-based)
   scan.tsx              barcode scanner
   photo.tsx             AI photo flow
   custom-food.tsx       create food / quick add
+  meal.tsx, meal-edit.tsx  saved meals: log / build
+  streak.tsx            streak and calendar
+  appearance.tsx        themes, colours, animations
+  layout-settings.tsx   tab and diary order
   ai-settings.tsx       bring-your-own-AI setup
 src/lib/
   ai.ts                 providers, prompt, JSON parsing, fallback logic
   nutrition.ts          BMR/TDEE, goals, macros
+  goals.ts              the goal for a given day (weight on that day, fasting days)
+  streaks.ts            streaks, goal-hit days, calendar grid
+  meals.ts              saved meals
+  themes.ts, layout.ts  colour themes and tab/diary layout
   openFoodFacts.ts      barcode lookup and search
   genericFoods.ts       built-in basic foods
   fasting.ts            plans and phases
@@ -137,7 +148,7 @@ scripts/web-pwa.mjs     turns the web export into an installable, offline web ap
 tests/logic.test.ts     tests for the logic modules (npm test)
 ```
 
-Checks: `npm run check` (TypeScript) and `npm test` (logic tests).
+Checks: `npm run check` (TypeScript) and `npm test` (logic tests). Pull requests and branches also run `.github/workflows/check.yml`: type check, tests, a web build and `scripts/web-smoke.mjs`, which clicks through the web app in a headless browser (light and dark). It never publishes anything.
 
 ## Not included yet
 
