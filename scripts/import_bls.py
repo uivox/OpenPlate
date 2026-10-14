@@ -115,7 +115,7 @@ def main(path, out='src/lib/blsData.ts'):
         row = [code, de, en or de]
         for k in ORDER:
             x = v.get(k)
-            row.append(None if x is None else round(x, 1 if k == 'kcal' else 2))
+            row.append(None if x is None else (round(x) if k == 'kcal' else round(x, 1)))
         # trailing missing optional values can go
         while row[-1] is None:
             row.pop()

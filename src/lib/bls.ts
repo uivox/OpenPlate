@@ -30,7 +30,7 @@ export function blsFood(row: BlsRow, lang: 'de' | 'en'): Food {
 
 interface Indexed {
   row: BlsRow;
-  names: { full: string; head: string; words: string[] }[];
+  names: { full: string; head: string; words: string[]; joined: string }[];
 }
 let index: Indexed[] | null = null;
 
@@ -41,7 +41,8 @@ function getIndex(rows: BlsRow[]): Indexed[] {
     row,
     names: [row[1], row[2]].filter(Boolean).map((name) => {
       const full = fold(name);
-      return { full, head: full.split(',')[0].trim(), words: full.split(/[\s,()/-]+/).filter(Boolean) };
+      // "joined" lets "haferflocken" find "Hafer Flocken" (BLS often splits compound words)
+      return { full, head: full.split(',')[0].trim(), words: full.split(/[\s,()/-]+/).filter(Boolean), joined: full.replace(/[\s,()/-]+/g, '') };
     }),
   }));
   if (rows === BLS_ROWS) index = built;
@@ -49,6 +50,25 @@ function getIndex(rows: BlsRow[]): Indexed[] {
 }
 
 export const BLS_COUNT = BLS_ROWS.length;
+
+/** Everyday words → the wording the BLS uses (both are accepted). */
+const SYNONYMS: Record<string, string[]> = {
+  nudeln: ['teigwaren'],
+  nudel: ['teigwaren'],
+  pasta: ['teigwaren'],
+  spaghetti: ['teigwaren'],
+  gekocht: ['gegart'],
+  gebraten: ['gegart'],
+  hahnchen: ['huhn', 'brathuhn'],
+  hackfleisch: ['hack'],
+  kartoffeln: ['kartoffel'],
+  eier: ['huhnerei'],
+  ei: ['huhnerei'],
+  semmel: ['brotchen'],
+  schrippe: ['brotchen'],
+  quark: ['speisequark'],
+  cooked: ['boiled'],
+};
 
 /**
  * Finds BLS foods in German and English names. Every word of the query must start a word of the
@@ -59,17 +79,39 @@ export function searchBLS(query: string, lang: 'de' | 'en', limit = 12, rows: Bl
   const q = fold(query.trim());
   if (q.length < 2) return [];
   const qWords = q.split(/[\s,]+/).filter(Boolean);
+  // the query as typed plus the same query in BLS wording ("nudeln gekocht" → "teigwaren gegart")
+  const phrases = [qWords];
+  const alt = qWords.map((w) => SYNONYMS[w]?.[0] ?? w);
+  if (alt.join(' ') !== qWords.join(' ')) phrases.push(alt);
+  const variants = qWords.map((w) => [w, ...(SYNONYMS[w] ?? [])]);
+
   const hits: { row: BlsRow; score: number; len: number }[] = [];
   for (const item of getIndex(rows)) {
     let best = -1;
     let len = Infinity;
-    for (const nm of item.names) {
-      if (!qWords.every((w) => nm.words.some((x) => x.startsWith(w)))) continue;
+    for (const [ni, nm] of item.names.entries()) {
+      const byWords = variants.every((vs) => nm.words.some((x) => vs.some((w) => x.startsWith(w))));
+      const byJoined = !byWords && qWords.length === 1 && q.length >= 4 && nm.joined.startsWith(q);
+      if (!byWords && !byJoined) continue;
       let s = 1;
-      if (nm.head === q) s = 4;
-      else if (nm.head.startsWith(q)) s = 3;
-      else if (nm.full.startsWith(q)) s = 2.5;
-      else if (nm.words[0]?.startsWith(qWords[0])) s = 2;
+      if (byJoined) {
+        s = nm.head.replace(/[\s()/-]+/g, '') === q ? 4.2 : 2.2;
+      } else {
+        for (const [pi, words] of phrases.entries()) {
+          const p = words.join(' ');
+          let t = 1;
+          if (nm.head === p) t = 4;
+          else if (nm.head.startsWith(p)) t = 3;
+          else if (nm.full.startsWith(p)) t = 2.5;
+          else if (nm.words[0]?.startsWith(words[0])) t = 2;
+          // the main word itself ("apfel roh") beats compounds ("apfelmus")
+          // (a bit more when it's the BLS wording of a synonym: "quark" → "Speisequark …")
+          if (nm.words[0] === words[0]) t += pi > 0 ? 0.9 : 0.6;
+          s = Math.max(s, t);
+        }
+      }
+      // names in the other language still match ("apple" in German), but rank below own-language ones
+      if ((ni === 0) !== (lang === 'de')) s -= 1.2;
       if (s > best || (s === best && nm.full.length < len)) {
         best = s;
         len = nm.full.length;

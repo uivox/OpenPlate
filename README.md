@@ -6,7 +6,7 @@ German and English, light and dark mode, all data stays on your device.
 **Features**
 
 - **Food diary** with breakfast, lunch, dinner and snacks, calorie ring, macro bars and per-meal targets
-- **Food search**: ~100 built-in basics (German and English names) plus millions of packaged products from [Open Food Facts](https://world.openfoodfacts.org)
+- **Food search**: ~100 built-in basics, the complete **German nutrient database BLS 4.0** (7,140 foods and dishes in German and English, works offline) and millions of packaged products from [Open Food Facts](https://world.openfoodfacts.org). Products sold in Germany come first; start with a supermarket ("Lidl Skyr", "Aldi Joghurt") to see its products and house brands first.
 - **Barcode scanner** (EAN-13/8, UPC) with Open Food Facts lookup; unknown products can be created on the spot
 - **AI photo logging** with *your own* AI: Claude, OpenAI, Google Gemini (free tier), or a model running on your own PC via Ollama / LM Studio. Primary + fallback provider; the fallback is asked when the first fails or is unsure, and the more confident answer wins. Every item and portion can be corrected before saving.
 - **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**
@@ -138,6 +138,7 @@ src/lib/
   themes.ts, layout.ts  colour themes and tab/diary layout
   openFoodFacts.ts      barcode lookup and search
   genericFoods.ts       built-in basic foods
+  bls.ts, blsData.ts    German nutrient database (BLS 4.0) search and data
   fasting.ts            plans and phases
   i18n.ts               German and English texts
   store.ts              persisted state (zustand + AsyncStorage; IndexedDB on the web)
@@ -163,5 +164,6 @@ On the list for later:
 - Code: MIT, see `LICENSE`.
 - Product data: © Open Food Facts contributors, [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/). The app shows this attribution wherever their data appears.
 - Built-in basic foods: approximate averages compiled from public references such as USDA FoodData Central.
+- Bundeslebensmittelschlüssel (BLS) 4.0: Max Rubner-Institut, Karlsruhe, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), <https://doi.org/10.25826/Data20251217-134202-0>. Bundled as `src/lib/blsData.ts` (energy, macros, fibre, sugar, saturated fat, salt), generated with `python3 scripts/import_bls.py BLS_4_0_Daten_2025_DE.xlsx` from the download at <https://blsdb.de>.
 
 OpenPlate is an independent project and is not affiliated with any commercial nutrition app. It is not medical advice.
