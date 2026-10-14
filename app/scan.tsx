@@ -15,7 +15,7 @@ export default function ScanScreen() {
   const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
   const meal = params.meal ?? 'snack';
   const date = params.date ?? dayKey();
-  const pick = params.pick === '1' ? { pick: '1' } : {};
+  const pick = params.pick ? { pick: params.pick } : {};
   const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);

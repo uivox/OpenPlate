@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
+import { RecipeCard } from '../src/components/RecipeCard';
 import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
@@ -10,6 +11,7 @@ import { putFood, setMealDraft } from '../src/lib/foodCache';
 import { foodSubtitle } from '../src/lib/format';
 import { searchBLS } from '../src/lib/bls';
 import { searchGeneric } from '../src/lib/genericFoods';
+import { useRecipes } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
 import { searchOFF } from '../src/lib/openFoodFacts';
@@ -18,19 +20,20 @@ import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
-type ListTab = 'recent' | 'meals' | 'mine';
+type ListTab = 'recent' | 'meals' | 'recipes' | 'mine';
 
 export default function AddFoodScreen() {
   const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
   const meal: MealType = MEALS.includes(params.meal as MealType) ? (params.meal as MealType) : 'snack';
   const date = params.date ?? dayKey();
-  /** Picking an ingredient for the meal builder instead of logging to the diary. */
-  const pick = params.pick === '1';
+  /** Picking an ingredient for the meal ('1') or recipe ('recipe') builder instead of logging to the diary. */
+  const pick = params.pick === '1' || params.pick === 'recipe';
   const { t, lang } = useT();
   const c = useColors();
   const recent = useStore((s) => s.recentFoods);
   const custom = useStore((s) => s.customFoods);
   const meals = useStore((s) => s.meals);
+  const recipes = useRecipes();
   const logMeal = useStore((s) => s.logMeal);
   const [tab, setTab] = useState<ListTab>('recent');
 
@@ -80,7 +83,7 @@ export default function AddFoodScreen() {
   }, [q, lang]);
 
   const matchingMeals = useMemo(() => (q && !pick ? searchMeals(meals, q).slice(0, 4) : []), [q, meals, pick]);
-  const pickParam = pick ? { pick: '1' } : {};
+  const pickParam = pick ? { pick: params.pick! } : {};
 
   const open = (f: Food) => {
     putFood(f);
@@ -161,7 +164,12 @@ export default function AddFoodScreen() {
           <ChipGroup<ListTab>
             options={[
               { value: 'recent', label: t('recent') },
-              ...(pick ? [] : [{ value: 'meals' as ListTab, label: t('my_meals') }]),
+              ...(pick
+                ? []
+                : [
+                    { value: 'meals' as ListTab, label: t('my_meals') },
+                    { value: 'recipes' as ListTab, label: t('tab_recipes') },
+                  ]),
               { value: 'mine', label: t('my_foods') },
             ]}
             value={tab}
@@ -184,6 +192,13 @@ export default function AddFoodScreen() {
               {meals.length > 0 ? <Card>{searchMeals(meals, '').map(renderMeal)}</Card> : <Txt v="sub">{t('meals_empty')}</Txt>}
               <Button kind="secondary" icon="add" title={t('new_meal')} onPress={newMealFlow} />
             </>
+          ) : null}
+          {tab === 'recipes' ? (
+            <View style={{ gap: 10 }}>
+              {recipes.map((r) => (
+                <RecipeCard key={r.id} recipe={r} onPress={() => router.push({ pathname: '/recipe', params: { id: r.id, meal, date } })} />
+              ))}
+            </View>
           ) : null}
           {tab === 'mine' ? (
             custom.length > 0 ? (

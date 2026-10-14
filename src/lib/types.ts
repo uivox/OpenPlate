@@ -12,7 +12,7 @@ export interface Nutrients {
   salt?: number;
 }
 
-export type FoodSource = 'generic' | 'bls' | 'off' | 'custom' | 'ai' | 'quick';
+export type FoodSource = 'generic' | 'bls' | 'off' | 'custom' | 'ai' | 'quick' | 'recipe';
 
 export interface Serving {
   label: string;
@@ -171,7 +171,7 @@ export interface Appearance {
   motion: MotionPref;
 }
 
-export type TabId = 'index' | 'fasting' | 'progress' | 'profile';
+export type TabId = 'index' | 'fasting' | 'recipes' | 'progress' | 'profile';
 export type DiarySection = 'plate' | 'meals' | 'fasting' | 'water' | 'steps';
 
 /** Order and visibility of tabs and diary sections (see layout.ts). */
@@ -181,4 +181,25 @@ export interface LayoutPrefs {
   addButton: 'left' | 'center' | 'right';
   diaryOrder: DiarySection[];
   hiddenDiary: DiarySection[];
+}
+
+export type RecipeTag = 'breakfast' | 'main' | 'snack' | 'vegetarian' | 'vegan' | 'high_protein' | 'quick';
+
+/** A recipe: ingredients for the whole dish, how many servings it makes, and the steps (see recipes.ts). */
+export interface Recipe {
+  id: string;
+  name: string;
+  items: SavedMealItem[];
+  servings: number;
+  steps: string[];
+  minutes?: number;
+  tags: RecipeTag[];
+  /** Own recipes: a small JPEG data URI. Community recipes: an https URL. */
+  photo?: string;
+  photoCredit?: string;
+  source: 'own' | 'community';
+  /** Community recipes: who wrote it and who cooked it and checked the values. */
+  author?: string;
+  testedBy?: string[];
+  createdAt: number;
 }

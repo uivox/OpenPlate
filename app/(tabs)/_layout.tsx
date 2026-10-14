@@ -19,6 +19,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t('tab_diary') }} />
       <Tabs.Screen name="fasting" options={{ title: t('tab_fasting') }} />
+      <Tabs.Screen name="recipes" options={{ title: t('tab_recipes') }} />
       <Tabs.Screen name="progress" options={{ title: t('tab_progress') }} />
       <Tabs.Screen name="profile" options={{ title: t('tab_profile') }} />
     </Tabs>

@@ -20,6 +20,7 @@ import type {
   LanguagePref,
   MealType,
   Profile,
+  Recipe,
   SavedMeal,
   WeightEntry,
 } from './types';
@@ -38,6 +39,8 @@ interface State {
   fastingHistory: FastingSession[];
   ai: AISettings;
   meals: SavedMeal[];
+  /** Own recipes (community ones are bundled, see communityRecipes.ts). */
+  recipes: Recipe[];
   appearance: Appearance;
   layout: LayoutPrefs;
 
@@ -54,6 +57,8 @@ interface State {
   removeMeal: (id: string) => void;
   /** Adds every item of a saved meal as its own diary entry; returns how many were added. */
   logMeal: (id: string, date: string, meal: MealType, factor?: number) => number;
+  saveRecipe: (r: Recipe) => void;
+  removeRecipe: (id: string) => void;
   addWater: (date: string, ml: number) => void;
   logWeight: (date: string, kg: number) => void;
   removeWeight: (date: string) => void;
@@ -82,6 +87,7 @@ const initial = {
   fastingHistory: [],
   ai: DEFAULT_AI_SETTINGS,
   meals: [] as SavedMeal[],
+  recipes: [] as Recipe[],
   appearance: DEFAULT_APPEARANCE,
   layout: DEFAULT_LAYOUT,
 };
@@ -119,6 +125,8 @@ export const useStore = create<State>()(
 
       saveMeal: (m) => set((s) => ({ meals: [m, ...s.meals.filter((x) => x.id !== m.id)] })),
       removeMeal: (id) => set((s) => ({ meals: s.meals.filter((m) => m.id !== id) })),
+      saveRecipe: (r) => set((s) => ({ recipes: [r, ...s.recipes.filter((x) => x.id !== r.id)] })),
+      removeRecipe: (id) => set((s) => ({ recipes: s.recipes.filter((r) => r.id !== id) })),
       logMeal: (id, date, slot, factor = 1) => {
         const m = get().meals.find((x) => x.id === id);
         if (!m) return 0;
@@ -193,6 +201,7 @@ export const useStore = create<State>()(
         fastingHistory: s.fastingHistory,
         ai: s.ai,
         meals: s.meals,
+        recipes: s.recipes,
         appearance: s.appearance,
         layout: s.layout,
       }),

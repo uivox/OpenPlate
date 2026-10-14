@@ -2,7 +2,7 @@ import type { DiarySection, LayoutPrefs, TabId } from './types';
 
 /** Order and visibility of the tabs and the diary sections. Pure, so it can be tested. */
 
-export const ALL_TABS: TabId[] = ['index', 'fasting', 'progress', 'profile'];
+export const ALL_TABS: TabId[] = ['index', 'fasting', 'recipes', 'progress', 'profile'];
 /** The diary is home and the profile holds the settings, so neither can be hidden. */
 export const FIXED_TABS: TabId[] = ['index', 'profile'];
 
@@ -17,7 +17,11 @@ export const DEFAULT_LAYOUT: LayoutPrefs = {
   hiddenDiary: [],
 };
 
-/** Keeps known ids once each, in the stored order, and appends any that are missing (e.g. new sections). */
+/**
+ * Keeps known ids once each, in the stored order. Missing ids (e.g. a tab added in an update) go in
+ * right after the item that precedes them by default, so a new "Recipes" tab lands next to Fasting
+ * instead of at the end.
+ */
 function complete<T extends string>(order: unknown, all: T[]): T[] {
   const seen = new Set<T>();
   const out: T[] = [];
@@ -27,7 +31,12 @@ function complete<T extends string>(order: unknown, all: T[]): T[] {
       out.push(id as T);
     }
   }
-  for (const id of all) if (!seen.has(id)) out.push(id);
+  all.forEach((id, i) => {
+    if (seen.has(id)) return;
+    const before = i > 0 ? out.indexOf(all[i - 1]) : -1;
+    out.splice(before + 1, 0, id);
+    seen.add(id);
+  });
   return out;
 }
 

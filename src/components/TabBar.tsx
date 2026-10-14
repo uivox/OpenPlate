@@ -17,6 +17,7 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 const ICONS: Record<string, [IconName, IconName]> = {
   index: ['book', 'book-outline'],
   fasting: ['moon', 'moon-outline'],
+  recipes: ['restaurant', 'restaurant-outline'],
   progress: ['stats-chart', 'stats-chart-outline'],
   profile: ['person', 'person-outline'],
 };
@@ -44,6 +45,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
   const layout = useStore((s) => s.layout);
   const motion = useMotion();
   const current = state.routes[state.index]?.name;
+  const crowded = visibleTabs(layout).length >= 5;
 
   const tab = (name: TabId) => {
     const route = state.routes.find((r) => r.name === name);
@@ -71,7 +73,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
         <Text
           numberOfLines={1}
           maxFontSizeMultiplier={1.2}
-          style={{ fontFamily: focused ? fonts.bodyBold : fonts.bodyMedium, fontSize: 11.5, color: focused ? c.text : c.sub }}
+          style={{ fontFamily: focused ? fonts.bodyBold : fonts.bodyMedium, fontSize: crowded ? 10.5 : 11.5, color: focused ? c.text : c.sub }}
         >
           {label}
         </Text>
@@ -81,7 +83,7 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
 
   const { left, right } = tabSides(visibleTabs(layout), layout.addButton);
   const add = (
-    <View style={{ width: 76, alignItems: 'center' }}>
+    <View style={{ width: crowded ? 68 : 76, alignItems: 'center' }}>
       <Tap
         accessibilityRole="button"
         accessibilityLabel={t('add_food')}
@@ -128,9 +130,20 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
           elevation: 10,
         }}
       >
-        {left.map(tab)}
-        {add}
-        {right.map(tab)}
+        {layout.addButton === 'center' ? (
+          // equal halves keep the add button in the middle even with an odd number of tabs
+          <>
+            <View style={{ flex: 1, flexDirection: 'row', alignSelf: 'stretch' }}>{left.map(tab)}</View>
+            {add}
+            <View style={{ flex: 1, flexDirection: 'row', alignSelf: 'stretch' }}>{right.map(tab)}</View>
+          </>
+        ) : (
+          <>
+            {left.map(tab)}
+            {add}
+            {right.map(tab)}
+          </>
+        )}
       </View>
     </View>
   );

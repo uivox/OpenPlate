@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { analyzeMeal, buildMealPrompt, callProvider, parseMealJson, providerOrder, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
 import { buildBackup, parseBackup } from '../src/lib/backup';
 import { blsFood, searchBLS } from '../src/lib/bls';
+import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
+import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleItems, searchRecipes, validateCommunity } from '../src/lib/recipes';
 import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { isFastingDay, stageFor } from '../src/lib/fasting';
@@ -270,6 +272,7 @@ test('backup round-trips and drops invalid rows', () => {
     fastingHistory: [],
     ai: DEFAULT_AI_SETTINGS,
     meals: [],
+    recipes: [],
   };
   const json = JSON.stringify(buildBackup(data, new Date(0)));
   const back = parseBackup(json);
@@ -427,10 +430,13 @@ test('backup carries saved meals and custom goal fields', () => {
     fastingActive: null,
     fastingHistory: [],
     meals: [m],
+    recipes: [newRecipe({ name: 'Bowl', items: [{ food: oats, grams: 60 }], servings: 1, steps: ['Mix.'], tags: [], photo: 'data:image/jpeg;base64,AAA' }, 1)],
   };
   const back = parseBackup(JSON.stringify(buildBackup({ ...data, extra: () => 1 } as typeof data, new Date(0))));
   assert.equal(back.meals.length, 1);
   assert.equal(back.meals[0].items[0].grams, 60);
+  assert.equal(back.recipes[0].photo, 'data:image/jpeg;base64,AAA');
+  assert.equal(back.recipes[0].steps[0], 'Mix.');
   assert.equal(back.profile?.customKcal, 2300);
   assert.equal(back.profile?.macroGramsTarget?.protein, 160);
   assert.ok(!('extra' in JSON.parse(JSON.stringify(buildBackup({ ...data, extra: 1 } as typeof data)))));
@@ -491,17 +497,20 @@ test('themes: own accent and macro colours stay visible', () => {
 
 test('layout: order, hiding and the add button', () => {
   const l = normalizeLayout({ tabOrder: ['progress', 'nope' as never, 'index', 'progress'], hiddenTabs: ['fasting', 'index'], diaryOrder: ['water'], hiddenDiary: ['plate', 'steps'] });
-  assert.deepEqual(l.tabOrder, ['progress', 'index', 'fasting', 'profile']);
+  assert.deepEqual(l.tabOrder, ['progress', 'profile', 'index', 'fasting', 'recipes']); // missing ones follow their default neighbour
   assert.deepEqual(l.hiddenTabs, ['fasting']); // the diary can't be hidden
-  assert.deepEqual(visibleTabs(l), ['progress', 'index', 'profile']);
-  assert.deepEqual(l.diaryOrder, ['water', 'plate', 'meals', 'fasting', 'steps']);
-  assert.deepEqual(visibleDiary(l), ['water', 'plate', 'meals', 'fasting']);
+  assert.deepEqual(visibleTabs(l), ['progress', 'profile', 'index', 'recipes']);
+  assert.deepEqual(l.diaryOrder, ['plate', 'meals', 'fasting', 'water', 'steps']);
+  assert.deepEqual(visibleDiary(l), ['plate', 'meals', 'fasting', 'water']);
+  // a saved order from before the recipes tab gets it next to fasting
+  assert.deepEqual(normalizeLayout({ tabOrder: ['profile', 'index', 'fasting', 'progress'] }).tabOrder, ['profile', 'index', 'fasting', 'recipes', 'progress']);
   assert.equal(l.addButton, 'center');
   assert.deepEqual(move(['a', 'b', 'c'], 'c', -1), ['a', 'c', 'b']);
   assert.deepEqual(move(['a', 'b'], 'a', -1), ['a', 'b']);
   assert.deepEqual(toggle(['a'], 'b', true), ['a', 'b']);
   assert.deepEqual(toggle(['a', 'b'], 'a', false), ['b']);
   assert.deepEqual(tabSides(['index', 'fasting', 'progress'], 'center'), { left: ['index', 'fasting'], right: ['progress'] });
+  assert.deepEqual(tabSides(['index', 'fasting', 'recipes', 'progress', 'profile'], 'center').right, ['progress', 'profile']);
   assert.deepEqual(tabSides(['index', 'profile'], 'left'), { left: [], right: ['index', 'profile'] });
   assert.deepEqual(normalizeLayout(undefined), normalizeLayout({}));
 });
@@ -547,4 +556,42 @@ test('BLS search: both languages, word prefixes, main name first', () => {
   assert.equal(f.per100.salt, 1.4);
   assert.equal(f.per100.satFat, undefined);
   assert.equal(blsFood(rows[1], 'en').name, 'Apple, raw');
+});
+
+test('community recipes are valid and plausible', () => {
+  assert.deepEqual(validateCommunity(COMMUNITY_RECIPES), []);
+  for (const c of COMMUNITY_RECIPES) {
+    for (const lang of ['de', 'en'] as const) {
+      const { recipe, missing } = resolveCommunity(c, lang);
+      assert.deepEqual(missing, []);
+      const kcal = perServing(recipe).kcal;
+      assert.ok(kcal > 80 && kcal < 1200, `${c.id}: ${Math.round(kcal)} kcal per serving`);
+    }
+  }
+  const broken = { ...COMMUNITY_RECIPES[0], id: 'Bad Id', ingredients: [{ ref: 'generic:nope', grams: 0 }], testedBy: ['OpenPlate'] };
+  const errs = validateCommunity([broken]).join('\n');
+  assert.match(errs, /lowercase/);
+  assert.match(errs, /unknown ingredient generic:nope/);
+  assert.match(errs, /grams > 0/);
+  assert.match(errs, /can't test their own/);
+});
+
+test('recipes: per serving, logging as a food, scaling, search', () => {
+  assert.equal(resolveRef('generic:oats', 'de')?.name, 'Haferflocken');
+  assert.equal(resolveRef('bls:nope', 'de'), undefined);
+  const oats = resolveRef('generic:oats', 'en')!;
+  const skyr = resolveRef('generic:skyr', 'en')!;
+  const r = newRecipe({ name: ' Bowl ', items: [{ food: oats, grams: 100 }, { food: skyr, grams: 300 }], servings: 2, steps: [], tags: ['breakfast'] }, 1);
+  assert.equal(r.name, 'Bowl');
+  assert.equal(r.source, 'own');
+  const total = oats.per100.kcal + skyr.per100.kcal * 3;
+  assert.equal(Math.round(perServing(r).kcal), Math.round(total / 2));
+  const food = recipeFood(r, '1 serving');
+  assert.equal(food.source, 'recipe');
+  assert.deepEqual(food.servings, [{ label: '1 serving', grams: 200 }]);
+  // one serving of the food = half the recipe
+  assert.equal(Math.round((food.per100.kcal * 200) / 100), Math.round(total / 2));
+  assert.deepEqual(scaleItems(r, 3).map((i) => i.grams), [150, 450]);
+  assert.deepEqual(searchRecipes([r], 'skyr').length, 1);
+  assert.deepEqual(searchRecipes([r], '', 'main').length, 0);
 });

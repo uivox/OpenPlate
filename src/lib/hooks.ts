@@ -1,10 +1,14 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { COMMUNITY_RECIPES } from './communityRecipes';
 import { dayKey } from './dates';
 import { stepsForDay } from './device';
 import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
-import type { Profile, WeightEntry } from './types';
+import { resolveCommunity } from './recipes';
+import { useStore } from './store';
+import type { Profile, Recipe, WeightEntry } from './types';
+import { useT } from './useT';
 
 /** Calorie and macro goals for one day (see goals.ts). */
 export function goalsFor(profile: Profile, weights: WeightEntry[], date: string) {
@@ -37,4 +41,12 @@ export function useSteps(date: string, weightKg: number) {
     return () => clearInterval(id);
   }, [date, load]);
   return { steps, kcal: steps === null ? 0 : stepsKcal(steps, weightKg) };
+}
+
+/** Own recipes plus the community ones in the current language. Community ids start with "community:". */
+export function useRecipes(): Recipe[] {
+  const own = useStore((s) => s.recipes);
+  const { lang } = useT();
+  const community = useMemo(() => COMMUNITY_RECIPES.map((c) => resolveCommunity(c, lang).recipe), [lang]);
+  return useMemo(() => [...own, ...community], [own, community]);
 }

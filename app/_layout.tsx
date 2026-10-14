@@ -67,6 +67,8 @@ export default function RootLayout() {
         <Stack.Screen name="meal-edit" options={{ title: t('new_meal') }} />
         <Stack.Screen name="streak" options={{ title: t('streak_title') }} />
         <Stack.Screen name="appearance" options={{ title: t('appearance') }} />
+        <Stack.Screen name="recipe" options={{ title: t('tab_recipes') }} />
+        <Stack.Screen name="recipe-edit" options={{ title: t('new_recipe') }} />
         <Stack.Screen name="layout-settings" options={{ title: t('layout_title') }} />
       </Stack>
       <DialogHost />

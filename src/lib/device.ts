@@ -12,8 +12,11 @@ export interface PreparedPhoto {
   base64: string;
 }
 
-/** Opens camera or library and returns a JPEG (max 1024 px wide) as base64. Null when cancelled. */
-export async function pickMealPhoto(source: 'camera' | 'library'): Promise<PreparedPhoto | null> {
+/**
+ * Opens camera or library and returns a JPEG (max `maxWidth` px wide, 1024 for AI photos) as base64.
+ * Null when cancelled. Recipe photos use a smaller size so they fit in the app's storage.
+ */
+export async function pickMealPhoto(source: 'camera' | 'library', maxWidth = 1024, quality = 0.7): Promise<PreparedPhoto | null> {
   if (source === 'camera') {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) throw new Error('CAMERA_DENIED');
@@ -23,9 +26,9 @@ export async function pickMealPhoto(source: 'camera' | 'library'): Promise<Prepa
   if (res.canceled || !res.assets?.length) return null;
   const asset = res.assets[0];
   const ctx = ImageManipulator.manipulate(asset.uri);
-  if (asset.width && asset.width > 1024) ctx.resize({ width: 1024 });
+  if (asset.width && asset.width > maxWidth) ctx.resize({ width: maxWidth });
   const image = await ctx.renderAsync();
-  const out = await image.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+  const out = await image.saveAsync({ compress: quality, format: SaveFormat.JPEG, base64: true });
   if (!out.base64) throw new Error('Could not read the photo.');
   return { uri: out.uri, base64: out.base64 };
 }

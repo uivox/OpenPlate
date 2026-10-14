@@ -12,6 +12,7 @@ German and English, light and dark mode, all data stays on your device.
 - **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**
 - **My meals**: save the foods you always eat together (e.g. your breakfast) and log them with one tap, at any portion size. Build them from search, recent foods and the barcode scanner, or save a meal straight from the diary.
 - **Personal plan** from a short onboarding (Mifflin-St Jeor + activity level + weekly pace). Or set it exactly: your own daily kcal, any weekly pace (e.g. +0.4 kg), your own activity factor or maintenance calories, macros as presets, custom percentages or grams.
+- **Recipes tab**: your own recipes (photo, servings, steps, ingredients from the food search; nutrition calculated from the ingredients) and community recipes added through pull requests and marked as tested once someone else has cooked them ([RECIPES.md](RECIPES.md)). Scale the ingredients to any number of servings and log a serving with one tap.
 - **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and whether you hit your goal (±5 %; when losing anything below counts, when gaining anything above)
 - **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
@@ -125,6 +126,7 @@ app/                    screens (expo-router, file-based)
   photo.tsx             AI photo flow
   custom-food.tsx       create food / quick add
   meal.tsx, meal-edit.tsx  saved meals: log / build
+  (tabs)/recipes.tsx, recipe.tsx, recipe-edit.tsx  recipes: list / view / edit
   streak.tsx            streak and calendar
   appearance.tsx        themes, colours, animations
   layout-settings.tsx   tab and diary order
@@ -135,6 +137,8 @@ src/lib/
   goals.ts              the goal for a given day (weight on that day, fasting days)
   streaks.ts            streaks, goal-hit days, calendar grid
   meals.ts              saved meals
+  recipes.ts            recipes (nutrition, scaling, community format and checks)
+  communityRecipes.ts   community recipes (see RECIPES.md)
   themes.ts, layout.ts  colour themes and tab/diary layout
   openFoodFacts.ts      barcode lookup and search
   genericFoods.ts       built-in basic foods
@@ -156,7 +160,7 @@ Checks: `npm run check` (TypeScript) and `npm test` (logic tests). Pull requests
 On the list for later:
 
 - **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
-- **Recipes**, meal plans, watch apps, cloud sync / accounts.
+- Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
 
 ## Credits and licence

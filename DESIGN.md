@@ -44,6 +44,12 @@ No all-caps labels. Numbers that tick (fasting timer) use tabular figures. Weigh
 - No drop shadows except the floating tab bar, which has to sit above content. The one exception is the Neon theme's glow: cards get a faint accent outline and soft accent shadow, the plate rim a wider translucent copy underneath, primary buttons and the add button a coloured shadow.
 - The add button in the tab bar picks the meal by time of day. *Profile → Layout* lets people reorder or hide tabs (Diary and Profile always stay), put the add button left, centre or right, and reorder or hide diary sections (plate and meals always stay).
 
+## Recipes
+
+Recipe cards are rows: a square image on the left, name, kcal and protein per serving, time. Recipes without a photo get a soft tile in their meal colour with an icon (sun for breakfast, leaf for vegetarian, bowl for snacks, plate for mains) instead of a stock picture. Community recipes show who wrote them and how many people have cooked and checked them; untested ones say so plainly.
+
+With five tabs the labels shrink slightly and the add button sits between two equal halves, so it stays centred with an odd number of tabs.
+
 ## Character
 
 A small beet-coloured bowl with a sprout appears on the welcome screen, in empty states, on the profile card (happy), in the fasting timer while you rest (sleepy) and in the AI photo flow (surprised). It never talks and never blocks anything.

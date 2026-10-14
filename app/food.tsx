@@ -16,8 +16,8 @@ import { useT } from '../src/lib/useT';
 
 export default function FoodScreen() {
   const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
-  /** Picking an ingredient for the meal builder (see meal-edit.tsx). */
-  const pick = params.pick === '1';
+  /** Picking an ingredient for the meal builder ('1', meal-edit.tsx) or the recipe editor ('recipe'). */
+  const pick = params.pick === '1' || params.pick === 'recipe';
   const { t } = useT();
   const c = useColors();
   const entry = useStore((s) => (params.entryId ? s.entries.find((e) => e.id === params.entryId) : undefined));
@@ -72,7 +72,7 @@ export default function FoodScreen() {
     if (pick) {
       addToMealDraft({ food, grams });
       Haptics.selectionAsync().catch(() => {});
-      router.dismissTo('/meal-edit');
+      router.dismissTo(params.pick === 'recipe' ? '/recipe-edit' : '/meal-edit');
       return;
     }
     if (editing) {
@@ -143,7 +143,7 @@ export default function FoodScreen() {
       </Card>
 
       <Button
-        title={pick ? t('add_to_meal') : editing ? t('save') : t('add')}
+        title={params.pick === '1' ? t('add_to_meal') : pick || !editing ? t('add') : t('save')}
         icon={editing ? 'checkmark' : 'add'}
         onPress={save}
         disabled={!(grams > 0)}

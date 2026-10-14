@@ -38,21 +38,21 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Same contract as the native version: a JPEG, max 1024 px wide, as base64. Null when cancelled. */
-export async function pickMealPhoto(source: 'camera' | 'library'): Promise<PreparedPhoto | null> {
+/** Same contract as the native version: a JPEG, max `maxWidth` px wide, as base64. Null when cancelled. */
+export async function pickMealPhoto(source: 'camera' | 'library', maxWidth = 1024, quality = 0.7): Promise<PreparedPhoto | null> {
   const file = await chooseFile('image/*', source === 'camera');
   if (!file) return null;
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImage(url);
-    const scale = Math.min(1, 1024 / (img.naturalWidth || 1024));
+    const scale = Math.min(1, maxWidth / (img.naturalWidth || maxWidth));
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(img.naturalWidth * scale);
     canvas.height = Math.round(img.naturalHeight * scale);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not read the photo.');
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
     return { uri: dataUrl, base64: dataUrl.slice(dataUrl.indexOf(',') + 1) };
   } finally {
     URL.revokeObjectURL(url);

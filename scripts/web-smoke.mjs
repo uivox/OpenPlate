@@ -109,6 +109,28 @@ async function run(scheme) {
       await page.getByRole('tab', { name: 'Diary' }).click();
       await page.getByText('Breakfast', { exact: true }).first().waitFor();
     });
+    await step('recipes: log a community recipe', async () => {
+      await page.getByRole('tab', { name: 'Recipes' }).click();
+      await page.getByText('Overnight oats with blueberries').first().click();
+      await page.getByText('Ingredients for 1 serving').waitFor();
+      await btn('Add to diary').click();
+      await btn('Add').click();
+      await page.getByText('Overnight oats with blueberries').first().waitFor();
+    });
+    await step('recipes: create own recipe', async () => {
+      await page.getByRole('tab', { name: 'Recipes' }).click();
+      await btn('New recipe').click();
+      await page.getByPlaceholder('e.g. Grandma’s lentil soup').fill('Test bowl');
+      await btn('Add ingredient').click();
+      await page.getByPlaceholder('Search foods and products').fill('banana');
+      await page.getByText('Banana', { exact: true }).first().click();
+      await btn('Add').click();
+      await page.getByText('Banana', { exact: true }).first().waitFor();
+      await btn('Save recipe').click();
+      await page.getByText('Ingredients for 2 servings').waitFor();
+      await page.getByText('Test bowl').first().waitFor();
+      await page.goBack();
+    });
     console.log(`✓ ${scheme}: all steps passed`);
   } catch (e) {
     failed = true;

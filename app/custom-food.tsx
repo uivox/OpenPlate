@@ -68,7 +68,7 @@ export default function CustomFoodScreen() {
     };
     saveCustomFood(food);
     putFood(food);
-    router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...(params.pick === '1' ? { pick: '1' } : {}) } });
+    router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...(params.pick ? { pick: params.pick } : {}) } });
   };
 
   return (

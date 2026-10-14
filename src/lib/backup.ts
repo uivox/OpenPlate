@@ -8,6 +8,7 @@ import {
   type Food,
   type LanguagePref,
   type Profile,
+  type Recipe,
   type SavedMeal,
   type WeightEntry,
 } from './types';
@@ -26,6 +27,8 @@ export interface BackupData {
   ai?: Partial<AISettings>;
   /** Saved meals; missing in exports from older versions. */
   meals: SavedMeal[];
+  /** Own recipes incl. their small photos; missing in older exports. */
+  recipes: Recipe[];
   /** Look and layout; optional, normalised by the store on import. */
   appearance?: Partial<Appearance>;
   layout?: Partial<LayoutPrefs>;
@@ -43,6 +46,7 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'fastingHistory',
   'ai',
   'meals',
+  'recipes',
   'appearance',
   'layout',
 ];
@@ -84,6 +88,18 @@ function isMeal(v: unknown): v is SavedMeal {
     isObj(v) &&
     typeof v.id === 'string' &&
     typeof v.name === 'string' &&
+    Array.isArray(v.items) &&
+    v.items.every((it) => isObj(it) && isFood(it.food) && isNum(it.grams))
+  );
+}
+
+function isRecipe(v: unknown): v is Recipe {
+  return (
+    isObj(v) &&
+    typeof v.id === 'string' &&
+    typeof v.name === 'string' &&
+    isNum(v.servings) &&
+    Array.isArray(v.steps) &&
     Array.isArray(v.items) &&
     v.items.every((it) => isObj(it) && isFood(it.food) && isNum(it.grams))
   );
@@ -138,6 +154,9 @@ export function parseBackup(text: string): BackupData {
     ai: isObj(raw.ai) ? (raw.ai as Partial<AISettings>) : undefined,
     appearance: isObj(raw.appearance) ? (raw.appearance as Partial<Appearance>) : undefined,
     layout: isObj(raw.layout) ? (raw.layout as Partial<LayoutPrefs>) : undefined,
+    recipes: list(raw.recipes)
+      .filter(isRecipe)
+      .map((r) => ({ ...r, source: 'own' as const, tags: Array.isArray(r.tags) ? r.tags : [], createdAt: isNum(r.createdAt) ? r.createdAt : 0 })),
     meals: list(raw.meals)
       .filter(isMeal)
       .map((m) => ({ ...m, createdAt: isNum(m.createdAt) ? m.createdAt : 0, lastUsed: isNum(m.lastUsed) ? m.lastUsed : 0 })),

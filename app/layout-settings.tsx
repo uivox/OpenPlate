@@ -8,7 +8,7 @@ import type { DiarySection, LayoutPrefs, TabId } from '../src/lib/types';
 import { useT, type TFn } from '../src/lib/useT';
 
 const tabLabel = (id: TabId, t: TFn) =>
-  ({ index: t('tab_diary'), fasting: t('tab_fasting'), progress: t('tab_progress'), profile: t('tab_profile') })[id];
+  ({ index: t('tab_diary'), fasting: t('tab_fasting'), recipes: t('tab_recipes'), progress: t('tab_progress'), profile: t('tab_profile') })[id];
 const sectionLabel = (id: DiarySection, t: TFn) =>
   ({ plate: t('section_plate'), meals: t('meals'), fasting: t('tab_fasting'), water: t('water'), steps: t('steps') })[id];
 
