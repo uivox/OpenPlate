@@ -4,10 +4,14 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS } from './ai';
 import type { BackupData } from './backup';
 import { newId } from './id';
+import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { entriesForMeal } from './meals';
 import { appStorage } from './storage';
+import { DEFAULT_APPEARANCE, normalizeAppearance } from './themes';
 import type {
   AIProviderConfig,
+  Appearance,
+  LayoutPrefs,
   AIProviderId,
   AISettings,
   DiaryEntry,
@@ -34,6 +38,8 @@ interface State {
   fastingHistory: FastingSession[];
   ai: AISettings;
   meals: SavedMeal[];
+  appearance: Appearance;
+  layout: LayoutPrefs;
 
   setProfile: (p: Profile) => void;
   updateProfile: (patch: Partial<Profile>) => void;
@@ -56,6 +62,8 @@ interface State {
   endFast: (end: number) => void;
   removeFast: (id: string) => void;
   setAI: (patch: Partial<AISettings>) => void;
+  setAppearance: (patch: Partial<Appearance>) => void;
+  setLayout: (patch: Partial<LayoutPrefs>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
   resetAll: () => void;
   /** Replaces all data with an imported backup (see backup.ts). */
@@ -74,6 +82,8 @@ const initial = {
   fastingHistory: [],
   ai: DEFAULT_AI_SETTINGS,
   meals: [] as SavedMeal[],
+  appearance: DEFAULT_APPEARANCE,
+  layout: DEFAULT_LAYOUT,
 };
 
 export const useStore = create<State>()(
@@ -147,6 +157,8 @@ export const useStore = create<State>()(
       removeFast: (id) => set((s) => ({ fastingHistory: s.fastingHistory.filter((f) => f.id !== id) })),
 
       setAI: (patch) => set((s) => ({ ai: { ...s.ai, ...patch } })),
+      setAppearance: (patch) => set((s) => ({ appearance: normalizeAppearance({ ...s.appearance, ...patch }) })),
+      setLayout: (patch) => set((s) => ({ layout: normalizeLayout({ ...s.layout, ...patch }) })),
       setProviderConfig: (id, patch) =>
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
 
@@ -155,6 +167,9 @@ export const useStore = create<State>()(
         set({
           ...initial,
           ...d,
+          // older exports have no look/layout: keep the current one
+          appearance: d.appearance ? normalizeAppearance(d.appearance) : get().appearance,
+          layout: d.layout ? normalizeLayout(d.layout) : get().layout,
           ai: {
             ...DEFAULT_AI_SETTINGS,
             ...(d.ai ?? {}),
@@ -178,6 +193,8 @@ export const useStore = create<State>()(
         fastingHistory: s.fastingHistory,
         ai: s.ai,
         meals: s.meals,
+        appearance: s.appearance,
+        layout: s.layout,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<State>;
@@ -189,6 +206,8 @@ export const useStore = create<State>()(
             ...(p.ai ?? {}),
             providers: { ...current.ai.providers, ...(p.ai?.providers ?? {}) },
           },
+          appearance: normalizeAppearance(p.appearance),
+          layout: normalizeLayout(p.layout),
         };
       },
     },

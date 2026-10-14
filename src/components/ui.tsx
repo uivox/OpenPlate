@@ -14,6 +14,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { fonts, radius, space, useColors } from '../lib/theme';
+import { readableOn } from '../lib/themes';
+import { Appear, Tap } from './motion';
 
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -23,15 +25,22 @@ export function Screen({
   padded = true,
   style,
   bottomInset = 48,
+  appear,
 }: {
   children?: React.ReactNode;
   scroll?: boolean;
   padded?: boolean;
   style?: StyleProp<ViewStyle>;
   bottomInset?: number;
+  /** Stagger the children in (lively motion only). */
+  appear?: boolean;
 }) {
   const c = useColors();
   const inner = [padded && { padding: space.l, gap: space.m }, style];
+  if (appear) {
+    let i = 0;
+    children = React.Children.map(children, (child) => (child ? <Appear index={i++}>{child}</Appear> : child));
+  }
   if (!scroll) return <View style={[{ flex: 1, backgroundColor: c.bg }, inner]}>{children}</View>;
   return (
     <ScrollView
@@ -58,7 +67,12 @@ export function Card({
 }) {
   const c = useColors();
   const bg = tone === 'inset' ? c.cardAlt : tone === 'night' ? c.night : tone === 'beet' ? c.accentSoft : c.card;
-  return <View style={[{ backgroundColor: bg, borderRadius: radius[r], padding: space.l, gap: space.s }, style]}>{children}</View>;
+  // "Lit" themes (neon) outline cards with a faint glow instead of the flat look.
+  const glow: ViewStyle | null =
+    c.glow && tone !== 'inset'
+      ? { borderWidth: 1, borderColor: `${c.glow}33`, shadowColor: c.glow, shadowOpacity: c.scheme === 'dark' ? 0.22 : 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 0 } }
+      : null;
+  return <View style={[{ backgroundColor: bg, borderRadius: radius[r], padding: space.l, gap: space.s }, glow, style]}>{children}</View>;
 }
 
 type TxtVariant = 'hero' | 'big' | 'title' | 'h2' | 'h3' | 'body' | 'sub' | 'small' | 'label';
@@ -91,11 +105,13 @@ export function Txt({
 }) {
   const c = useColors();
   const defaultColor = v === 'sub' || v === 'small' || v === 'label' ? c.sub : c.text;
+  // Themes can swap the display face (e.g. neon uses Space Grotesk).
+  const family = v === 'hero' || v === 'big' || v === 'title' ? c.fontDisplayHeavy : v === 'h2' ? c.fontDisplay : undefined;
   return (
     <Text
       numberOfLines={numberOfLines}
       maxFontSizeMultiplier={1.4}
-      style={[TXT[v], { color: color ?? defaultColor }, center && { textAlign: 'center' }, style]}
+      style={[TXT[v], family ? { fontFamily: family } : null, { color: color ?? defaultColor }, center && { textAlign: 'center' }, style]}
     >
       {children}
     </Text>
@@ -133,14 +149,21 @@ export function Button({
     danger: c.danger,
     night: c.nightText,
   }[kind];
-  const fg = { primary: c.accentText, secondary: c.accent, ghost: c.accent, danger: '#fff', night: c.night }[kind];
+  const fg = { primary: c.accentText, secondary: c.accent, ghost: c.accent, danger: readableOn(c.danger), night: c.night }[kind];
+  const glow: ViewStyle | null =
+    c.glow && kind === 'primary' && !disabled
+      ? { shadowColor: c.glow, shadowOpacity: 0.45, shadowRadius: 14, shadowOffset: { width: 0, height: 0 } }
+      : null;
   return (
-    <Pressable
+    <Tap
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
       accessibilityState={{ disabled: !!(disabled || loading) }}
-      style={({ pressed }) => [
+      scaleTo={0.96}
+      rippleColor={kind === 'ghost' ? c.accent : fg}
+      haptic
+      style={[
         {
           backgroundColor: bg,
           borderRadius: 999,
@@ -151,8 +174,8 @@ export function Button({
           justifyContent: 'center',
           gap: 8,
           opacity: disabled ? 0.4 : 1,
-          transform: [{ scale: pressed ? 0.97 : 1 }],
         },
+        glow,
         style,
       ]}
     >
@@ -160,7 +183,7 @@ export function Button({
       <Text style={{ color: fg, fontFamily: fonts.bodyBold, fontSize: small ? 14 : 16.5 }} maxFontSizeMultiplier={1.3}>
         {title}
       </Text>
-    </Pressable>
+    </Tap>
   );
 }
 
@@ -183,12 +206,13 @@ export function IconButton({
 }) {
   const c = useColors();
   return (
-    <Pressable
+    <Tap
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityRole="button"
       hitSlop={8}
-      style={({ pressed }) => ({
+      scaleTo={0.86}
+      style={{
         width: size + 20,
         height: size + 20,
         borderRadius: 999,
@@ -197,33 +221,34 @@ export function IconButton({
         backgroundColor: bg ?? 'transparent',
         borderWidth: border ? 1.5 : 0,
         borderColor: border,
-        transform: [{ scale: pressed ? 0.92 : 1 }],
-      })}
+      }}
     >
       <Ionicons name={icon} size={size} color={color ?? c.accent} />
-    </Pressable>
+    </Tap>
   );
 }
 
 export function Chip({ label, selected, onPress }: { label: string; selected?: boolean; onPress: () => void }) {
   const c = useColors();
   return (
-    <Pressable
+    <Tap
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
-      style={({ pressed }) => ({
+      scaleTo={0.93}
+      rippleColor={selected ? c.bg : c.text}
+      haptic
+      style={{
         paddingVertical: 9,
         paddingHorizontal: 15,
         borderRadius: 999,
         backgroundColor: selected ? c.text : c.cardAlt,
-        transform: [{ scale: pressed ? 0.96 : 1 }],
-      })}
+      }}
     >
       <Text style={{ color: selected ? c.bg : c.text, fontFamily: fonts.bodySemi, fontSize: 14 }} maxFontSizeMultiplier={1.3}>
         {label}
       </Text>
-    </Pressable>
+    </Tap>
   );
 }
 

@@ -55,7 +55,7 @@ export default function StreakScreen() {
   const days = (n: number) => (n === 1 ? t('streak_days_one') : t('streak_days_n', { n }));
 
   return (
-    <Screen>
+    <Screen appear>
       <Card r="xl" tone="beet" style={{ alignItems: 'center', paddingVertical: 24, gap: 6 }}>
         <Ionicons name="flame" size={44} color={info.todayLogged ? c.coral : c.sub} />
         <Txt v="hero">{info.current}</Txt>

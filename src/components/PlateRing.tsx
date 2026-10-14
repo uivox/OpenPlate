@@ -1,18 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, View } from 'react-native';
+import { View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { useColors } from '../lib/theme';
+import { useColors, useMotion } from '../lib/theme';
+import { Pulse } from './motion';
 
-/** Tweens a number towards `target` (ease-out), skipping animation when Reduce Motion is on. */
+/** Tweens a number towards `target` (ease-out). Skipped when motion is off or Reduce Motion is on. */
 export function useTween(target: number, duration = 700): number {
   const [value, setValue] = useState(target);
   const from = useRef(target);
+  const motion = useMotion();
   const reduce = useRef(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((r) => (reduce.current = r))
-      .catch(() => {});
-  }, []);
+  reduce.current = motion === 'off';
   useEffect(() => {
     if (reduce.current) {
       from.current = target;
@@ -59,7 +57,8 @@ export function PlateRing({
   children?: React.ReactNode;
 }) {
   const c = useColors();
-  const fill = useTween(budget > 0 ? Math.min(1, eatenKcal / budget) : 0);
+  const motion = useMotion();
+  const fill = useTween(budget > 0 ? Math.min(1, eatenKcal / budget) : 0, motion === 'lively' ? 900 : 700);
   const over = useTween(budget > 0 ? Math.max(0, Math.min(1, eatenKcal / budget - 1)) : 0);
 
   const rimStroke = size * 0.085;
@@ -83,19 +82,13 @@ export function PlateRing({
     .filter((p) => p.v > 0)
     .map((p, i) => {
       const len = Math.max(0, p.v * fill * circ - gap);
+      const common = { cx, cy: cx, r, stroke: p.color, strokeLinecap: 'round' as const, fill: 'none', strokeDasharray: `${len} ${circ}`, strokeDashoffset: -offset };
       const arc = (
-        <Circle
-          key={i}
-          cx={cx}
-          cy={cx}
-          r={r}
-          stroke={p.color}
-          strokeWidth={rimStroke}
-          strokeLinecap="round"
-          fill="none"
-          strokeDasharray={`${len} ${circ}`}
-          strokeDashoffset={-offset}
-        />
+        <React.Fragment key={i}>
+          {/* "lit" themes draw a soft, wider copy underneath as a glow */}
+          {c.glow ? <Circle {...common} strokeWidth={rimStroke * 1.9} opacity={0.18} /> : null}
+          <Circle {...common} strokeWidth={rimStroke} />
+        </React.Fragment>
       );
       offset += p.v * fill * circ;
       return len > 0.5 ? arc : null;
@@ -103,6 +96,7 @@ export function PlateRing({
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Pulse trigger={Math.round(eatenKcal)} color={c.glow ?? c.accent} size={size} />
       <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
         {/* plate */}
         <Circle cx={cx} cy={cx} r={size / 2 - size * 0.015} fill={c.card} stroke={c.line} strokeWidth={1.5} />

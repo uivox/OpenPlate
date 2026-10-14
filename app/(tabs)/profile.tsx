@@ -55,7 +55,7 @@ export default function ProfileScreen() {
     : t('not_set_up');
 
   return (
-    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
       <Txt v="title">{t('tab_profile')}</Txt>
 
       <Pressable onPress={() => router.push('/edit-profile')} accessibilityRole="button" accessibilityHint={t('goal_section')}>
@@ -79,6 +79,12 @@ export default function ProfileScreen() {
         <ListRow icon="person-outline" title={t('edit_profile')} subtitle={t('edit_profile_sub')} right={chevron} onPress={() => router.push('/edit-profile')} />
         <Divider />
         <ListRow icon="sparkles-outline" title={t('ai_settings')} subtitle={aiLabel} right={chevron} onPress={() => router.push('/ai-settings')} />
+      </Card>
+
+      <Card>
+        <ListRow icon="color-palette-outline" title={t('appearance')} subtitle={t('appearance_sub')} right={chevron} onPress={() => router.push('/appearance')} />
+        <Divider />
+        <ListRow icon="grid-outline" title={t('layout_title')} subtitle={t('layout_sub')} right={chevron} onPress={() => router.push('/layout-settings')} />
       </Card>
 
       <SectionTitle>{t('language')}</SectionTitle>

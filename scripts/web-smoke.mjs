@@ -86,6 +86,22 @@ async function run(scheme) {
       await btn('Save').click();
       await page.getByText('2300', { exact: true }).first().waitFor();
     });
+    await step('appearance: neon theme', async () => {
+      await page.getByText('Appearance', { exact: true }).click();
+      await btn('Neon').click();
+      await btn('Off').waitFor();
+      await page.goBack();
+    });
+    await step('layout: hide fasting tab, add button right', async () => {
+      await page.getByText('Layout', { exact: true }).click();
+      await page.getByRole('switch', { name: 'Fasting' }).first().click();
+      await btn('Right').click();
+      await page.goBack();
+      await page.getByRole('tab', { name: 'Diary' }).waitFor();
+      if (await page.getByRole('tab', { name: 'Fasting' }).count()) throw new Error('Fasting tab still visible');
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await page.getByText('Breakfast', { exact: true }).first().waitFor();
+    });
     console.log(`✓ ${scheme}: all steps passed`);
   } catch (e) {
     failed = true;

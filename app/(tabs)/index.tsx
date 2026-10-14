@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Burst, Tap, useCountUp } from '../../src/components/motion';
 import { PlateRing } from '../../src/components/PlateRing';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
@@ -12,11 +13,12 @@ import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
 import { goalsFor, useNow, useSteps } from '../../src/lib/hooks';
+import { visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
 import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
 import { useStore } from '../../src/lib/store';
-import { radius, useColors } from '../../src/lib/theme';
+import { radius, space, useColors } from '../../src/lib/theme';
 import { MEALS, type DiaryEntry, type MealType } from '../../src/lib/types';
 import { useT } from '../../src/lib/useT';
 
@@ -55,24 +57,28 @@ export default function DiaryScreen() {
   const burned = profile.addActivityCalories ? stepKcal : 0;
   const budget = goals.kcal + burned;
   const remaining = Math.round(budget - totals.kcal);
+  const shownRemaining = useCountUp(remaining);
+  const layout = useStore((s) => s.layout);
 
   const dateLabel = date === today ? t('today') : date === addDays(today, -1) ? t('yesterday') : formatShortDate(date, lang);
   const hour = new Date().getHours();
   const greeting = t(hour < 11 ? 'greet_morning' : hour < 18 ? 'greet_day' : 'greet_evening');
 
   return (
-    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: 4 }}>
         <View style={{ flex: 1 }}>
           <Txt v="title" numberOfLines={1}>
             {profile.name ? `${greeting}, ${profile.name}` : greeting}
           </Txt>
         </View>
-        <Pressable
+        <Tap
           onPress={() => router.push('/streak')}
           accessibilityRole="button"
           accessibilityLabel={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
-          style={({ pressed }) => ({
+          scaleTo={0.9}
+          rippleColor={c.coral}
+          style={{
             flexDirection: 'row',
             alignItems: 'center',
             gap: 4,
@@ -80,12 +86,11 @@ export default function DiaryScreen() {
             borderRadius: 999,
             paddingHorizontal: 12,
             paddingVertical: 7,
-            transform: [{ scale: pressed ? 0.94 : 1 }],
-          })}
+          }}
         >
           <Ionicons name="flame" size={18} color={streak.todayLogged ? c.coral : c.sub} />
           <Txt v="h3">{streak.current}</Txt>
-        </Pressable>
+        </Tap>
       </Row>
 
       <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
@@ -104,86 +109,102 @@ export default function DiaryScreen() {
       </Row>
 
       {date === today && streak.todayLogged && isMilestone(streak.current) ? (
-        <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
+        <View>
+          <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
+          <Burst trigger={streak.current} colors={[c.coral, c.carbs, c.accent, c.leaf]} size={260} />
+        </View>
       ) : null}
 
-      <Card r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
-        <PlateRing
-          size={236}
-          budget={budget}
-          eatenKcal={totals.kcal}
-          carbsKcal={totals.carbs * 4}
-          proteinKcal={totals.protein * 4}
-          fatKcal={totals.fat * 9}
-        >
-          <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
-            {Math.abs(remaining)}
-          </Txt>
-          <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
-        </PlateRing>
+      {visibleDiary(layout).map((section) => {
+        if (section === 'plate')
+          return (
+            <Card key={section} r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
+              <PlateRing
+                size={236}
+                budget={budget}
+                eatenKcal={totals.kcal}
+                carbsKcal={totals.carbs * 4}
+                proteinKcal={totals.protein * 4}
+                fatKcal={totals.fat * 9}
+              >
+                <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
+                  {Math.abs(Math.round(shownRemaining))}
+                </Txt>
+                <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
+              </PlateRing>
 
-        <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
-          <Stat label={t('goal')} value={goals.kcal} />
-          <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
-          <Stat label={t('eaten')} value={Math.round(totals.kcal)} />
-          <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
-          <Stat label={t('burned')} value={burned} />
-        </Row>
+              <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
+                <Stat label={t('goal')} value={goals.kcal} />
+                <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
+                <Stat label={t('eaten')} value={Math.round(totals.kcal)} />
+                <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
+                <Stat label={t('burned')} value={burned} />
+              </Row>
 
-        <Row gap={14} style={{ alignSelf: 'stretch' }}>
-          <MacroBar label={t('carbs')} value={totals.carbs} goal={goals.macros.carbs} color={c.carbs} />
-          <MacroBar label={t('protein')} value={totals.protein} goal={goals.macros.protein} color={c.protein} />
-          <MacroBar label={t('fat')} value={totals.fat} goal={goals.macros.fat} color={c.fat} />
-        </Row>
-      </Card>
-
-      {goals.fastDay ? <Banner icon="leaf" tone="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
-      {fastingActive && date === today ? <FastingMini start={fastingActive.start} target={fastingActive.targetHours} /> : null}
-
-      <SectionTitle>{t('meals')}</SectionTitle>
-      {MEALS.map((meal) => (
-        <MealCard
-          key={meal}
-          meal={meal}
-          date={date}
-          entries={entries.filter((e) => e.meal === meal)}
-          target={Math.round(budget * MEAL_SHARE[meal])}
-        />
-      ))}
-
-      <SectionTitle>{t('habits')}</SectionTitle>
-      <WaterCard date={date} />
-
-      <Card r="l">
-        <Row gap={12}>
-          <Tile icon="footsteps" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt v="h3">{t('steps')}</Txt>
-            <Txt v="sub">
-              {steps === null ? t('steps_unavailable') : `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`}
-            </Txt>
-          </View>
-        </Row>
-        {steps !== null ? (
-          <>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden', marginTop: 4 }}>
-              <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.leaf }} />
+              <Row gap={14} style={{ alignSelf: 'stretch' }}>
+                <MacroBar label={t('carbs')} value={totals.carbs} goal={goals.macros.carbs} color={c.carbs} />
+                <MacroBar label={t('protein')} value={totals.protein} goal={goals.macros.protein} color={c.protein} />
+                <MacroBar label={t('fat')} value={totals.fat} goal={goals.macros.fat} color={c.fat} />
+              </Row>
+            </Card>
+          );
+        if (section === 'fasting')
+          return goals.fastDay || (fastingActive && date === today) ? (
+            <View key={section} style={{ gap: space.m }}>
+              {goals.fastDay ? <Banner icon="leaf" tone="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
+              {fastingActive && date === today ? <FastingMini start={fastingActive.start} target={fastingActive.targetHours} /> : null}
             </View>
-            <Txt v="small">
-              {t('steps_kcal', { kcal: stepKcal })}
-              {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
-            </Txt>
-          </>
-        ) : null}
-      </Card>
+          ) : null;
+        if (section === 'meals')
+          return (
+            <View key={section} style={{ gap: space.m }}>
+              <SectionTitle>{t('meals')}</SectionTitle>
+              {MEALS.map((meal) => (
+                <MealCard
+                  key={meal}
+                  meal={meal}
+                  date={date}
+                  entries={entries.filter((e) => e.meal === meal)}
+                  target={Math.round(budget * MEAL_SHARE[meal])}
+                />
+              ))}
+            </View>
+          );
+        if (section === 'water') return <WaterCard key={section} date={date} />;
+        return (
+          <Card key={section} r="l">
+            <Row gap={12}>
+              <Tile icon="footsteps" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Txt v="h3">{t('steps')}</Txt>
+                <Txt v="sub">
+                  {steps === null ? t('steps_unavailable') : `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`}
+                </Txt>
+              </View>
+            </Row>
+            {steps !== null ? (
+              <>
+                <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden', marginTop: 4 }}>
+                  <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.leaf }} />
+                </View>
+                <Txt v="small">
+                  {t('steps_kcal', { kcal: stepKcal })}
+                  {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
+                </Txt>
+              </>
+            ) : null}
+          </Card>
+        );
+      })}
     </Screen>
   );
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
+  const shown = useCountUp(value);
   return (
     <View style={{ alignItems: 'center', minWidth: 70 }}>
-      <Txt v="h2">{value}</Txt>
+      <Txt v="h2">{Math.round(shown)}</Txt>
       <Txt v="small">{label}</Txt>
     </View>
   );

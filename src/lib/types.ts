@@ -156,3 +156,29 @@ export interface AIResult {
   provider: AIProviderId;
   model: string;
 }
+
+export type ThemeId = 'garden' | 'ocean' | 'berry' | 'sunset' | 'forest' | 'mono' | 'neon';
+export type MotionPref = 'lively' | 'calm' | 'off';
+
+/** Look of the app (see themes.ts). */
+export interface Appearance {
+  theme: ThemeId;
+  scheme: 'system' | 'light' | 'dark';
+  /** Own action colour (hex) instead of the theme's. */
+  accent?: string;
+  /** Own macro colours (hex); missing ones keep the theme's. */
+  macroColors?: Partial<Record<'carbs' | 'protein' | 'fat', string>>;
+  motion: MotionPref;
+}
+
+export type TabId = 'index' | 'fasting' | 'progress' | 'profile';
+export type DiarySection = 'plate' | 'meals' | 'fasting' | 'water' | 'steps';
+
+/** Order and visibility of tabs and diary sections (see layout.ts). */
+export interface LayoutPrefs {
+  tabOrder: TabId[];
+  hiddenTabs: TabId[];
+  addButton: 'left' | 'center' | 'right';
+  diaryOrder: DiarySection[];
+  hiddenDiary: DiarySection[];
+}

@@ -1,6 +1,8 @@
 import {
   MEALS,
   type AISettings,
+  type Appearance,
+  type LayoutPrefs,
   type DiaryEntry,
   type FastingSession,
   type Food,
@@ -24,6 +26,9 @@ export interface BackupData {
   ai?: Partial<AISettings>;
   /** Saved meals; missing in exports from older versions. */
   meals: SavedMeal[];
+  /** Look and layout; optional, normalised by the store on import. */
+  appearance?: Partial<Appearance>;
+  layout?: Partial<LayoutPrefs>;
 }
 
 const BACKUP_KEYS: (keyof BackupData)[] = [
@@ -38,6 +43,8 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'fastingHistory',
   'ai',
   'meals',
+  'appearance',
+  'layout',
 ];
 
 /** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
@@ -129,6 +136,8 @@ export function parseBackup(text: string): BackupData {
     fastingActive: isFast(raw.fastingActive) ? { ...raw.fastingActive, notificationId: undefined } : null,
     fastingHistory: list(raw.fastingHistory).filter(isFast),
     ai: isObj(raw.ai) ? (raw.ai as Partial<AISettings>) : undefined,
+    appearance: isObj(raw.appearance) ? (raw.appearance as Partial<Appearance>) : undefined,
+    layout: isObj(raw.layout) ? (raw.layout as Partial<LayoutPrefs>) : undefined,
     meals: list(raw.meals)
       .filter(isMeal)
       .map((m) => ({ ...m, createdAt: isNum(m.createdAt) ? m.createdAt : 0, lastUsed: isNum(m.lastUsed) ? m.lastUsed : 0 })),

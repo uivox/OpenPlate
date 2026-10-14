@@ -84,7 +84,7 @@ export default function FastingScreen() {
   const todayIsFastDay = plan.kind === 'weekly' && profile.fastingDays.includes(weekdayOf(dayKey()));
 
   return (
-    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
       <Txt v="title">{t('tab_fasting')}</Txt>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>

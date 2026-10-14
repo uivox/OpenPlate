@@ -63,7 +63,7 @@ export default function ProgressScreen() {
   const loggedToday = weights.some((w) => w.date === today);
 
   return (
-    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
+    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
       <Txt v="title">{t('tab_progress')}</Txt>
 
       <Card r="xl" style={{ paddingVertical: 22 }}>

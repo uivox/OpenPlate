@@ -9,6 +9,7 @@ import { isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
 import { ALL_KEYS, _dicts, translate } from '../src/lib/i18n';
 import { dayGoal, weightOn } from '../src/lib/goals';
+import { move, normalizeLayout, tabSides, toggle, visibleDiary, visibleTabs } from '../src/lib/layout';
 import { entriesForMeal, itemsFromEntries, mealTotals, newMeal, searchMeals } from '../src/lib/meals';
 import {
   bmr,
@@ -25,6 +26,7 @@ import {
   defaultWaterGoal,
 } from '../src/lib/nutrition';
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
+import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
 import { foodFromOFF } from '../src/lib/openFoodFacts';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
 
@@ -435,4 +437,69 @@ test('backup carries saved meals and custom goal fields', () => {
   delete old.meals;
   old.meals = [{ id: 'x', name: 'broken', items: [{ food: null, grams: 1 }] }];
   assert.deepEqual(parseBackup(JSON.stringify(old)).meals, []);
+});
+
+test('themes: garden is unchanged, every theme is readable', () => {
+  const g = buildColors(DEFAULT_APPEARANCE, 'light');
+  assert.equal(g.bg, '#EEF2E5');
+  assert.equal(g.accent, '#9C2F62');
+  assert.equal(g.accentText, '#FFF7FB');
+  assert.equal(g.meal.breakfast.tile, '#FCEBC4');
+  assert.equal(buildColors(DEFAULT_APPEARANCE, 'dark').bg, '#17121B');
+  for (const th of THEMES) {
+    for (const scheme of ['light', 'dark'] as const) {
+      const col = buildColors({ ...DEFAULT_APPEARANCE, theme: th.id }, scheme);
+      const name = `${th.id}/${scheme}`;
+      assert.ok(contrast(col.text, col.bg) >= 7, `${name}: text on bg`);
+      assert.ok(contrast(col.text, col.card) >= 7, `${name}: text on card`);
+      assert.ok(contrast(col.sub, col.card) >= 3.5, `${name}: sub on card ${contrast(col.sub, col.card).toFixed(2)}`);
+      assert.ok(contrast(col.accentText, col.accent) >= 4.5, `${name}: accent text`);
+      assert.ok(contrast(col.accent, col.bg) >= 2.2, `${name}: accent on bg`);
+      for (const m of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
+        assert.ok(contrast(col.meal[m].icon, col.meal[m].tile) >= 2.4, `${name}: ${m} icon on tile ${contrast(col.meal[m].icon, col.meal[m].tile).toFixed(2)}`);
+      }
+      for (const [k, v] of Object.entries(col)) if (typeof v === 'string' && v.startsWith('#')) assert.ok(normalizeHex(v), `${name}.${k} ${v}`);
+    }
+  }
+  assert.equal(buildColors({ ...DEFAULT_APPEARANCE, theme: 'neon' }, 'dark').fontDisplay, 'SpaceGrotesk_600SemiBold');
+  assert.equal(g.glow, null);
+});
+
+test('themes: own accent and macro colours stay visible', () => {
+  const own = buildColors({ ...DEFAULT_APPEARANCE, accent: '#22e3ff', macroColors: { protein: '#ff00aa' } }, 'light');
+  assert.ok(contrast(own.accent, own.bg) >= 2.2); // cyan on a light ground gets darkened
+  assert.ok(contrast(own.accentText, own.accent) >= 4.5);
+  assert.equal(own.protein, '#FF00AA');
+  assert.equal(own.carbs, '#E39B12');
+  const darkOwn = buildColors({ ...DEFAULT_APPEARANCE, accent: '#161616' }, 'dark');
+  assert.ok(contrast(darkOwn.accent, darkOwn.bg) >= 2.2); // near-black on dark gets lightened
+  assert.equal(mix('#000000', '#FFFFFF', 0.5), '#808080');
+  assert.ok(contrast(ensureContrast('#EEEEEE', '#FFFFFF', 3), '#FFFFFF') >= 3);
+  assert.equal(normalizeHex('abc'), '#AABBCC');
+  assert.equal(normalizeHex('#12345'), null);
+  assert.deepEqual(normalizeAppearance({ theme: 'nope' as never, scheme: 'x' as never, motion: 'calm', accent: 'zz' }), {
+    theme: 'garden',
+    scheme: 'system',
+    motion: 'calm',
+    accent: undefined,
+    macroColors: undefined,
+  });
+  assert.equal(normalizeAppearance(undefined).motion, 'lively');
+});
+
+test('layout: order, hiding and the add button', () => {
+  const l = normalizeLayout({ tabOrder: ['progress', 'nope' as never, 'index', 'progress'], hiddenTabs: ['fasting', 'index'], diaryOrder: ['water'], hiddenDiary: ['plate', 'steps'] });
+  assert.deepEqual(l.tabOrder, ['progress', 'index', 'fasting', 'profile']);
+  assert.deepEqual(l.hiddenTabs, ['fasting']); // the diary can't be hidden
+  assert.deepEqual(visibleTabs(l), ['progress', 'index', 'profile']);
+  assert.deepEqual(l.diaryOrder, ['water', 'plate', 'meals', 'fasting', 'steps']);
+  assert.deepEqual(visibleDiary(l), ['water', 'plate', 'meals', 'fasting']);
+  assert.equal(l.addButton, 'center');
+  assert.deepEqual(move(['a', 'b', 'c'], 'c', -1), ['a', 'c', 'b']);
+  assert.deepEqual(move(['a', 'b'], 'a', -1), ['a', 'b']);
+  assert.deepEqual(toggle(['a'], 'b', true), ['a', 'b']);
+  assert.deepEqual(toggle(['a', 'b'], 'a', false), ['b']);
+  assert.deepEqual(tabSides(['index', 'fasting', 'progress'], 'center'), { left: ['index', 'fasting'], right: ['progress'] });
+  assert.deepEqual(tabSides(['index', 'profile'], 'left'), { left: [], right: ['index', 'profile'] });
+  assert.deepEqual(normalizeLayout(undefined), normalizeLayout({}));
 });
