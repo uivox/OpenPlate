@@ -142,6 +142,7 @@ export default function ProfileScreen() {
       <Card>
         <Txt v="sub">{t('about_text')}</Txt>
         <Txt v="small">{t('off_attribution')}</Txt>
+        <Txt v="small">{t('bls_attribution')}</Txt>
         <Txt v="small">{t('medical_disclaimer')}</Txt>
       </Card>
     </Screen>

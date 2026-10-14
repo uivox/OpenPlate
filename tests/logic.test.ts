@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeMeal, buildMealPrompt, callProvider, parseMealJson, providerOrder, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
 import { buildBackup, parseBackup } from '../src/lib/backup';
+import { blsFood, searchBLS } from '../src/lib/bls';
+import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
@@ -27,7 +29,7 @@ import {
 } from '../src/lib/nutrition';
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
-import { foodFromOFF } from '../src/lib/openFoodFacts';
+import { foodFromOFF, parseRetailer, rankHits } from '../src/lib/openFoodFacts';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
 
 const profile: Profile = {
@@ -502,4 +504,47 @@ test('layout: order, hiding and the add button', () => {
   assert.deepEqual(tabSides(['index', 'fasting', 'progress'], 'center'), { left: ['index', 'fasting'], right: ['progress'] });
   assert.deepEqual(tabSides(['index', 'profile'], 'left'), { left: [], right: ['index', 'profile'] });
   assert.deepEqual(normalizeLayout(undefined), normalizeLayout({}));
+});
+
+test('Open Food Facts: retailer queries and German-first ranking', () => {
+  const p = parseRetailer('Lidl Skyr');
+  assert.equal(p.retailer?.id, 'lidl');
+  assert.equal(p.rest, 'skyr');
+  assert.equal(parseRetailer('Aldi Süd Joghurt').retailer?.id, 'aldi');
+  assert.equal(parseRetailer('Aldi Süd Joghurt').rest, 'joghurt');
+  assert.equal(parseRetailer('dmbio hafer').retailer, undefined); // brand alone is a normal search
+  assert.equal(parseRetailer('Gouda').rest, 'Gouda');
+
+  const n = { 'energy-kcal_100g': 60, proteins_100g: 10, carbohydrates_100g: 4, fat_100g: 0.2 };
+  const hits = [
+    { code: '1', product_name: 'Skyr Vanille', brands: 'Foreign', countries_tags: ['en:france'], nutriments: n },
+    { code: '2', product_name: 'Skyr', brands: 'Milbona', countries_tags: ['en:germany'], nutriments: n, unique_scans_n: 5 },
+    { code: '3', product_name: 'Skyr Natur', brands: 'Musterhof', countries_tags: ['en:germany'], nutriments: n, unique_scans_n: 900 },
+    { code: '4', product_name: 'Joghurt', brands: 'Other', countries_tags: ['en:germany'], nutriments: n },
+  ];
+  assert.deepEqual(rankHits(hits, 'skyr', 'de').map((h) => h.code), ['3', '2', '1', '4']);
+  assert.equal(rankHits(hits, 'skyr', 'de', p.retailer)[0].code, '2'); // Milbona is a Lidl brand
+  const store = [...hits, { code: '5', product_name: 'Skyr', brands: 'Hofgut', stores: 'Lidl, Kaufland', nutriments: n }];
+  assert.deepEqual(rankHits(store, 'skyr', 'de', p.retailer).slice(0, 2).map((h) => h.code).sort(), ['2', '5']);
+});
+
+test('BLS search: both languages, word prefixes, main name first', () => {
+  const rows: BlsRow[] = [
+    ['F110100', 'Apfelkuchen, Rührteig', 'Apple cake, sponge', 280, 3.5, 38, 12],
+    ['F110000', 'Apfel, roh', 'Apple, raw', 54, 0.3, 12.5, 0.2, 2.2, 10.3],
+    ['F110200', 'Apfel, gegart', 'Apple, cooked', 50, 0.3, 11.6, 0.2],
+    ['B110000', 'Brötchen, Weizen', 'Bread roll, wheat', 265, 8.5, 52, 1.5, 3, 2, null, 1.4],
+    ['M120000', 'Joghurt, 3,5 % Fett', 'Yoghurt, 3.5 % fat', 66, 3.8, 4.5, 3.5],
+  ];
+  assert.deepEqual(searchBLS('apfel', 'de', 5, rows).map((f) => f.name), ['Apfel, roh', 'Apfel, gegart', 'Apfelkuchen, Rührteig']);
+  assert.equal(searchBLS('apple raw', 'en', 5, rows)[0].name, 'Apple, raw');
+  assert.equal(searchBLS('brotchen', 'de', 5, rows)[0].name, 'Brötchen, Weizen');
+  assert.equal(searchBLS('weizen bro', 'de', 5, rows).length, 1); // word order doesn't matter
+  assert.deepEqual(searchBLS('a', 'de', 5, rows), []);
+  const f = blsFood(rows[3], 'de');
+  assert.equal(f.id, 'bls:B110000');
+  assert.equal(f.source, 'bls');
+  assert.equal(f.per100.salt, 1.4);
+  assert.equal(f.per100.satFat, undefined);
+  assert.equal(blsFood(rows[1], 'en').name, 'Apple, raw');
 });

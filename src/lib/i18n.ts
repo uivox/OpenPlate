@@ -449,6 +449,10 @@ const en = {
   move_up: 'Move up',
   move_down: 'Move down',
   reset_layout: 'Reset layout',
+  // German food database
+  source_bls: 'German nutrient database (BLS)',
+  bls_attribution: 'Nutrition data: Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut, CC BY 4.0.',
+  retailer_hint: 'Tip: start with a supermarket, e.g. “Lidl Skyr”, to see its products first.',
 };
 
 export type TKey = keyof typeof en;
@@ -892,6 +896,10 @@ const de: Record<TKey, string> = {
   move_up: 'Nach oben',
   move_down: 'Nach unten',
   reset_layout: 'Anordnung zurücksetzen',
+  // German food database
+  source_bls: 'Bundeslebensmittelschlüssel (BLS)',
+  bls_attribution: 'Nährwerte: Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut, CC BY 4.0.',
+  retailer_hint: 'Tipp: Beginne mit einem Supermarkt, z. B. „Lidl Skyr“, dann siehst du dessen Produkte zuerst.',
 };
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, de };

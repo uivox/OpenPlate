@@ -17,6 +17,9 @@ const FIELDS = [
   'serving_size',
   'quantity',
   'image_front_small_url',
+  'countries_tags',
+  'stores',
+  'unique_scans_n',
 ].join(',');
 
 type Json = Record<string, unknown>;
@@ -102,9 +105,100 @@ export async function lookupBarcode(code: string, lang: 'de' | 'en'): Promise<Fo
   return food ?? null;
 }
 
+/**
+ * German supermarkets and their house brands. Typing "lidl skyr" searches for "skyr" and puts
+ * Lidl products (by store or by a Lidl brand such as Milbona) first. Only a ranking hint:
+ * products are still found by their own names.
+ */
+export const RETAILERS: { id: string; names: string[]; brands: string[] }[] = [
+  {
+    id: 'lidl',
+    names: ['lidl'],
+    brands: ['milbona', 'pilos', 'crownfield', 'freeway', 'solevita', 'snack day', 'chef select', 'fin carre', 'combino', 'alesto', 'vemondo', 'deluxe', 'bellarom', 'favorina', 'kania', 'baresa', 'gelatelli', 'sondey', 'trattoria alfredo', 'dulano', 'mister choc', 'grafschafter', 'lord nelson', 'mcennedy'],
+  },
+  {
+    id: 'aldi',
+    names: ['aldi', 'aldi sud', 'aldi nord'],
+    brands: ['milsani', 'gut bio', 'goldahren', 'moser roth', 'choceur', 'river', 'lyttos', 'cucina nobile', 'golden bridge', "rio d'oro", 'westminster', 'meine metzgerei', 'le gusto', 'knusperone'],
+  },
+  { id: 'rewe', names: ['rewe'], brands: ['rewe beste wahl', 'rewe bio', 'ja!', 'rewe feine welt'] },
+  { id: 'edeka', names: ['edeka'], brands: ['gut & gunstig', 'gut&gunstig', 'edeka bio', 'edeka herzstucke'] },
+  { id: 'kaufland', names: ['kaufland'], brands: ['k-classic', 'k-bio', 'k-favourites'] },
+  { id: 'penny', names: ['penny'], brands: ['naturgut'] },
+  { id: 'netto', names: ['netto'], brands: [] },
+  { id: 'dm', names: ['dm'], brands: ['dmbio', 'dm bio'] },
+  { id: 'rossmann', names: ['rossmann'], brands: ['enerbio'] },
+];
+
+const fold = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss')
+    .trim();
+
+/** Splits a retailer name off the query ("lidl skyr" → lidl + "skyr"). */
+export function parseRetailer(query: string): { retailer?: (typeof RETAILERS)[number]; rest: string } {
+  const q = fold(query);
+  for (const r of RETAILERS) {
+    for (const n of [...r.names].sort((a, b) => b.length - a.length)) {
+      const re = new RegExp(`(^|\\s)${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+      if (re.test(q)) {
+        const rest = q.replace(re, ' ').replace(/\s+/g, ' ').trim();
+        return { retailer: r, rest };
+      }
+    }
+  }
+  return { rest: query.trim() };
+}
+
+/**
+ * Orders raw search hits: name matches first, products sold in Germany (for German users),
+ * products from the asked-for retailer, popular products (many scans) and complete nutrition.
+ */
+export function rankHits(hits: Json[], query: string, lang: 'de' | 'en', retailer?: (typeof RETAILERS)[number]): Json[] {
+  const words = fold(query).split(/\s+/).filter(Boolean);
+  const scored = hits.map((h, i) => {
+    const name = fold(str(h[`product_name_${lang}`], lang) ?? str(h.product_name, lang) ?? '');
+    const brands = fold(str(h.brands, lang) ?? '');
+    const stores = fold(str(h.stores, lang) ?? '');
+    const countries = Array.isArray(h.countries_tags) ? (h.countries_tags as unknown[]).map(String) : [];
+    let score = 0;
+    if (words.length) {
+      const hay = `${name} ${brands}`;
+      const matched = words.filter((w) => hay.includes(w)).length / words.length;
+      score += matched * 3;
+      if (name.startsWith(words.join(' '))) score += 1.5;
+      if (name === words.join(' ')) score += 1;
+    }
+    if (lang === 'de') {
+      if (countries.includes('en:germany')) score += 2;
+      else if (countries.includes('en:austria') || countries.includes('en:switzerland')) score += 0.8;
+    }
+    if (retailer) {
+      const byStore = listHas(retailer.names, stores) || listHas(retailer.names, brands);
+      const byBrand = listHas(retailer.brands, brands);
+      if (byStore || byBrand) score += 4;
+    }
+    const scans = num(h.unique_scans_n) ?? 0;
+    score += Math.min(2, Math.log10(scans + 1) * 0.6);
+    const n = (h.nutriments ?? {}) as Json;
+    if (num(n['proteins_100g']) !== undefined && num(n['carbohydrates_100g']) !== undefined && num(n['fat_100g']) !== undefined) score += 0.5;
+    return { h, score, i };
+  });
+  return scored.sort((a, b) => b.score - a.score || a.i - b.i).map((x) => x.h);
+}
+
+function listHas(needles: string[], hay: string): boolean {
+  return needles.some((n) => n && hay.split(/\s*,\s*/).some((part) => part === n || part.startsWith(`${n} `)));
+}
+
 /** Full-text search: tries the newer search service, falls back to the classic endpoint. */
-export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 25): Promise<Food[]> {
-  const q = encodeURIComponent(query.trim());
+export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 40): Promise<Food[]> {
+  const { retailer, rest } = parseRetailer(query);
+  const text = (retailer ? rest || retailer.names[0] : rest).trim();
+  const q = encodeURIComponent(text);
   if (!q) return [];
   let hits: Json[] = [];
   try {
@@ -118,7 +212,7 @@ export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 25)
   }
   const seen = new Set<string>();
   const out: Food[] = [];
-  for (const h of hits) {
+  for (const h of rankHits(hits, text, lang, retailer)) {
     const f = foodFromOFF(h, lang);
     if (f && !seen.has(f.id)) {
       seen.add(f.id);

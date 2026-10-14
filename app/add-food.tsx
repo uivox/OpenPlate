@@ -8,6 +8,7 @@ import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, S
 import { dayKey } from '../src/lib/dates';
 import { putFood, setMealDraft } from '../src/lib/foodCache';
 import { foodSubtitle } from '../src/lib/format';
+import { searchBLS } from '../src/lib/bls';
 import { searchGeneric } from '../src/lib/genericFoods';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
@@ -46,8 +47,11 @@ export default function AddFoodScreen() {
     const mine = [...custom, ...recent].filter(
       (f, i, arr) => f.name.toLowerCase().includes(ql) && arr.findIndex((x) => x.id === f.id) === i,
     );
-    const generic = searchGeneric(q, lang).filter((g) => !mine.some((m) => m.id === g.id));
-    return [...mine.slice(0, 6), ...generic];
+    const generic = searchGeneric(q, lang, 5).filter((g) => !mine.some((m) => m.id === g.id));
+    // the national nutrient database fills in everything unpackaged that the basics list lacks
+    const taken = new Set([...mine, ...generic].map((f) => f.name.toLowerCase()));
+    const bls = searchBLS(q, lang, 10).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
+    return [...mine.slice(0, 6), ...generic, ...bls];
   }, [q, custom, recent, lang]);
 
   useEffect(() => {
@@ -149,6 +153,8 @@ export default function AddFoodScreen() {
           {!loading && !error && remote.length === 0 && q.length >= 2 ? <Txt v="sub">{t('no_results')}</Txt> : null}
           {remote.length > 0 ? <Card>{remote.map(renderFood)}</Card> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
+          {local.some((f) => f.source === 'bls') ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
+          {lang === 'de' && !/^(lidl|aldi|rewe|edeka|kaufland|penny|netto|dm|rossmann)\b/i.test(q) ? <Txt v="small">{t('retailer_hint')}</Txt> : null}
         </>
       ) : (
         <>

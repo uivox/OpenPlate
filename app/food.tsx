@@ -166,6 +166,7 @@ export default function FoodScreen() {
         <NutrientTable n={food.per100} />
       </Card>
       {food.source === 'off' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
+      {food.source === 'bls' ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
       {food.source === 'ai' ? <Txt v="small">{t('ai_estimate_note')}</Txt> : null}
     </Screen>
   );

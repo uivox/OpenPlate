@@ -12,7 +12,7 @@ export interface Nutrients {
   salt?: number;
 }
 
-export type FoodSource = 'generic' | 'off' | 'custom' | 'ai' | 'quick';
+export type FoodSource = 'generic' | 'bls' | 'off' | 'custom' | 'ai' | 'quick';
 
 export interface Serving {
   label: string;
