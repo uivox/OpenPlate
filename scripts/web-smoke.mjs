@@ -61,6 +61,13 @@ async function run(scheme) {
         await page.getByText(food, { exact: true }).first().waitFor();
       });
     }
+    await step('BLS search', async () => {
+      await btn('Add food: Lunch').click();
+      await page.getByPlaceholder('Search foods and products').fill('oat flakes');
+      await page.getByText('Oat flakes', { exact: true }).first().waitFor();
+      await page.getByText(/Bundeslebensmittelschlüssel/).first().waitFor();
+      await page.goBack();
+    });
     await step('save as meal', async () => {
       await btn('Save as meal').click();
       await btn('Save meal').click();
