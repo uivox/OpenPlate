@@ -1,0 +1,36 @@
+name: Check
+
+# Type check, logic tests and a web build for pull requests and feature branches.
+# Unlike build.yml this never publishes anything, so branches can be verified before they reach main.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
+      - name: Align native package versions with the Expo SDK
+        run: bash scripts/ci-run.sh npx expo install --fix
+      - run: bash scripts/ci-run.sh npx tsc --noEmit
+      - run: bash scripts/ci-run.sh npm test
+      - name: Web build (catches bundling errors the type check misses)
+        run: bash scripts/ci-run.sh npm run build:web
+        env:
+          WEB_BASE_URL: ''
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-preview
+          path: dist
+          retention-days: 7
