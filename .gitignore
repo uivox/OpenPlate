@@ -9,3 +9,4 @@ android/
 .env.local
 .DS_Store
 .test-build/
+smoke-shots/

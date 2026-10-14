@@ -29,8 +29,16 @@ jobs:
         run: bash scripts/ci-run.sh npm run build:web
         env:
           WEB_BASE_URL: ''
+      - name: Click through the web app in a headless browser
+        run: |
+          npm i --no-save --no-audit --no-fund playwright@1
+          npx playwright install --with-deps chromium
+          bash scripts/ci-run.sh node scripts/web-smoke.mjs dist
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: web-preview
-          path: dist
+          path: |
+            dist
+            smoke-shots
           retention-days: 7
