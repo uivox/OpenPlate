@@ -12,9 +12,10 @@ import { useStore } from '../src/lib/store';
 import { useT } from '../src/lib/useT';
 
 export default function ScanScreen() {
-  const params = useLocalSearchParams<{ meal?: string; date?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
   const meal = params.meal ?? 'snack';
   const date = params.date ?? dayKey();
+  const pick = params.pick === '1' ? { pick: '1' } : {};
   const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
@@ -30,14 +31,14 @@ export default function ScanScreen() {
       const food = own ?? (await lookupBarcode(data, lang));
       if (food) {
         putFood(food);
-        router.replace({ pathname: '/food', params: { fid: food.id, meal, date } });
+        router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...pick } });
         return;
       }
       showAlert(t('not_found'), t('not_found_text', { code: data }), [
         { text: t('scan_again'), onPress: () => (locked.current = false) },
         {
           text: t('create_food'),
-          onPress: () => router.replace({ pathname: '/custom-food', params: { meal, date, barcode: data } }),
+          onPress: () => router.replace({ pathname: '/custom-food', params: { meal, date, barcode: data, ...pick } }),
         },
       ]);
     } catch {

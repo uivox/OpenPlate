@@ -11,7 +11,7 @@ import { MEALS, type Food, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
 export default function CustomFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string; date?: string; mode?: string; barcode?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; date?: string; mode?: string; barcode?: string; pick?: string }>();
   const quick = params.mode === 'quick';
   const meal: MealType = MEALS.includes(params.meal as MealType) ? (params.meal as MealType) : 'snack';
   const date = params.date ?? dayKey();
@@ -68,7 +68,7 @@ export default function CustomFoodScreen() {
     };
     saveCustomFood(food);
     putFood(food);
-    router.replace({ pathname: '/food', params: { fid: food.id, meal, date } });
+    router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...(params.pick === '1' ? { pick: '1' } : {}) } });
   };
 
   return (

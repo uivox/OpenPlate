@@ -5,7 +5,7 @@ import { Image, View } from 'react-native';
 import { Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { dayKey } from '../src/lib/dates';
-import { getFood } from '../src/lib/foodCache';
+import { addToMealDraft, getFood } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
 import { leaveToDiary } from '../src/lib/nav';
 import { scaleNutrients } from '../src/lib/nutrition';
@@ -15,7 +15,9 @@ import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
 export default function FoodScreen() {
-  const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string }>();
+  const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
+  /** Picking an ingredient for the meal builder (see meal-edit.tsx). */
+  const pick = params.pick === '1';
   const { t } = useT();
   const c = useColors();
   const entry = useStore((s) => (params.entryId ? s.entries.find((e) => e.id === params.entryId) : undefined));
@@ -67,6 +69,12 @@ export default function FoodScreen() {
 
   const save = () => {
     if (!(grams > 0)) return;
+    if (pick) {
+      addToMealDraft({ food, grams });
+      Haptics.selectionAsync().catch(() => {});
+      router.dismissTo('/meal-edit');
+      return;
+    }
     if (editing) {
       updateEntry(entry!.id, { grams, meal });
       router.back();
@@ -92,7 +100,7 @@ export default function FoodScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: editing ? t('edit_entry') : t('add_food') }} />
+      <Stack.Screen options={{ title: pick ? t('add_ingredient') : editing ? t('edit_entry') : t('add_food') }} />
       <Row gap={12}>
         {food.imageUrl ? (
           <Image source={{ uri: food.imageUrl }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.card }} />
@@ -126,11 +134,20 @@ export default function FoodScreen() {
           setUnitIdx(v);
         }} /> : null}
         {unitIdx >= 0 && food.source !== 'quick' ? <Txt v="small">= {fmt(grams)} {unit}</Txt> : null}
-        <Txt v="h3">{t('meal')}</Txt>
-        <ChipGroup options={MEALS.map((m) => ({ value: m, label: t(`meal_${m}`) }))} value={meal} onChange={setMeal} />
+        {!pick ? (
+          <>
+            <Txt v="h3">{t('meal')}</Txt>
+            <ChipGroup options={MEALS.map((m) => ({ value: m, label: t(`meal_${m}`) }))} value={meal} onChange={setMeal} />
+          </>
+        ) : null}
       </Card>
 
-      <Button title={editing ? t('save') : t('add')} icon={editing ? 'checkmark' : 'add'} onPress={save} disabled={!(grams > 0)} />
+      <Button
+        title={pick ? t('add_to_meal') : editing ? t('save') : t('add')}
+        icon={editing ? 'checkmark' : 'add'}
+        onPress={save}
+        disabled={!(grams > 0)}
+      />
       {editing ? <Button kind="ghost" title={t('delete')} icon="trash-outline" onPress={remove} /> : null}
       {!isSaved && (food.source === 'off' || food.source === 'ai') ? (
         <Button

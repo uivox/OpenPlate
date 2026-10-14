@@ -1,16 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlateRing } from '../../src/components/PlateRing';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
 import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/dates';
+import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
+import { dayGoal } from '../../src/lib/goals';
 import { goalsFor, useNow, useSteps } from '../../src/lib/hooks';
+import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
+import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
 import { useStore } from '../../src/lib/store';
 import { radius, useColors } from '../../src/lib/theme';
 import { MEALS, type DiaryEntry, type MealType } from '../../src/lib/types';
@@ -29,6 +33,11 @@ export default function DiaryScreen() {
   const { t, lang } = useT();
   const today = dayKey();
   const [date, setDate] = useState(today);
+  // Opened from the calendar with a day to show.
+  const params = useLocalSearchParams<{ date?: string }>();
+  useEffect(() => {
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date);
+  }, [params.date]);
 
   const profile = useStore((s) => s.profile)!;
   const weights = useStore((s) => s.weights);
@@ -36,6 +45,10 @@ export default function DiaryScreen() {
   const fastingActive = useStore((s) => s.fastingActive);
 
   const entries = useMemo(() => allEntries.filter((e) => e.date === date).sort((a, b) => a.createdAt - b.createdAt), [allEntries, date]);
+  const streak = useMemo(
+    () => streakInfo(dailyTotals(allEntries), today, (d) => ({ kcal: dayGoal(profile, weights, d).kcal, goal: profile.goal })),
+    [allEntries, today, profile, weights],
+  );
   const goals = goalsFor(profile, weights, date);
   const totals = sumEntries(entries);
   const { steps, kcal: stepKcal } = useSteps(date, goals.weight);
@@ -55,6 +68,24 @@ export default function DiaryScreen() {
             {profile.name ? `${greeting}, ${profile.name}` : greeting}
           </Txt>
         </View>
+        <Pressable
+          onPress={() => router.push('/streak')}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            backgroundColor: c.card,
+            borderRadius: 999,
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            transform: [{ scale: pressed ? 0.94 : 1 }],
+          })}
+        >
+          <Ionicons name="flame" size={18} color={streak.todayLogged ? c.coral : c.sub} />
+          <Txt v="h3">{streak.current}</Txt>
+        </Pressable>
       </Row>
 
       <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
@@ -69,7 +100,12 @@ export default function DiaryScreen() {
           onPress={() => setDate(addDays(date, 1))}
           color={date >= today ? c.line : c.text}
         />
+        <IconButton icon="calendar-outline" size={18} label={t('open_calendar')} onPress={() => router.push('/streak')} color={c.text} />
       </Row>
+
+      {date === today && streak.todayLogged && isMilestone(streak.current) ? (
+        <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
+      ) : null}
 
       <Card r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
         <PlateRing
@@ -213,6 +249,21 @@ function MealCard({ meal, date, entries, target }: { meal: MealType; date: strin
           </View>
         </View>
       ))}
+      {entries.length >= 2 ? (
+        <View style={{ paddingLeft: 50 }}>
+          <Button
+            small
+            kind="ghost"
+            icon="bookmark-outline"
+            title={t('save_as_meal')}
+            style={{ alignSelf: 'flex-start' }}
+            onPress={() => {
+              setMealDraft({ name: t(`meal_${meal}`), items: itemsFromEntries(entries) });
+              router.push('/meal-edit');
+            }}
+          />
+        </View>
+      ) : null}
       {entries.length === 0 && yesterdayHas ? (
         <View style={{ paddingLeft: 50 }}>
           <Button

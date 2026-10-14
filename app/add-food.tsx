@@ -1,27 +1,37 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Sprout } from '../src/components/Sprout';
-import { Card, Divider, Field, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
+import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
-import { putFood } from '../src/lib/foodCache';
+import { putFood, setMealDraft } from '../src/lib/foodCache';
 import { foodSubtitle } from '../src/lib/format';
 import { searchGeneric } from '../src/lib/genericFoods';
+import { mealTotals, searchMeals } from '../src/lib/meals';
+import { leaveToDiary } from '../src/lib/nav';
 import { searchOFF } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
-import { MEALS, type Food, type MealType } from '../src/lib/types';
+import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
+type ListTab = 'recent' | 'meals' | 'mine';
+
 export default function AddFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string; date?: string }>();
+  const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
   const meal: MealType = MEALS.includes(params.meal as MealType) ? (params.meal as MealType) : 'snack';
   const date = params.date ?? dayKey();
+  /** Picking an ingredient for the meal builder instead of logging to the diary. */
+  const pick = params.pick === '1';
   const { t, lang } = useT();
   const c = useColors();
   const recent = useStore((s) => s.recentFoods);
   const custom = useStore((s) => s.customFoods);
+  const meals = useStore((s) => s.meals);
+  const logMeal = useStore((s) => s.logMeal);
+  const [tab, setTab] = useState<ListTab>('recent');
 
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<Food[]>([]);
@@ -65,10 +75,37 @@ export default function AddFoodScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, lang]);
 
+  const matchingMeals = useMemo(() => (q && !pick ? searchMeals(meals, q).slice(0, 4) : []), [q, meals, pick]);
+  const pickParam = pick ? { pick: '1' } : {};
+
   const open = (f: Food) => {
     putFood(f);
-    router.push({ pathname: '/food', params: { fid: f.id, meal, date } });
+    router.push({ pathname: '/food', params: { fid: f.id, meal, date, ...pickParam } });
   };
+
+  const openMeal = (m: SavedMeal) => router.push({ pathname: '/meal', params: { id: m.id, meal, date } });
+  const quickLogMeal = (m: SavedMeal) => {
+    logMeal(m.id, date, meal);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    leaveToDiary();
+  };
+  const newMealFlow = () => {
+    setMealDraft({ name: '', items: [] });
+    router.push('/meal-edit');
+  };
+
+  const renderMeal = (m: SavedMeal, i: number) => (
+    <React.Fragment key={m.id}>
+      {i > 0 ? <Divider /> : null}
+      <ListRow
+        icon="restaurant-outline"
+        title={m.name}
+        subtitle={`${m.items.length === 1 ? t('meal_items_one') : t('meal_items_n', { n: m.items.length })} · ${Math.round(mealTotals(m.items).kcal)} kcal`}
+        onPress={() => openMeal(m)}
+        right={<IconButton icon="add-circle" size={26} label={`${t('add')}: ${m.name}`} onPress={() => quickLogMeal(m)} />}
+      />
+    </React.Fragment>
+  );
 
   const renderFood = (f: Food) => (
     <ListRow
@@ -82,7 +119,7 @@ export default function AddFoodScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: t(`meal_${meal}`) }} />
+      <Stack.Screen options={{ title: pick ? t('add_ingredient') : t(`meal_${meal}`) }} />
       <Field
         placeholder={t('search_placeholder')}
         value={query}
@@ -93,14 +130,19 @@ export default function AddFoodScreen() {
       />
 
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Action icon="barcode-outline" bg={c.meal.breakfast.tile} color={c.meal.breakfast.icon} label={t('scan')} onPress={() => router.push({ pathname: '/scan', params: { meal, date } })} />
-        <Action icon="sparkles" bg={c.accent} color={c.accentText} label={t('ai_photo_short')} onPress={() => router.push({ pathname: '/photo', params: { meal, date } })} />
-        <Action icon="flash" bg={c.meal.dinner.tile} color={c.meal.dinner.icon} label={t('quick_add')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, mode: 'quick' } })} />
-        <Action icon="create" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} label={t('create_food_short')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date } })} />
+        <Action icon="barcode-outline" bg={c.meal.breakfast.tile} color={c.meal.breakfast.icon} label={t('scan')} onPress={() => router.push({ pathname: '/scan', params: { meal, date, ...pickParam } })} />
+        {!pick ? (
+          <>
+            <Action icon="sparkles" bg={c.accent} color={c.accentText} label={t('ai_photo_short')} onPress={() => router.push({ pathname: '/photo', params: { meal, date } })} />
+            <Action icon="flash" bg={c.meal.dinner.tile} color={c.meal.dinner.icon} label={t('quick_add')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, mode: 'quick' } })} />
+          </>
+        ) : null}
+        <Action icon="create" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} label={t('create_food_short')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, ...pickParam } })} />
       </View>
 
       {q ? (
         <>
+          {matchingMeals.length > 0 ? <Card>{matchingMeals.map(renderMeal)}</Card> : null}
           {local.length > 0 ? <Card>{local.map(renderFood)}</Card> : null}
           <SectionTitle right={loading ? <ActivityIndicator color={c.accent} /> : undefined}>{t('products')}</SectionTitle>
           {error ? <Txt v="sub">{error}</Txt> : null}
@@ -110,15 +152,35 @@ export default function AddFoodScreen() {
         </>
       ) : (
         <>
-          {recent.length > 0 ? (
-            <>
-              <SectionTitle>{t('recent')}</SectionTitle>
+          <ChipGroup<ListTab>
+            options={[
+              { value: 'recent', label: t('recent') },
+              ...(pick ? [] : [{ value: 'meals' as ListTab, label: t('my_meals') }]),
+              { value: 'mine', label: t('my_foods') },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+          {tab === 'recent' ? (
+            recent.length > 0 ? (
               <Card>{recent.slice(0, 15).map(renderFood)}</Card>
+            ) : (
+              <View style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
+                <Sprout size={100} />
+                <Txt v="sub" center style={{ maxWidth: 280 }}>
+                  {t('add_food_empty')}
+                </Txt>
+              </View>
+            )
+          ) : null}
+          {tab === 'meals' ? (
+            <>
+              {meals.length > 0 ? <Card>{searchMeals(meals, '').map(renderMeal)}</Card> : <Txt v="sub">{t('meals_empty')}</Txt>}
+              <Button kind="secondary" icon="add" title={t('new_meal')} onPress={newMealFlow} />
             </>
           ) : null}
-          {custom.length > 0 ? (
-            <>
-              <SectionTitle>{t('my_foods')}</SectionTitle>
+          {tab === 'mine' ? (
+            custom.length > 0 ? (
               <Card>
                 {custom.map((f, i) => (
                   <React.Fragment key={f.id}>
@@ -127,15 +189,9 @@ export default function AddFoodScreen() {
                   </React.Fragment>
                 ))}
               </Card>
-            </>
-          ) : null}
-          {recent.length === 0 && custom.length === 0 ? (
-            <View style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
-              <Sprout size={100} />
-              <Txt v="sub" center style={{ maxWidth: 280 }}>
-                {t('add_food_empty')}
-              </Txt>
-            </View>
+            ) : (
+              <Button kind="secondary" icon="add" title={t('create_food')} onPress={() => router.push({ pathname: '/custom-food', params: { meal, date, ...pickParam } })} />
+            )
           ) : null}
         </>
       )}

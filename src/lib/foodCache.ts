@@ -22,3 +22,31 @@ export function setPendingAI(v: typeof pendingAI) {
 export function getPendingAI() {
   return pendingAI;
 }
+
+/**
+ * The meal being built on the meal-edit screen. Foods picked through add-food / scan / food in
+ * "pick" mode are appended here, and the builder re-renders through `subscribeMealDraft`.
+ */
+export interface MealDraft {
+  /** Set when editing an existing saved meal. */
+  id?: string;
+  name: string;
+  items: import('./types').SavedMealItem[];
+}
+let mealDraft: MealDraft | null = null;
+const draftListeners = new Set<() => void>();
+
+export function setMealDraft(d: MealDraft | null) {
+  mealDraft = d;
+  draftListeners.forEach((l) => l());
+}
+export function getMealDraft(): MealDraft | null {
+  return mealDraft;
+}
+export function addToMealDraft(item: import('./types').SavedMealItem) {
+  setMealDraft({ ...(mealDraft ?? { name: '', items: [] }), items: [...(mealDraft?.items ?? []), item] });
+}
+export function subscribeMealDraft(listener: () => void): () => void {
+  draftListeners.add(listener);
+  return () => draftListeners.delete(listener);
+}
