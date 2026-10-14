@@ -14,7 +14,7 @@ export function buildProfile(d: ProfileDraft, base?: Partial<Profile>): Profile 
     targetWeightKg: d.goal === 'maintain' ? weight : d.targetWeightKg!,
     activity: d.activity,
     goal: d.goal,
-    paceKgPerWeek: d.goal === 'maintain' ? 0 : d.paceKgPerWeek,
+    paceKgPerWeek: d.goal === 'maintain' ? 0 : d.paceKgPerWeek ?? 0.5,
     macroSplit: split,
     waterGoalMl: base?.waterGoalMl ?? defaultWaterGoal(weight),
     glassMl: base?.glassMl ?? 250,
@@ -23,6 +23,12 @@ export function buildProfile(d: ProfileDraft, base?: Partial<Profile>): Profile 
     fastingPlanId: base?.fastingPlanId ?? '16:8',
     fastingDays: base?.fastingDays ?? [1, 4],
     createdAt: base?.createdAt ?? Date.now(),
+    customActivityFactor: d.useCustomActivity && d.customActivityFactor ? d.customActivityFactor : undefined,
+    goalMode: base?.goalMode,
+    customKcal: base?.customKcal,
+    customMaintenanceKcal: base?.customMaintenanceKcal,
+    macroMode: base?.macroMode,
+    macroGramsTarget: base?.macroGramsTarget,
   };
 }
 
@@ -36,5 +42,7 @@ export function draftFromProfile(p: Profile): ProfileDraft {
     targetWeightKg: p.targetWeightKg,
     activity: p.activity,
     paceKgPerWeek: p.paceKgPerWeek || 0.5,
+    useCustomActivity: !!p.customActivityFactor,
+    customActivityFactor: p.customActivityFactor ?? null,
   };
 }

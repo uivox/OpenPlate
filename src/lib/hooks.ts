@@ -2,16 +2,13 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { dayKey } from './dates';
 import { stepsForDay } from './device';
-import { isFastingDay } from './fasting';
-import { dailyKcalGoal, fastingDayKcal, macroGrams, stepsKcal } from './nutrition';
-import { weightOn } from './store';
+import { dayGoal } from './goals';
+import { stepsKcal } from './nutrition';
 import type { Profile, WeightEntry } from './types';
 
+/** Calorie and macro goals for one day (see goals.ts). */
 export function goalsFor(profile: Profile, weights: WeightEntry[], date: string) {
-  const weight = weightOn(weights, profile, date);
-  const fastDay = isFastingDay(profile, date);
-  const kcal = fastDay ? fastingDayKcal(profile.sex) : dailyKcalGoal(profile, weight);
-  return { weight, fastDay, kcal, macros: macroGrams(kcal, profile.macroSplit) };
+  return dayGoal(profile, weights, date);
 }
 
 /** Re-renders every `ms` milliseconds while mounted. */

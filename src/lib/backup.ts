@@ -1,4 +1,14 @@
-import { MEALS, type AISettings, type DiaryEntry, type FastingSession, type Food, type LanguagePref, type Profile, type WeightEntry } from './types';
+import {
+  MEALS,
+  type AISettings,
+  type DiaryEntry,
+  type FastingSession,
+  type Food,
+  type LanguagePref,
+  type Profile,
+  type SavedMeal,
+  type WeightEntry,
+} from './types';
 
 /** Everything the export file carries. API keys are never part of it. */
 export interface BackupData {
@@ -12,10 +22,33 @@ export interface BackupData {
   fastingActive: FastingSession | null;
   fastingHistory: FastingSession[];
   ai?: Partial<AISettings>;
+  /** Saved meals; missing in exports from older versions. */
+  meals: SavedMeal[];
+}
+
+const BACKUP_KEYS: (keyof BackupData)[] = [
+  'profile',
+  'language',
+  'entries',
+  'customFoods',
+  'recentFoods',
+  'water',
+  'weights',
+  'fastingActive',
+  'fastingHistory',
+  'ai',
+  'meals',
+];
+
+/** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
+export function pickBackup(state: BackupData): BackupData {
+  const out: Partial<Record<keyof BackupData, unknown>> = {};
+  for (const k of BACKUP_KEYS) out[k] = state[k];
+  return out as unknown as BackupData;
 }
 
 export function buildBackup(data: BackupData, now = new Date()) {
-  return { app: 'OpenPlate', exportedAt: now.toISOString(), ...data };
+  return { app: 'OpenPlate', exportedAt: now.toISOString(), ...pickBackup(data) };
 }
 
 type Json = Record<string, unknown>;
@@ -36,6 +69,16 @@ function isEntry(v: unknown): v is DiaryEntry {
     MEALS.includes(v.meal as DiaryEntry['meal']) &&
     isNum(v.grams) &&
     isFood(v.food)
+  );
+}
+
+function isMeal(v: unknown): v is SavedMeal {
+  return (
+    isObj(v) &&
+    typeof v.id === 'string' &&
+    typeof v.name === 'string' &&
+    Array.isArray(v.items) &&
+    v.items.every((it) => isObj(it) && isFood(it.food) && isNum(it.grams))
   );
 }
 
@@ -86,5 +129,8 @@ export function parseBackup(text: string): BackupData {
     fastingActive: isFast(raw.fastingActive) ? { ...raw.fastingActive, notificationId: undefined } : null,
     fastingHistory: list(raw.fastingHistory).filter(isFast),
     ai: isObj(raw.ai) ? (raw.ai as Partial<AISettings>) : undefined,
+    meals: list(raw.meals)
+      .filter(isMeal)
+      .map((m) => ({ ...m, createdAt: isNum(m.createdAt) ? m.createdAt : 0, lastUsed: isNum(m.lastUsed) ? m.lastUsed : 0 })),
   };
 }

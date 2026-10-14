@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { importBackupFlow } from '../../src/components/importBackup';
 import { Sprout } from '../../src/components/Sprout';
@@ -30,8 +30,7 @@ export default function ProfileScreen() {
   const chevron = <Ionicons name="chevron-forward" size={18} color={c.sub} />;
 
   const exportData = async () => {
-    const { profile: p, language, entries, customFoods, recentFoods, water, weights, fastingActive, fastingHistory, ai } = useStore.getState();
-    const data = buildBackup({ profile: p, language, entries, customFoods, recentFoods, water, weights, fastingActive, fastingHistory, ai });
+    const data = buildBackup(useStore.getState());
     await shareExport(JSON.stringify(data, null, 2), `openplate-export-${dayKey()}.json`);
   };
 
@@ -59,20 +58,22 @@ export default function ProfileScreen() {
     <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE}>
       <Txt v="title">{t('tab_profile')}</Txt>
 
-      <Card r="xl" tone="beet" style={{ paddingVertical: 22 }}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Txt v="label">{t(`goal_${profile.goal}`)}</Txt>
-            <Txt v="big">{goals.kcal}</Txt>
-            <Txt v="sub">{t('kcal_per_day')}</Txt>
-          </View>
-          <Sprout size={84} />
-        </Row>
-        <Txt v="sub">
-          {t('macro_line', { c: goals.macros.carbs, p: goals.macros.protein, f: goals.macros.fat })}
-        </Txt>
-        <Txt v="sub">{t('weight_path', { from: profile.startWeightKg, to: profile.targetWeightKg })}</Txt>
-      </Card>
+      <Pressable onPress={() => router.push('/edit-profile')} accessibilityRole="button" accessibilityHint={t('goal_section')}>
+        <Card r="xl" tone="beet" style={{ paddingVertical: 22 }}>
+          <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Txt v="label">{t(`goal_${profile.goal}`)}</Txt>
+              <Txt v="big">{goals.kcal}</Txt>
+              <Txt v="sub">{t('kcal_per_day')}</Txt>
+            </View>
+            <Sprout size={84} />
+          </Row>
+          <Txt v="sub">
+            {t('macro_line', { c: goals.macros.carbs, p: goals.macros.protein, f: goals.macros.fat })}
+          </Txt>
+          <Txt v="sub">{t('weight_path', { from: profile.startWeightKg, to: profile.targetWeightKg })}</Txt>
+        </Card>
+      </Pressable>
 
       <Card>
         <ListRow icon="person-outline" title={t('edit_profile')} subtitle={t('edit_profile_sub')} right={chevron} onPress={() => router.push('/edit-profile')} />

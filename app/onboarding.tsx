@@ -8,7 +8,8 @@ import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Field, Row, Screen, Txt } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
 import { canPickFiles } from '../src/lib/device';
-import { bmi, dailyKcalGoal, macroGrams } from '../src/lib/nutrition';
+import { GoalWarnings } from '../src/components/GoalWarnings';
+import { bmi, goalDetails, macroTargets } from '../src/lib/nutrition';
 import { buildProfile } from '../src/lib/profile';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -36,6 +37,8 @@ export default function Onboarding() {
     targetWeightKg: 68,
     activity: 'light',
     paceKgPerWeek: 0.5,
+    useCustomActivity: false,
+    customActivityFactor: null,
   });
   const set = (patch: Partial<ProfileDraft>) => setDraft((d) => ({ ...d, ...patch }));
   const [name, setName] = useState('');
@@ -46,14 +49,15 @@ export default function Onboarding() {
       if (!draft.birthYear || draft.birthYear < year - 100 || draft.birthYear > year - 13) return t('err_birth_year');
       if (!draft.heightCm || draft.heightCm < 120 || draft.heightCm > 230) return t('err_height');
     }
-    if (step === 3) return draftErrors(draft, t);
+    if (step === 3 || step === 4) return draftErrors(draft, t);
     return null;
   };
   const error = stepError();
 
   const preview = step === 5 && !draftErrors(draft, t) ? buildProfile(draft) : null;
-  const kcal = preview ? dailyKcalGoal(preview, preview.startWeightKg) : 0;
-  const macros = preview ? macroGrams(kcal, preview.macroSplit) : null;
+  const details = preview ? goalDetails(preview, preview.startWeightKg) : null;
+  const kcal = details?.kcal ?? 0;
+  const macros = preview ? macroTargets(preview, kcal) : null;
 
   const finish = () => {
     if (!preview) return;
@@ -163,6 +167,7 @@ export default function Onboarding() {
               })}
             </Txt>
           ) : null}
+          {details ? <GoalWarnings details={details} sex={preview.sex} /> : null}
           <Txt v="small" center>
             {t('plan_disclaimer')}
           </Txt>

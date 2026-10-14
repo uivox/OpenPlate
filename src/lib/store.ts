@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS } from './ai';
 import type { BackupData } from './backup';
 import { newId } from './id';
+import { entriesForMeal } from './meals';
 import { appStorage } from './storage';
 import type {
   AIProviderConfig,
@@ -15,6 +16,7 @@ import type {
   LanguagePref,
   MealType,
   Profile,
+  SavedMeal,
   WeightEntry,
 } from './types';
 
@@ -31,6 +33,7 @@ interface State {
   fastingActive: FastingSession | null;
   fastingHistory: FastingSession[];
   ai: AISettings;
+  meals: SavedMeal[];
 
   setProfile: (p: Profile) => void;
   updateProfile: (patch: Partial<Profile>) => void;
@@ -41,6 +44,10 @@ interface State {
   copyMeal: (fromDate: string, toDate: string, meal: MealType) => number;
   saveCustomFood: (f: Food) => void;
   removeCustomFood: (id: string) => void;
+  saveMeal: (m: SavedMeal) => void;
+  removeMeal: (id: string) => void;
+  /** Adds every item of a saved meal as its own diary entry; returns how many were added. */
+  logMeal: (id: string, date: string, meal: MealType, factor?: number) => number;
   addWater: (date: string, ml: number) => void;
   logWeight: (date: string, kg: number) => void;
   removeWeight: (date: string) => void;
@@ -66,6 +73,7 @@ const initial = {
   fastingActive: null,
   fastingHistory: [],
   ai: DEFAULT_AI_SETTINGS,
+  meals: [] as SavedMeal[],
 };
 
 export const useStore = create<State>()(
@@ -98,6 +106,27 @@ export const useStore = create<State>()(
 
       saveCustomFood: (f) => set((s) => ({ customFoods: [f, ...s.customFoods.filter((x) => x.id !== f.id)] })),
       removeCustomFood: (id) => set((s) => ({ customFoods: s.customFoods.filter((f) => f.id !== id) })),
+
+      saveMeal: (m) => set((s) => ({ meals: [m, ...s.meals.filter((x) => x.id !== m.id)] })),
+      removeMeal: (id) => set((s) => ({ meals: s.meals.filter((m) => m.id !== id) })),
+      logMeal: (id, date, slot, factor = 1) => {
+        const m = get().meals.find((x) => x.id === id);
+        if (!m) return 0;
+        const now = Date.now();
+        const added = entriesForMeal(m, date, slot, factor).map((e, i) => ({ ...e, id: newId(), createdAt: now + i }));
+        set((s) => {
+          let recent = s.recentFoods;
+          for (const e of [...added].reverse()) {
+            if (e.food.source !== 'quick') recent = [e.food, ...recent.filter((f) => f.id !== e.food.id)];
+          }
+          return {
+            entries: [...s.entries, ...added],
+            recentFoods: recent.slice(0, MAX_RECENT),
+            meals: s.meals.map((x) => (x.id === id ? { ...x, lastUsed: now } : x)),
+          };
+        });
+        return added.length;
+      },
 
       addWater: (date, ml) => set((s) => ({ water: { ...s.water, [date]: Math.max(0, (s.water[date] ?? 0) + ml) } })),
 
@@ -148,6 +177,7 @@ export const useStore = create<State>()(
         fastingActive: s.fastingActive,
         fastingHistory: s.fastingHistory,
         ai: s.ai,
+        meals: s.meals,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<State>;
@@ -175,12 +205,5 @@ export function useHydrated(): boolean {
   return hydrated;
 }
 
-/** Latest logged weight on or before the given day, else the start weight. */
-export function weightOn(weights: WeightEntry[], profile: Profile, date: string): number {
-  let kg = profile.startWeightKg;
-  for (const w of weights) {
-    if (w.date <= date) kg = w.kg;
-    else break;
-  }
-  return kg;
-}
+/** Re-exported for older imports; lives in the pure goals module now. */
+export { weightOn } from './goals';

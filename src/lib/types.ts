@@ -32,6 +32,22 @@ export interface Food {
   unit?: 'g' | 'ml';
 }
 
+export interface SavedMealItem {
+  /** Full snapshot, like diary entries, so later edits to a custom food don't change the meal. */
+  food: Food;
+  grams: number;
+}
+
+/** A named combination of foods the user logs together (see meals.ts). */
+export interface SavedMeal {
+  id: string;
+  name: string;
+  items: SavedMealItem[];
+  createdAt: number;
+  /** When it was last logged (0 = never); used for sorting. */
+  lastUsed: number;
+}
+
 export interface DiaryEntry {
   id: string;
   date: string; // YYYY-MM-DD, local time
@@ -73,6 +89,24 @@ export interface Profile {
   /** Weekdays (0 = Sunday … 6 = Saturday) used as fasting days by weekly plans. */
   fastingDays: number[];
   createdAt: number;
+
+  // Optional overrides (added later; older saved profiles simply don't have them).
+  /** 'custom' uses `customKcal` as the daily goal instead of the calculated one. */
+  goalMode?: 'auto' | 'custom';
+  customKcal?: number;
+  /** Own activity multiplier, used instead of the `activity` level when set. */
+  customActivityFactor?: number;
+  /** Known maintenance calories (e.g. from a watch); replaces BMR × activity when set. */
+  customMaintenanceKcal?: number;
+  /** 'grams' uses `macroGramsTarget` instead of the percentage split. */
+  macroMode?: 'percent' | 'grams';
+  macroGramsTarget?: MacroGrams;
+}
+
+export interface MacroGrams {
+  carbs: number;
+  protein: number;
+  fat: number;
 }
 
 export interface WeightEntry {

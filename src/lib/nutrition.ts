@@ -1,4 +1,4 @@
-import type { Activity, DiaryEntry, MacroSplit, MealType, Nutrients, Profile } from './types';
+import type { Activity, DiaryEntry, MacroGrams, MacroSplit, MealType, Nutrients, Profile } from './types';
 
 export const ACTIVITY_FACTORS: Record<Activity, number> = {
   sedentary: 1.2,
@@ -37,22 +37,85 @@ export function bmr(p: Pick<Profile, 'sex' | 'birthYear' | 'heightCm'>, weightKg
   return p.sex === 'male' ? base + 5 : base - 161;
 }
 
-export function tdee(p: Pick<Profile, 'sex' | 'birthYear' | 'heightCm' | 'activity'>, weightKg: number, now = new Date()): number {
-  return bmr(p, weightKg, now) * ACTIVITY_FACTORS[p.activity];
+/** Activity multiplier: the user's own value when set, else the chosen level. */
+export function activityFactor(p: Pick<Profile, 'activity' | 'customActivityFactor'>): number {
+  const own = p.customActivityFactor;
+  return own && own >= 1 && own <= 3 ? own : ACTIVITY_FACTORS[p.activity];
+}
+
+export function tdee(
+  p: Pick<Profile, 'sex' | 'birthYear' | 'heightCm' | 'activity' | 'customActivityFactor'>,
+  weightKg: number,
+  now = new Date(),
+): number {
+  return bmr(p, weightKg, now) * activityFactor(p);
+}
+
+/** Maintenance calories: a known value the user entered, else BMR × activity. */
+export function maintenanceKcal(p: Profile, weightKg: number, now = new Date()): number {
+  const own = p.customMaintenanceKcal;
+  return own && own >= 800 ? own : tdee(p, weightKg, now);
 }
 
 export function minimumKcal(sex: Profile['sex']): number {
   return sex === 'male' ? 1500 : 1200;
 }
 
+/** Daily kcal difference for a weekly pace (≈7,700 kcal per kg of body fat): 0.4 kg/week → 440 kcal/day. */
+export function kcalPerDayForPace(kgPerWeek: number): number {
+  return (kgPerWeek * KCAL_PER_KG_FAT) / 7;
+}
+
+export type GoalWarning = 'fast_pace' | 'below_bmr' | 'floored' | 'very_low';
+
+export interface GoalDetails {
+  /** Daily calorie goal, rounded to 10 kcal. */
+  kcal: number;
+  maintenance: number;
+  bmr: number;
+  /** Goal minus maintenance (negative while losing). */
+  delta: number;
+  /** Implied weekly change in kg from `delta` (negative while losing). */
+  kgPerWeek: number;
+  warnings: GoalWarning[];
+}
+
+/**
+ * The daily goal and everything worth telling the user about it. In 'custom' mode the user's own
+ * number is used as is; in 'auto' mode the weekly pace is turned into a daily surplus/deficit and a
+ * deficit never goes below the usual minimum (1200/1500 kcal). Warnings inform but never block.
+ */
+export function goalDetails(p: Profile, weightKg: number, now = new Date()): GoalDetails {
+  const maintenance = maintenanceKcal(p, weightKg, now);
+  const rest = bmr(p, weightKg, now);
+  const warnings: GoalWarning[] = [];
+  let goal = maintenance;
+  if (p.goalMode === 'custom' && p.customKcal && p.customKcal > 0) {
+    goal = p.customKcal;
+  } else {
+    const delta = kcalPerDayForPace(p.paceKgPerWeek);
+    if (p.goal === 'lose') {
+      goal = maintenance - delta;
+      if (goal < minimumKcal(p.sex)) {
+        goal = minimumKcal(p.sex);
+        warnings.push('floored');
+      }
+    }
+    if (p.goal === 'gain') goal = maintenance + delta;
+  }
+  const kcal = Math.round(goal / 10) * 10;
+  const delta = kcal - maintenance;
+  const kgPerWeek = (delta * 7) / KCAL_PER_KG_FAT;
+  // More than about 1 % of body weight per week is aggressive in either direction.
+  if (Math.abs(kgPerWeek) > weightKg * 0.01 + 0.005) warnings.push('fast_pace');
+  if (kcal < rest) warnings.push('below_bmr');
+  if (kcal < 1000) warnings.push('very_low');
+  return { kcal, maintenance: Math.round(maintenance), bmr: Math.round(rest), delta: Math.round(delta), kgPerWeek, warnings };
+}
+
 /** Daily calorie goal from profile and current weight, rounded to 10 kcal. */
 export function dailyKcalGoal(p: Profile, weightKg: number, now = new Date()): number {
-  const maintenance = tdee(p, weightKg, now);
-  const delta = (p.paceKgPerWeek * KCAL_PER_KG_FAT) / 7;
-  let goal = maintenance;
-  if (p.goal === 'lose') goal = Math.max(maintenance - delta, minimumKcal(p.sex));
-  if (p.goal === 'gain') goal = maintenance + delta;
-  return Math.round(goal / 10) * 10;
+  return goalDetails(p, weightKg, now).kcal;
 }
 
 /** Calorie goal on a 5:2 / 6:1 fasting day. */
@@ -60,12 +123,42 @@ export function fastingDayKcal(sex: Profile['sex']): number {
   return sex === 'male' ? 600 : 500;
 }
 
-export function macroGrams(kcal: number, split: MacroSplit): { carbs: number; protein: number; fat: number } {
+export function macroGrams(kcal: number, split: MacroSplit): MacroGrams {
   return {
     carbs: Math.round((kcal * split.carbs) / 100 / 4),
     protein: Math.round((kcal * split.protein) / 100 / 4),
     fat: Math.round((kcal * split.fat) / 100 / 9),
   };
+}
+
+/** kcal that a set of macro grams adds up to (4/4/9). */
+export function kcalFromMacros(g: MacroGrams): number {
+  return g.carbs * 4 + g.protein * 4 + g.fat * 9;
+}
+
+/** Percentage split (rounded, adds up to 100) equivalent to the given grams. */
+export function splitFromGrams(g: MacroGrams): MacroSplit {
+  const total = kcalFromMacros(g);
+  if (total <= 0) return { carbs: 50, protein: 20, fat: 30 };
+  const carbs = Math.round(((g.carbs * 4) / total) * 100);
+  const protein = Math.round(((g.protein * 4) / total) * 100);
+  return { carbs, protein, fat: 100 - carbs - protein };
+}
+
+export function isValidSplit(s: MacroSplit): boolean {
+  const ok = (v: number) => Number.isFinite(v) && v >= 0 && v <= 100;
+  return ok(s.carbs) && ok(s.protein) && ok(s.fat) && Math.round(s.carbs + s.protein + s.fat) === 100;
+}
+
+/**
+ * Macro targets for a day. With fixed grams they apply on normal days; on a lower-calorie day
+ * (5:2 fasting) they shrink in proportion so they still fit the day's calories.
+ */
+export function macroTargets(p: Pick<Profile, 'macroMode' | 'macroGramsTarget' | 'macroSplit'>, kcal: number, normalKcal = kcal): MacroGrams {
+  const g = p.macroMode === 'grams' ? p.macroGramsTarget : undefined;
+  if (!g) return macroGrams(kcal, p.macroSplit);
+  const f = normalKcal > 0 && kcal < normalKcal ? kcal / normalKcal : 1;
+  return { carbs: Math.round(g.carbs * f), protein: Math.round(g.protein * f), fat: Math.round(g.fat * f) };
 }
 
 export function scaleNutrients(per100: Nutrients, grams: number): Nutrients {

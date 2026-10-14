@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import { ACTIVITY_FACTORS } from '../lib/nutrition';
 import type { Activity, Goal, Sex } from '../lib/types';
 import type { TFn } from '../lib/useT';
 import { ChipGroup, NumField, Row, Txt } from './ui';
@@ -12,7 +13,10 @@ export interface ProfileDraft {
   startWeightKg: number | null;
   targetWeightKg: number | null;
   activity: Activity;
-  paceKgPerWeek: number;
+  paceKgPerWeek: number | null;
+  /** When true, `customActivityFactor` replaces the activity level. */
+  useCustomActivity: boolean;
+  customActivityFactor: number | null;
 }
 
 export const ACTIVITIES: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
@@ -66,8 +70,14 @@ export function WeightFields({ draft, set, t, showStart = true }: Props & { show
           <Txt v="sub">{t('pace')}</Txt>
           <ChipGroup
             options={PACES.map((p) => ({ value: p, label: t('pace_value', { kg: p.toString().replace('.', t('decimal_sep')) }) }))}
+            value={PACES.includes(draft.paceKgPerWeek ?? -1) ? draft.paceKgPerWeek : null}
+            onChange={(paceKgPerWeek) => set({ paceKgPerWeek })}
+          />
+          <NumField
             value={draft.paceKgPerWeek}
             onChange={(paceKgPerWeek) => set({ paceKgPerWeek })}
+            suffix={t('kg_per_week', { kg: '' }).trim()}
+            hint={t('pace_custom_hint')}
           />
         </>
       ) : null}
@@ -76,14 +86,29 @@ export function WeightFields({ draft, set, t, showStart = true }: Props & { show
 }
 
 export function ActivityField({ draft, set, t }: Props) {
+  type Choice = Activity | 'custom';
   return (
     <View style={{ gap: 8 }}>
-      <ChipGroup
-        options={ACTIVITIES.map((a) => ({ value: a, label: t(`activity_${a}`) }))}
-        value={draft.activity}
-        onChange={(activity) => set({ activity })}
+      <ChipGroup<Choice>
+        options={[
+          ...ACTIVITIES.map((a) => ({ value: a as Choice, label: t(`activity_${a}`) })),
+          { value: 'custom', label: t('activity_custom') },
+        ]}
+        value={draft.useCustomActivity ? 'custom' : draft.activity}
+        onChange={(v) =>
+          v === 'custom'
+            ? set({ useCustomActivity: true, customActivityFactor: draft.customActivityFactor ?? ACTIVITY_FACTORS[draft.activity] })
+            : set({ activity: v, useCustomActivity: false })
+        }
       />
-      <Txt v="small">{t(`activity_${draft.activity}_desc`)}</Txt>
+      {draft.useCustomActivity ? (
+        <>
+          <NumField label={t('activity_factor')} value={draft.customActivityFactor} onChange={(customActivityFactor) => set({ customActivityFactor })} suffix="×" />
+          <Txt v="small">{t('activity_custom_desc')}</Txt>
+        </>
+      ) : (
+        <Txt v="small">{t(`activity_${draft.activity}_desc`)}</Txt>
+      )}
     </View>
   );
 }
@@ -96,5 +121,7 @@ export function draftErrors(d: ProfileDraft, t: TFn): string | null {
   if (d.goal !== 'maintain' && (!d.targetWeightKg || d.targetWeightKg < 35 || d.targetWeightKg > 300)) return t('err_weight');
   if (d.goal === 'lose' && d.targetWeightKg! >= d.startWeightKg) return t('err_target_lose');
   if (d.goal === 'gain' && d.targetWeightKg! <= d.startWeightKg) return t('err_target_gain');
+  if (d.goal !== 'maintain' && (d.paceKgPerWeek === null || d.paceKgPerWeek < 0.05 || d.paceKgPerWeek > 2)) return t('err_pace');
+  if (d.useCustomActivity && (d.customActivityFactor === null || d.customActivityFactor < 1 || d.customActivityFactor > 2.5)) return t('err_factor');
   return null;
 }
