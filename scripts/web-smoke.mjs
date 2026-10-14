@@ -40,7 +40,9 @@ async function run(scheme) {
     await page.screenshot({ path: `smoke-shots/${scheme}-${String(++n).padStart(2, '0')}-${name.replace(/\W+/g, '_')}.png` });
     if (crashes.length) throw new Error(`page error: ${crashes.join(' | ')}`);
   };
-  const btn = (name, exact = true) => page.getByRole('button', { name, exact }).first();
+  // Buttons with an icon get the icon font's glyph in their accessible name, so match the label at the end.
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const btn = (name) => page.getByRole('button', { name: new RegExp(`(^|[^\\w ]\\s*)${esc(name)}$`) }).first();
 
   try {
     await step('onboarding', async () => {
