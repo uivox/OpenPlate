@@ -42,7 +42,14 @@ async function run(scheme) {
   };
   // Buttons with an icon get the icon font's glyph in their accessible name, so match the label at the end.
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const btn = (name) => page.getByRole('button', { name: new RegExp(`(^|[^\\w ]\\s*)${esc(name)}$`) }).first();
+  // Screens further back in the stack (and other tabs) stay in the page, hidden, so only look at visible elements.
+  const btn = (name) =>
+    page
+      .getByRole('button', { name: new RegExp(`(^|[^\\w ]\\s*)${esc(name)}$`) })
+      .filter({ visible: true })
+      .first();
+  const text = (t, opts) => page.getByText(t, opts).filter({ visible: true }).first();
+  const field = (placeholder) => page.getByPlaceholder(placeholder).filter({ visible: true }).first();
 
   try {
     await step('onboarding', async () => {
@@ -50,22 +57,22 @@ async function run(scheme) {
       await btn('English').click();
       for (let i = 0; i < 5; i++) await btn('Next').click();
       await btn("Let's go").click();
-      await page.getByText('Breakfast', { exact: true }).first().waitFor();
+      await text('Breakfast', { exact: true }).waitFor();
     });
     for (const food of ['Apple', 'Banana']) {
       await step(`log ${food}`, async () => {
         await btn('Add food: Breakfast').click();
-        await page.getByPlaceholder('Search foods and products').fill(food.toLowerCase());
-        await page.getByText(food, { exact: true }).first().click();
+        await field('Search foods and products').fill(food.toLowerCase());
+        await text(food, { exact: true }).click();
         await btn('Add').click();
-        await page.getByText(food, { exact: true }).first().waitFor();
+        await text(food, { exact: true }).waitFor();
       });
     }
     await step('BLS search', async () => {
       await btn('Add food: Lunch').click();
-      await page.getByPlaceholder('Search foods and products').fill('oat flakes');
-      await page.getByText('Oat flakes', { exact: true }).first().waitFor();
-      await page.getByText(/Bundeslebensmittelschlüssel/).first().waitFor();
+      await field('Search foods and products').fill('oat flakes');
+      await text('Oat flakes', { exact: true }).waitFor();
+      await text(/Bundeslebensmittelschlüssel/).waitFor();
       await page.goBack();
     });
     await step('save as meal', async () => {
@@ -76,66 +83,68 @@ async function run(scheme) {
     await step('log saved meal', async () => {
       await btn('Add food: Breakfast').click();
       await btn('My meals').click();
-      await page.getByText('2 foods', { exact: false }).first().waitFor();
+      await text('2 foods', { exact: false }).waitFor();
       await btn('Add: Breakfast').click();
       await page.waitForFunction(() => document.body.innerText.split('Apple').length - 1 >= 2);
     });
     await step('streak', async () => {
-      await page.getByRole('button', { name: /^Streak:/ }).first().click();
-      await page.getByText('current streak').waitFor();
+      await page.getByRole('button', { name: /^Streak:/ }).filter({ visible: true }).first().click();
+      await text('current streak').waitFor();
       await page.goBack();
     });
     await step('exact goal', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
-      await page.getByText('kcal per day').first().click();
+      await text('kcal per day').click();
       await btn('Exact number').click();
-      await page.getByLabel('Daily goal').fill('2300');
+      await page.getByLabel('Daily goal').filter({ visible: true }).first().fill('2300');
       await btn('Save').click();
-      await page.getByText('2300', { exact: true }).first().waitFor();
+      await text('2300', { exact: true }).waitFor();
     });
     await step('appearance: neon theme', async () => {
-      await page.getByText('Appearance', { exact: true }).click();
+      await text('Appearance', { exact: true }).click();
       await btn('Neon').click();
       await btn('Off').waitFor();
       await page.goBack();
     });
     await step('layout: hide fasting tab, add button right', async () => {
-      await page.getByText('Layout', { exact: true }).click();
-      await page.getByRole('switch', { name: 'Fasting' }).first().click();
+      await text('Layout', { exact: true }).click();
+      await page.getByRole('switch', { name: 'Fasting' }).filter({ visible: true }).first().click();
       await btn('Right').click();
       await page.goBack();
       await page.getByRole('tab', { name: 'Diary' }).waitFor();
       if (await page.getByRole('tab', { name: 'Fasting' }).count()) throw new Error('Fasting tab still visible');
       await page.getByRole('tab', { name: 'Diary' }).click();
-      await page.getByText('Breakfast', { exact: true }).first().waitFor();
+      await text('Breakfast', { exact: true }).waitFor();
     });
     await step('recipes: log a community recipe', async () => {
       await page.getByRole('tab', { name: 'Recipes' }).click();
-      await page.getByText('Overnight oats with blueberries').first().click();
-      await page.getByText('Ingredients for 1 serving').waitFor();
+      await text('Overnight oats with blueberries').click();
+      await text('Ingredients for 1 serving').waitFor();
       await btn('Add to diary').click();
       await btn('Add').click();
-      await page.getByText('Overnight oats with blueberries').first().waitFor();
+      await text('Overnight oats with blueberries').waitFor();
     });
     await step('recipes: create own recipe', async () => {
       await page.getByRole('tab', { name: 'Recipes' }).click();
       await btn('New recipe').click();
-      await page.getByPlaceholder('e.g. Grandma’s lentil soup').fill('Test bowl');
+      await field('e.g. Grandma’s lentil soup').fill('Test bowl');
       await btn('Add ingredient').click();
-      await page.getByPlaceholder('Search foods and products').fill('banana');
-      await page.getByText('Banana', { exact: true }).first().click();
+      await field('Search foods and products').fill('banana');
+      await text('Banana', { exact: true }).click();
       await btn('Add').click();
-      await page.getByText('Banana', { exact: true }).first().waitFor();
+      await text('Banana', { exact: true }).waitFor();
       await btn('Save recipe').click();
-      await page.getByText('Ingredients for 2 servings').waitFor();
-      await page.getByText('Test bowl').first().waitFor();
+      await text('Ingredients for 2 servings').waitFor();
+      await text('Test bowl').waitFor();
       await page.goBack();
     });
     console.log(`✓ ${scheme}: all steps passed`);
   } catch (e) {
     failed = true;
-    console.log(`✗ ${scheme}: step "${stepName}" failed: ${String(e).slice(0, 800)}`);
-    console.log('--- visible text ---\n' + (await page.innerText('body').catch(() => '')).slice(0, 2500));
+    // visible text first, the failing step last: CI annotations keep only the end of the log
+    console.log('--- visible text ---\n' + (await page.innerText('body').catch(() => '')).slice(0, 1200));
+    console.log(`--- url: ${page.url()}`);
+    console.log(`✗ ${scheme}: step "${stepName}" failed: ${String(e).slice(0, 600)}`);
     await page.screenshot({ path: `smoke-shots/${scheme}-FAILED.png` }).catch(() => {});
   }
   await ctx.close();
