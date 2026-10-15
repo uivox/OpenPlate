@@ -1,5 +1,6 @@
 import { MAX_KCAL_PER_100G } from './ai';
-import type { Food, Nutrients } from './types';
+import { nutrientsFromRobotoff, type NutrientIssue } from './labelScan';
+import type { Food, Nutrients, Serving } from './types';
 
 /**
  * Open Food Facts (https://world.openfoodfacts.org) — open database of packaged foods,
@@ -96,7 +97,14 @@ export function foodFromOFF(p: Json, lang: 'de' | 'en'): Food | undefined {
     unit,
     servings: servingG && servingG > 0 ? [{ label: servingLabel ?? `${servingG} ${unit}`, grams: servingG }] : [],
     imageUrl: OFF_IMAGE.test(str(p.image_front_small_url, lang) ?? '') ? str(p.image_front_small_url, lang) : undefined,
+    ...(missingMacros(p.nutriments as Json | undefined) ? { incomplete: true } : {}),
   };
+}
+
+/** True when protein, carbs or fat is missing (the app then counts it as 0). */
+function missingMacros(n: Json | undefined): boolean {
+  const v = n ?? {};
+  return ['proteins_100g', 'carbohydrates_100g', 'fat_100g'].some((k) => num(v[k]) === undefined);
 }
 
 export class HttpError extends Error {
@@ -131,13 +139,103 @@ async function getJson(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 12
 /** EAN-8, UPC-A, EAN-13 or GTIN-14 typed into the search box. */
 export const isBarcode = (q: string) => /^\d{8}$|^\d{12,14}$/.test(q.trim());
 
+/**
+ * What Open Food Facts knows about a product that has no usable nutrition: its name, brand, size and
+ * photo, so the user doesn't have to type them again when completing it.
+ */
+export interface PartialProduct {
+  code: string;
+  name?: string;
+  brand?: string;
+  unit: 'g' | 'ml';
+  servings: Serving[];
+  imageUrl?: string;
+}
+
+export interface BarcodeResult {
+  food: Food | null;
+  /** Set when the product exists in Open Food Facts but its nutrition is missing or unusable. */
+  partial?: PartialProduct;
+}
+
+/** Looks up a barcode and also returns what is known about products without usable nutrition. */
+export async function lookupBarcodeDetailed(code: string, lang: 'de' | 'en', fetchImpl: FetchLike = fetch): Promise<BarcodeResult> {
+  const clean = code.replace(/\D/g, '');
+  if (clean.length < 8 || clean.length > 14) return { food: null };
+  const data = await getJson(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=${FIELDS}`, fetchImpl);
+  if (data.status !== 1 || !data.product) return { food: null };
+  const p: Json = { code: clean, ...(data.product as Json) };
+  const food = foodFromOFF(p, lang);
+  if (food) return { food };
+  const quantity = str(p.quantity, lang) ?? '';
+  const unit: 'g' | 'ml' = /\b\d+([.,]\d+)?\s*(ml|cl|l)\b/i.test(quantity) ? 'ml' : 'g';
+  const servingG = num(p.serving_quantity);
+  const image = str(p.image_front_small_url, lang);
+  return {
+    food: null,
+    partial: {
+      code: clean,
+      name: (str(p[`product_name_${lang}`], lang) ?? str(p.product_name, lang) ?? str(p.generic_name, lang))?.slice(0, 120),
+      brand: str(p.brands, lang)?.split(',')[0]?.trim().slice(0, 80),
+      unit,
+      servings: servingG && servingG > 0 && servingG <= 5000 ? [{ label: (str(p.serving_size, lang) ?? `${servingG} ${unit}`).slice(0, 40), grams: servingG }] : [],
+      imageUrl: image && OFF_IMAGE.test(image) ? image : undefined,
+    },
+  };
+}
+
 export async function lookupBarcode(code: string, lang: 'de' | 'en', fetchImpl: FetchLike = fetch): Promise<Food | null> {
+  return (await lookupBarcodeDetailed(code, lang, fetchImpl)).food;
+}
+
+/* ---------- Robotoff: values Open Food Facts' AI read off product photos ---------- */
+
+export interface RobotoffSuggestion {
+  per100: Nutrients;
+  issues: NutrientIssue[];
+  /** The product photo the values were read from, to compare against. */
+  imageUrl?: string;
+}
+
+/** Robotoff names the source image by its path below /images/products, e.g. "/400/644/600/5476/1.jpg". */
+const ROBOTOFF_IMAGE_PATH = /^\/[\d/]+\/\d+\.jpg$/;
+
+/**
+ * Asks Robotoff (Open Food Facts' AI) for nutrition it read off the product's photos. Read-only and
+ * without an account. Returns null when there is nothing usable; never throws for network problems,
+ * since this is only a bonus on top of the normal lookup.
+ */
+export async function fetchRobotoffNutrition(code: string, fetchImpl: FetchLike = fetch): Promise<RobotoffSuggestion | null> {
   const clean = code.replace(/\D/g, '');
   if (clean.length < 8 || clean.length > 14) return null;
-  const data = await getJson(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=${FIELDS}`, fetchImpl);
-  if (data.status !== 1 || !data.product) return null;
-  const food = foodFromOFF({ code: clean, ...(data.product as Json) }, lang);
-  return food ?? null;
+  let data: Json;
+  try {
+    data = await getJson(`https://robotoff.openfoodfacts.org/api/v1/insights?barcode=${clean}&insight_types=nutrient_extraction&count=5`, fetchImpl, 8000);
+  } catch {
+    return null;
+  }
+  const insights = Array.isArray(data.insights) ? (data.insights as Json[]) : [];
+  for (const ins of insights) {
+    // Insights people rejected (annotation 0) are skipped; unanswered, confirmed (1) or skipped (-1) ones are used.
+    if (ins.barcode !== clean || ins.annotation === 0) continue;
+    const nutrients = (ins.data as Json | undefined)?.nutrients;
+    const { per100, issues } = nutrientsFromRobotoff(nutrients);
+    if (!per100) continue;
+    const path = typeof ins.source_image === 'string' ? ins.source_image : '';
+    return { per100, issues, imageUrl: ROBOTOFF_IMAGE_PATH.test(path) ? `https://images.openfoodfacts.org/images/products${path}` : undefined };
+  }
+  return null;
+}
+
+/**
+ * Where the user can add or complete a product on Open Food Facts themselves (they sign in there;
+ * the app never handles Open Food Facts passwords). Products that don't exist yet are added from
+ * the general "add a product" page, since the edit page only works for existing ones.
+ */
+export function offContributeUrl(code: string, exists: boolean, lang: 'de' | 'en'): string {
+  const host = lang === 'de' ? 'de.openfoodfacts.org' : 'world.openfoodfacts.org';
+  const clean = code.replace(/\D/g, '');
+  return exists && clean ? `https://${host}/cgi/product.pl?type=edit&code=${clean}` : `https://${host}/cgi/product.pl`;
 }
 
 /**

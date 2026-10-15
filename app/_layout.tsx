@@ -81,6 +81,7 @@ export default function RootLayout() {
         <Stack.Screen name="scan" options={{ title: t('scan_barcode'), headerTransparent: true, headerTintColor: '#fff', headerTitleStyle: { color: '#fff', fontFamily: fonts.display } }} />
         <Stack.Screen name="photo" options={{ title: t('ai_photo') }} />
         <Stack.Screen name="custom-food" options={{ title: t('create_food') }} />
+        <Stack.Screen name="label" options={{ title: t('label_title') }} />
         <Stack.Screen name="ai-settings" options={{ title: t('ai_settings') }} />
         <Stack.Screen name="edit-profile" options={{ title: t('edit_profile') }} />
         <Stack.Screen name="meal" options={{ title: t('my_meals') }} />
