@@ -1,8 +1,14 @@
 name: Web app
 
-# Builds the browser version (installable on the iPhone home screen) and publishes it on
-# GitHub Pages: https://<owner>.github.io/<repo>/
-# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# Builds the browser version (installable on the home screen) and publishes it to its own origin:
+# the GitHub Pages site of a separate repository, set in the repository variable WEB_SITE_REPO
+# (for example openplate-app/openplate-app.github.io → https://openplate-app.github.io/).
+#
+# Why a separate site: every Pages site of one account or organisation shares one origin, and so
+# one browser storage. Any other Pages site there could read the diary and the AI keys. The site
+# repository's owner must never host another Pages site.
+#
+# One-time setup: see "Web version hosting" in README.md (site repository, deploy key, environment).
 on:
   push:
     branches: [main]
@@ -11,19 +17,30 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: web-pages
   cancel-in-progress: true
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    # The deploy key lives in this environment, which only main may use (Settings → Environments → web).
+    environment:
+      name: web
+      url: ${{ vars.WEB_SITE_URL }}
     env:
-      WEB_BASE_URL: /${{ github.event.repository.name }}
+      WEB_BASE_URL: ''
+      SITE_REPO: ${{ vars.WEB_SITE_REPO }}
     steps:
+      - name: Settings present
+        env:
+          DEPLOY_KEY: ${{ secrets.WEB_DEPLOY_KEY }}
+        run: |
+          if [ -z "$SITE_REPO" ] || [ -z "$DEPLOY_KEY" ]; then
+            echo "::error title=Web hosting not set up::Set the WEB_SITE_REPO variable and the WEB_DEPLOY_KEY secret in the 'web' environment (README: Web version hosting)."
+            exit 1
+          fi
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
@@ -35,16 +52,25 @@ jobs:
       - name: Export web build
         run: bash scripts/ci-run.sh npx expo export --platform web --output-dir dist
       - run: node scripts/web-pwa.mjs dist "$WEB_BASE_URL"
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Publish to the site repository
+        env:
+          DEPLOY_KEY: ${{ secrets.WEB_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          # The site repository serves its main branch as-is; .nojekyll keeps folders like _expo.
+          touch dist/.nojekyll
+          # GitHub's SSH host keys from its API (over https), so the push can't go to a fake host.
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          curl -fsS https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          cd dist
+          git init -q -b main
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Web app from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          # One commit per deploy (force push), so the site repository doesn't grow with every release.
+          git push -q --force "git@github.com:${SITE_REPO}.git" main
+          rm -f ~/.ssh/site_key
+          echo "Published ${GITHUB_SHA::7} to ${SITE_REPO}" >> "$GITHUB_STEP_SUMMARY"
