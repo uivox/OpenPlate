@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Burst, Tap, useCountUp } from '../../src/components/motion';
@@ -12,7 +12,7 @@ import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
-import { goalsFor, useNow, useSteps } from '../../src/lib/hooks';
+import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
 import { visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
@@ -33,12 +33,20 @@ export default function DiaryScreen() {
   const insets = useSafeAreaInsets();
   const c = useColors();
   const { t, lang } = useT();
-  const today = dayKey();
+  const today = useToday();
   const [date, setDate] = useState(today);
-  // Opened from the calendar with a day to show.
+  // When the day changes while the diary shows "today", follow it so food isn't logged to yesterday.
+  const prevToday = useRef(today);
+  useEffect(() => {
+    if (prevToday.current === today) return;
+    const before = prevToday.current;
+    prevToday.current = today;
+    setDate((d) => (d === before || d > today ? today : d));
+  }, [today]);
+  // Opened from the calendar with a day to show (never a future day: nothing is logged ahead).
   const params = useLocalSearchParams<{ date?: string }>();
   useEffect(() => {
-    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date);
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date > dayKey() ? dayKey() : params.date);
   }, [params.date]);
 
   const profile = useStore((s) => s.profile)!;
@@ -102,12 +110,15 @@ export default function DiaryScreen() {
           icon="chevron-forward"
           size={18}
           label={t('next_day')}
-          onPress={() => setDate(addDays(date, 1))}
+          onPress={() => date < today && setDate(addDays(date, 1))}
           color={date >= today ? c.line : c.text}
         />
         <IconButton icon="calendar-outline" size={18} label={t('open_calendar')} onPress={() => router.push('/streak')} color={c.text} />
       </Row>
 
+      {goals.status === 'minor' || goals.status === 'underweight' || goals.status === 'reached' ? (
+        <Banner icon={goals.status === 'reached' ? 'trophy' : 'information-circle'} tone="leaf" text={t(`warn_${goals.status}`)} />
+      ) : null}
       {date === today && streak.todayLogged && isMilestone(streak.current) ? (
         <View>
           <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />

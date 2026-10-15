@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import type { BackupData } from './backup';
+import { dayKey } from './dates';
 import { newId } from './id';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { entriesForMeal } from './meals';
@@ -28,6 +29,12 @@ import type {
 } from './types';
 
 const MAX_RECENT = 40;
+
+/** Today for any day key in the future. */
+const notFuture = (date: string) => {
+  const today = dayKey();
+  return date > today ? today : date;
+};
 
 interface State {
   profile: Profile | null;
@@ -124,7 +131,8 @@ export const useStore = create<State>()(
 
       addEntry: (e) =>
         set((s) => {
-          const entry: DiaryEntry = { ...e, id: newId(), createdAt: Date.now() };
+          // Nothing is logged ahead of today (a future day would also count for streaks too early).
+          const entry: DiaryEntry = { ...e, date: notFuture(e.date), id: newId(), createdAt: Date.now() };
           const recent =
             e.food.source === 'quick'
               ? s.recentFoods
@@ -152,7 +160,7 @@ export const useStore = create<State>()(
         const m = get().meals.find((x) => x.id === id);
         if (!m) return 0;
         const now = Date.now();
-        const added = entriesForMeal(m, date, slot, factor).map((e, i) => ({ ...e, id: newId(), createdAt: now + i }));
+        const added = entriesForMeal(m, notFuture(date), slot, factor).map((e, i) => ({ ...e, id: newId(), createdAt: now + i }));
         set((s) => {
           let recent = s.recentFoods;
           for (const e of [...added].reverse()) {

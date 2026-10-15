@@ -14,7 +14,7 @@ import { searchGeneric } from '../src/lib/genericFoods';
 import { useRecipes } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
-import { searchOFF } from '../src/lib/openFoodFacts';
+import { isBarcode, lookupBarcode, RateLimitedError, searchOFF } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
@@ -57,30 +57,35 @@ export default function AddFoodScreen() {
     return [...mine.slice(0, 6), ...generic, ...bls];
   }, [q, custom, recent, lang]);
 
+  // Open Food Facts is only asked when the user submits (their fair-use rules ask apps not to
+  // search on every keystroke); local foods update while typing.
+  const [searched, setSearched] = useState('');
   useEffect(() => {
-    if (q.length < 2) {
-      setRemote([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    const id = ++requestId.current;
-    setLoading(true);
+    if (q === searched) return;
+    requestId.current++;
+    setSearched('');
+    setRemote([]);
+    setLoading(false);
     setError(null);
-    const timer = setTimeout(async () => {
-      try {
-        const res = /^\d{8,14}$/.test(q) ? [] : await searchOFF(q, lang);
-        if (id === requestId.current) setRemote(res.filter((r) => !local.some((l) => l.id === r.id)));
-      } catch {
-        if (id === requestId.current) setError(t('search_failed'));
-      } finally {
-        if (id === requestId.current) setLoading(false);
-      }
-    }, 450);
-    return () => clearTimeout(timer);
-    // local is derived from q; leaving it out avoids refetching on every keystroke
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, lang]);
+
+  const searchProducts = async () => {
+    if (q.length < 2 || loading) return;
+    const id = ++requestId.current;
+    setSearched(q);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = isBarcode(q) ? ((await lookupBarcode(q, lang)) ?? undefined) : await searchOFF(q, lang);
+      const list = Array.isArray(res) ? res : res ? [res] : [];
+      if (id === requestId.current) setRemote(list.filter((r) => !local.some((l) => l.id === r.id)));
+    } catch (e) {
+      if (id === requestId.current) setError(e instanceof RateLimitedError ? t('search_rate_limited') : t('search_failed'));
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
+  };
 
   const matchingMeals = useMemo(() => (q && !pick ? searchMeals(meals, q).slice(0, 4) : []), [q, meals, pick]);
   const pickParam = pick ? { pick: params.pick! } : {};
@@ -133,6 +138,7 @@ export default function AddFoodScreen() {
         onChangeText={setQuery}
         autoCorrect={false}
         returnKeyType="search"
+        onSubmitEditing={searchProducts}
         clearButtonMode="while-editing"
       />
 
@@ -153,7 +159,10 @@ export default function AddFoodScreen() {
           {local.length > 0 ? <Card>{local.map(renderFood)}</Card> : null}
           <SectionTitle right={loading ? <ActivityIndicator color={c.accent} /> : undefined}>{t('products')}</SectionTitle>
           {error ? <Txt v="sub">{error}</Txt> : null}
-          {!loading && !error && remote.length === 0 && q.length >= 2 ? <Txt v="sub">{t('no_results')}</Txt> : null}
+          {q.length >= 2 && searched !== q && !loading ? (
+            <Button small kind="secondary" icon="search" title={t('search_products', { q })} onPress={searchProducts} style={{ alignSelf: 'flex-start' }} />
+          ) : null}
+          {!loading && !error && remote.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
           {remote.length > 0 ? <Card>{remote.map(renderFood)}</Card> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
           {local.some((f) => f.source === 'bls') ? <Txt v="small">{t('bls_attribution')}</Txt> : null}

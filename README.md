@@ -13,13 +13,13 @@ German and English, light and dark mode, all data stays on your device.
 - **My meals**: save the foods you always eat together (e.g. your breakfast) and log them with one tap, at any portion size. Build them from search, recent foods and the barcode scanner, or save a meal straight from the diary.
 - **Personal plan** from a short onboarding (Mifflin-St Jeor + activity level + weekly pace). Or set it exactly: your own daily kcal, any weekly pace (e.g. +0.4 kg), your own activity factor or maintenance calories, macros as presets, custom percentages or grams.
 - **Recipes tab**: your own recipes (photo, servings, steps, ingredients from the food search; nutrition calculated from the ingredients) and community recipes added through pull requests and marked as tested once someone else has cooked them ([RECIPES.md](RECIPES.md)). Scale the ingredients to any number of servings and log a serving with one tap.
-- **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and whether you hit your goal (±5 %; when losing anything below counts, when gaining anything above)
+- **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and whether you hit your goal (±5 %, with 10 % room in the goal's direction; eating far less than the goal never counts as a hit)
 - **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
 - **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only; Android doesn't offer daily step history to apps without Health Connect)
-- **Export** all data as JSON (the web version can also import it)
+- **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too)
 - **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.md).
@@ -49,6 +49,8 @@ Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a
 1. On the phone, open the latest release and download **OpenPlate.apk**.
 2. Open it and allow *Install unknown apps* for your browser when asked.
 3. Updates: download the newer APK and install it over the old one. Your data stays.
+
+**One-time reinstall (releases after 1.0.5).** Earlier APKs were signed with the public Android debug key, which every Expo project shares, so anyone could have built an "update" that installs over OpenPlate. Releases are now signed with OpenPlate's own key. Android doesn't allow installing over an app signed with a different key, so once: in the *old* app use *Profile → Export data* and save the file, uninstall OpenPlate, install the new APK, then *Profile → Import data* (or *Import your data* on the welcome screen). API keys need to be entered again.
 
 ### iPhone (free, with SideStore)
 
@@ -105,11 +107,21 @@ Model names are editable in the app; defaults are `gemini-3.8-flash`, `claude-so
 2. Download a vision model: `ollama pull qwen2.5vl:7b` (about 6 GB; smaller alternative: `gemma3:4b`).
 3. Let the iPhone reach it: Windows Settings → *Edit environment variables for your account* → new variable `OLLAMA_HOST` = `0.0.0.0` → quit Ollama from the tray and start it again. Allow it through the firewall on private networks.
 4. Find your PC's address with `ipconfig` (IPv4 address, e.g. `192.168.178.20`).
-5. In the app, set *Server address* to `http://192.168.178.20:11434/v1` and tap **Test connection**.
+5. In the app, set *Server address* to `http://192.168.178.20:11434/v1` and tap **Test connection**. Plain `http` is only accepted for addresses in your own network (192.168.x.x, 10.x.x.x, *.local, Tailscale); anything else needs `https`, so photos and keys never travel unencrypted over the internet.
 
 A local 7B model on a normal PC takes roughly 10–60 seconds per photo and is less accurate than the cloud models; using it as primary with Gemini as fallback works well.
 
-API keys are stored in the iOS Keychain (expo-secure-store) and only ever sent to the provider they belong to.
+API keys are stored in the phone's secure storage (expo-secure-store: iOS Keychain, Android Keystore) and only ever sent to the provider they belong to. Backups never contain keys, and importing a backup never changes AI server addresses or providers.
+
+## Safety
+
+OpenPlate counts calories, which can do harm to people who are still growing or who struggle with eating. So:
+
+- Weight-loss goals and fasting plans are for adults (18+). Under 18 the goal is what keeps your weight.
+- No weight loss is planned at a BMI of 18.5 or below, and targets below a BMI of 18.5 can't be set.
+- No daily goal goes below 1,200 kcal (women) / 1,500 kcal (men), or below maintenance when that is lower, not even an exact number you type.
+- Streaks never reward eating far less than the goal.
+- Backup files are checked row by row: implausible values, remote images (which could track who opens the app) and anything the app wouldn't create itself are left out.
 
 ## Project layout
 
@@ -162,6 +174,17 @@ On the list for later:
 - **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
+
+## Release signing (maintainers)
+
+Android release APKs are signed with the project's own key (`plugins/withReleaseSigning.js`); CI refuses to publish an APK signed with the debug key and publishes nothing until type check and tests pass. Create the key once and keep a safe copy (losing it means users have to reinstall again):
+
+```bash
+keytool -genkeypair -v -keystore openplate-release.jks -alias openplate -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 openplate-release.jks   # macOS: base64 -i openplate-release.jks
+```
+
+Add repository secrets (*Settings → Secrets and variables → Actions*): `ANDROID_KEYSTORE_BASE64` (the base64 output), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`openplate`), and optionally `ANDROID_KEY_PASSWORD`.
 
 ## Credits and licence
 

@@ -31,7 +31,7 @@ import {
 } from '../src/lib/nutrition';
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
-import { foodFromOFF, parseRetailer, rankHits } from '../src/lib/openFoodFacts';
+import { _resetSearchState, foodFromOFF, isBarcode, nutrientsFromOFF, parseRetailer, rankHits, RateLimitedError, searchOFF } from '../src/lib/openFoodFacts';
 import { draftProblem } from '../src/lib/validation';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
@@ -944,4 +944,45 @@ test('release signing: Android release builds use the project key, never silentl
   assert.match(out, /debug \{\n\s+signingConfig signingConfigs\.debug\n/);
   assert.equal(addReleaseSigning(out), out);
   assert.throws(() => addReleaseSigning('android {}'), /signingConfigs/);
+});
+
+
+test('Open Food Facts: implausible values rejected, only OFF images, rate limit respected', async () => {
+  // kJ typed into the kcal field: use the kJ value instead
+  assert.equal(Math.round(nutrientsFromOFF({ 'energy-kcal_100g': 1500, 'energy-kj_100g': 1500, proteins_100g: 5 })!.kcal), 359);
+  assert.equal(nutrientsFromOFF({ 'energy-kcal_100g': 5000 }), undefined);
+  assert.equal(nutrientsFromOFF({ 'energy-kcal_100g': 300, proteins_100g: 80, carbohydrates_100g: 80 }), undefined);
+  assert.equal(nutrientsFromOFF({ 'energy-kcal_100g': 300, sugars_100g: -4 })!.sugar, undefined);
+  const p = { code: '4001', product_name: 'Skyr', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11 } };
+  assert.equal(foodFromOFF({ ...p, image_front_small_url: 'https://tracker.example/a.jpg' }, 'de')!.imageUrl, undefined);
+  assert.equal(foodFromOFF({ ...p, image_front_small_url: 'https://images.openfoodfacts.org/images/products/400/1/front.jpg' }, 'de')!.imageUrl, 'https://images.openfoodfacts.org/images/products/400/1/front.jpg');
+  assert.ok(isBarcode('40084107') && isBarcode('4008400401621') && !isBarcode('123456789'));
+
+  _resetSearchState();
+  const calls: string[] = [];
+  const ok = async (url: string) => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ hits: [p] }) } as any;
+  };
+  const t0 = 1_000_000;
+  for (let i = 0; i < 8; i++) await searchOFF(`skyr ${i}`, 'de', 10, ok, t0 + i);
+  await assert.rejects(searchOFF('skyr 9', 'de', 10, ok, t0 + 10), (e) => e instanceof RateLimitedError);
+  assert.equal(calls.length, 8, 'the 9th search inside a minute is not sent');
+  // repeating a search uses the cache, a minute later new searches work again
+  await searchOFF('skyr 0', 'de', 10, ok, t0 + 20);
+  assert.equal(calls.length, 8);
+  await searchOFF('quark', 'de', 10, ok, t0 + 61_000);
+  assert.equal(calls.length, 9);
+
+  // after a rate-limit answer the classic endpoint is not asked as well
+  _resetSearchState();
+  const limited: string[] = [];
+  await assert.rejects(
+    searchOFF('milch', 'de', 10, async (url: string) => {
+      limited.push(url);
+      return { ok: false, status: 429, json: async () => ({}) } as any;
+    }),
+  );
+  assert.equal(limited.length, 1);
+  _resetSearchState();
 });
