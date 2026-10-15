@@ -10,16 +10,16 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { DialogHost } from '../src/components/DialogHost';
 import { setupNotifications } from '../src/lib/device';
 import { requestPersistentStorage } from '../src/lib/storage';
-import { useHydrated } from '../src/lib/store';
+import { useHydration } from '../src/lib/store';
 import { fonts, useColors } from '../src/lib/theme';
 import { useT } from '../src/lib/useT';
 
 export default function RootLayout() {
-  const hydrated = useHydrated();
+  const hydration = useHydration();
   const [fontsLoaded, fontError] = useFonts({
     BricolageGrotesque_600SemiBold,
     BricolageGrotesque_800ExtraBold,
@@ -38,8 +38,28 @@ export default function RootLayout() {
     requestPersistentStorage();
   }, []);
 
+  // Stored data could not be read: say so instead of showing a blank screen forever. Nothing is
+  // saved in this state, so the data on the device stays untouched for a retry.
+  if (hydration.status === 'error') {
+    const font = (f: string) => (fontsLoaded ? { fontFamily: f } : null);
+    return (
+      <View style={{ flex: 1, backgroundColor: c.bg, justifyContent: 'center', padding: 28, gap: 14 }}>
+        <Text style={[{ color: c.text, fontSize: 22 }, font(fonts.display)]}>{t('storage_error_title')}</Text>
+        <Text style={[{ color: c.sub, fontSize: 16 }, font(fonts.body)]}>{t('storage_error_text')}</Text>
+        <Text style={[{ color: c.sub, fontSize: 12 }, font(fonts.body)]}>{String((hydration.error as Error)?.message ?? hydration.error)}</Text>
+        <Pressable
+          onPress={hydration.retry}
+          accessibilityRole="button"
+          style={{ backgroundColor: c.accent, borderRadius: 999, paddingVertical: 14, alignItems: 'center', marginTop: 8 }}
+        >
+          <Text style={[{ color: c.accentText, fontSize: 16 }, font(fonts.bodySemi)]}>{t('try_again')}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   // If fonts fail to load the app still works with system fonts.
-  if (!hydrated || (!fontsLoaded && !fontError)) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
+  if (hydration.status !== 'ready' || (!fontsLoaded && !fontError)) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
 
   return (
     <>

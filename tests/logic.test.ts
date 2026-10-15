@@ -33,6 +33,8 @@ import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo }
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
 import { foodFromOFF, parseRetailer, rankHits } from '../src/lib/openFoodFacts';
 import { draftProblem } from '../src/lib/validation';
+import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
+import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
 
@@ -816,4 +818,95 @@ test('safety: fasting days only for adults, and only as many as the plan has', (
   assert.deepEqual(activeFastingDays({ fastingPlanId: '16:8', fastingDays: [1, 4] }), []);
   // a teen's day goal is never a fasting day's 500 kcal
   assert.ok(dayGoal({ ...profile, birthYear: 2012, goal: 'maintain', fastingPlanId: '5:2', fastingDays: [1] }, [], monday, nowS).kcal > 1000);
+});
+
+
+test('storage: entries per month, photos apart, only changed values written', async () => {
+  const day = (d: string, id: string) => ({ id, date: d, meal: 'lunch' as const, food: goodFood as Food, grams: 100, createdAt: 0 });
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(1000);
+  // an install from before: everything in one value
+  const legacy = { state: { profile, entries: [day('2026-09-30', 'a'), day('2026-10-01', 'b')], recipes: [{ id: 'r1', name: 'R', photo, items: [], steps: [] }] }, version: 1 };
+  const kv = memoryStore({ 'openplate-v1': JSON.stringify(legacy) });
+  const store = createShardedStorage<any>(kv);
+  const loaded = await store.getItem('openplate-v1');
+  assert.equal(loaded!.state.entries.length, 2);
+  assert.equal(loaded!.state.recipes[0].photo, photo);
+
+  await store.setItem('openplate-v1', { state: loaded!.state, version: 2 });
+  await store.flush();
+  assert.ok(kv.data.has('openplate-v1:entries:2026-09') && kv.data.has('openplate-v1:entries:2026-10'));
+  assert.ok(kv.data.has('openplate-v1:photo:r1'));
+  const main = JSON.parse(kv.data.get('openplate-v1')!);
+  assert.equal(main.state.entries, undefined);
+  assert.equal(main.state.recipes[0].photo, undefined);
+
+  // logging in October rewrites October only (the main value didn't change)
+  kv.writes.length = 0;
+  await store.setItem('openplate-v1', { state: { ...loaded!.state, entries: [...loaded!.state.entries, day('2026-10-02', 'c')] }, version: 2 });
+  await store.flush();
+  assert.deepEqual(kv.writes, [['openplate-v1:entries:2026-10']]);
+
+  // a fresh reader sees the same data
+  const again = await createShardedStorage<any>(kv).getItem('openplate-v1');
+  assert.deepEqual(again!.state.entries.map((e: any) => e.id).sort(), ['a', 'b', 'c']);
+  assert.equal(again!.state.recipes[0].photo, photo);
+
+  // deleting September's only entry and the photo removes their values
+  await store.setItem('openplate-v1', { state: { ...again!.state, entries: again!.state.entries.filter((e: any) => e.id !== 'a'), recipes: [{ ...again!.state.recipes[0], photo: undefined }] }, version: 2 });
+  await store.flush();
+  assert.ok(!kv.data.has('openplate-v1:entries:2026-09'));
+  assert.ok(!kv.data.has('openplate-v1:photo:r1'));
+});
+
+test('storage: never writes before a successful read, and passes read errors on', async () => {
+  const kv = memoryStore({ 'openplate-v1': JSON.stringify({ state: { entries: [] }, version: 2 }) });
+  const store = createShardedStorage<any>(kv);
+  await store.setItem('openplate-v1', { state: { entries: [], profile: null }, version: 2 });
+  await store.flush();
+  assert.equal(kv.writes.length, 0, 'a save before the data was read must be ignored');
+
+  // a read that fails (or a damaged value) leaves the stored data untouched
+  const broken = memoryStore({ 'openplate-v1': JSON.stringify({ state: { profile }, version: 2 }), 'openplate-v1:entries:2026-10': '{oops' });
+  const s2 = createShardedStorage<any>(broken);
+  await assert.rejects(s2.getItem('openplate-v1'));
+  await s2.setItem('openplate-v1', { state: { entries: [], profile: null }, version: 2 });
+  await s2.flush();
+  assert.equal(broken.writes.length, 0);
+  assert.equal(broken.data.get('openplate-v1:entries:2026-10'), '{oops');
+
+  const failing = { ...memoryStore(), multiGet: async () => Promise.reject(new Error('disk')) };
+  const s3 = createShardedStorage<any>(failing as any);
+  await assert.rejects(s3.getItem('openplate-v1'), /disk/);
+});
+
+test('storage: years of diary and many recipe photos stay far below the 2 MB row limit', async () => {
+  const kv = memoryStore();
+  const store = createShardedStorage<any>(kv);
+  await store.getItem('openplate-v1');
+  const entries = [];
+  for (let i = 0; i < 3 * 365; i++) {
+    const date = addDays('2024-01-01', i);
+    for (let j = 0; j < 12; j++) entries.push({ id: `${i}-${j}`, date, meal: 'lunch', food: { ...goodFood, name: 'A fairly long product name '.repeat(3) }, grams: 100, createdAt: 0 });
+  }
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(120_000);
+  const recipes = Array.from({ length: 60 }, (_, i) => ({ id: `r${i}`, name: 'R', photo, items: [], steps: [] }));
+  await store.setItem('openplate-v1', { state: { profile, entries, recipes }, version: 2 });
+  await store.flush();
+  const largest = Math.max(...[...kv.data.values()].map((v) => v.length));
+  assert.ok(largest < 500_000, `largest stored value is ${largest} characters`);
+});
+
+test('storage: migration clears the old sample LAN address and cleans old imported recipes', () => {
+  const v1 = {
+    ai: { primary: 'anthropic', fallback: null, providers: { local: { model: 'm', baseUrl: OLD_LOCAL_DEFAULT_URL } } },
+    recipes: [{ id: 'r', photo: 'https://tracker.example/p.gif', steps: ['ok', { evil: 1 }], tags: 'x' }],
+  };
+  const m = migrateState(v1, 1) as any;
+  assert.equal(m.ai.providers.local.baseUrl, '');
+  assert.equal(m.recipes[0].photo, undefined);
+  assert.deepEqual(m.recipes[0].steps, ['ok']);
+  assert.deepEqual(m.recipes[0].tags, []);
+  // someone who really uses that address keeps it
+  const used = migrateState({ ...v1, ai: { ...v1.ai, primary: 'local' } }, 1) as any;
+  assert.equal(used.ai.providers.local.baseUrl, OLD_LOCAL_DEFAULT_URL);
 });

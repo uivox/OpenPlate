@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import type { BackupData } from './backup';
 import { newId } from './id';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { entriesForMeal } from './meals';
-import { appStorage } from './storage';
+import { migrateState, STORE_VERSION } from './migrations';
+import { createShardedStorage } from './persistStorage';
+import { kvStore } from './storage';
 import { DEFAULT_APPEARANCE, normalizeAppearance } from './themes';
 import type {
   AIProviderConfig,
@@ -74,6 +76,25 @@ interface State {
   /** Replaces all data with an imported backup (see backup.ts). */
   importBackup: (d: BackupData) => void;
 }
+
+/** What is saved on the device (and what `partialize` picks). */
+type Persisted = Pick<
+  State,
+  | 'profile'
+  | 'language'
+  | 'entries'
+  | 'customFoods'
+  | 'recentFoods'
+  | 'water'
+  | 'weights'
+  | 'fastingActive'
+  | 'fastingHistory'
+  | 'ai'
+  | 'meals'
+  | 'recipes'
+  | 'appearance'
+  | 'layout'
+>;
 
 const initial = {
   profile: null,
@@ -184,10 +205,15 @@ export const useStore = create<State>()(
         })),
     }),
     {
+      // The key keeps its old name so existing data is found; the layout is versioned below.
       name: 'openplate-v1',
-      version: 1,
-      storage: createJSONStorage(() => appStorage),
-      partialize: (s) => ({
+      version: STORE_VERSION,
+      migrate: (persisted, version) => migrateState(persisted, version) as unknown as Persisted,
+      storage: createShardedStorage<Persisted>(kvStore),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) setHydrationError(error);
+      },
+      partialize: (s): Persisted => ({
         profile: s.profile,
         language: s.language,
         entries: s.entries,
@@ -221,14 +247,41 @@ export const useStore = create<State>()(
   ),
 );
 
-export function useHydrated(): boolean {
-  const [hydrated, setHydrated] = useState(() => useStore.persist.hasHydrated());
+/* ---------- Hydration status ---------- */
+
+let hydrationError: unknown = null;
+const errorListeners = new Set<() => void>();
+function setHydrationError(e: unknown) {
+  hydrationError = e;
+  errorListeners.forEach((l) => l());
+}
+
+export type HydrationStatus = 'loading' | 'ready' | 'error';
+
+/**
+ * 'error' when the stored data could not be read. The app then shows a message with a retry button
+ * instead of a blank screen, and nothing is saved meanwhile (persistStorage.ts), so the data on the
+ * device stays untouched.
+ */
+export function useHydration(): { status: HydrationStatus; error: unknown; retry: () => void } {
+  const read = (): HydrationStatus => (useStore.persist.hasHydrated() ? 'ready' : hydrationError ? 'error' : 'loading');
+  const [status, setStatus] = useState<HydrationStatus>(read);
   useEffect(() => {
-    const unsub = useStore.persist.onFinishHydration(() => setHydrated(true));
-    setHydrated(useStore.persist.hasHydrated());
-    return unsub;
+    const update = () => setStatus(read());
+    const unsub = useStore.persist.onFinishHydration(update);
+    errorListeners.add(update);
+    update();
+    return () => {
+      unsub();
+      errorListeners.delete(update);
+    };
   }, []);
-  return hydrated;
+  const retry = () => {
+    hydrationError = null;
+    setStatus('loading');
+    void useStore.persist.rehydrate();
+  };
+  return { status, error: hydrationError, retry };
 }
 
 /** Re-exported for older imports; lives in the pure goals module now. */

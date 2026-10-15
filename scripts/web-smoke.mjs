@@ -21,6 +21,22 @@ await new Promise((r) => server.listen(4173, r));
 const url = 'http://localhost:4173/';
 mkdirSync('smoke-shots', { recursive: true });
 
+// A backup file as an attacker would craft it: redirect the OpenAI key, track who opens the app
+// with remote images, and crash screens with wrong types. The import must neutralise all of it.
+const today = new Date();
+const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const food = { id: 'x', source: 'custom', name: 'Hostile pasta', per100: { kcal: 150, protein: 5, carbs: 30, fat: 1 }, servings: [], imageUrl: 'https://tracker.example/food.png' };
+const HOSTILE_BACKUP = {
+  app: 'OpenPlate',
+  profile: { sex: 'female', birthYear: 1990, heightCm: 168, startWeightKg: 70, targetWeightKg: 65, activity: 'light', goal: 'lose', paceKgPerWeek: 0.5, macroSplit: { carbs: 50, protein: 20, fat: 30 }, waterGoalMl: 2000, glassMl: 250, stepGoal: 8000, addActivityCalories: false, fastingPlanId: '16:8', fastingDays: [], createdAt: 0 },
+  language: 'en',
+  entries: [{ id: 'e1', date: todayKey, meal: 'lunch', grams: 200, food, createdAt: 0 }],
+  recipes: [{ id: 'r1', name: 'Evil stew', servings: 2, steps: [{ evil: 1 }, 'Stir.'], items: [{ food, grams: 300 }], photo: 'https://tracker.example/pixel.gif', tags: 'x' }],
+  ai: { primary: 'openai', providers: { openai: { model: 'gpt-x', baseUrl: 'https://attacker.example/v1' }, local: { model: 'm', baseUrl: 'http://attacker.example/v1' } } },
+  appearance: { accent: 123, macroColors: 'red' },
+  layout: { hiddenTabs: 5 },
+};
+
 const browser = await chromium.launch();
 let failed = false;
 
@@ -50,6 +66,35 @@ async function run(scheme) {
       .first();
   const text = (t, opts) => page.getByText(t, opts).filter({ visible: true }).first();
   const field = (placeholder) => page.getByPlaceholder(placeholder).filter({ visible: true }).first();
+  const idbGet = (key) =>
+    page.evaluate(
+      (k) =>
+        new Promise((resolve, reject) => {
+          const open = indexedDB.open('openplate');
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const req = open.result.transaction('kv', 'readonly').objectStore('kv').get(k);
+            req.onsuccess = () => resolve(req.result ?? null);
+            req.onerror = () => reject(req.error);
+          };
+        }),
+      key,
+    );
+  const idbKeys = () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const open = indexedDB.open('openplate');
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const req = open.result.transaction('kv', 'readonly').objectStore('kv').getAllKeys();
+            req.onsuccess = () => resolve(req.result.map(String));
+            req.onerror = () => reject(req.error);
+          };
+        }),
+    );
+  const trackerHits = [];
+  page.on('request', (r) => r.url().includes('tracker.example') && trackerHits.push(r.url()));
 
   try {
     await step('onboarding', async () => {
@@ -136,6 +181,31 @@ async function run(scheme) {
       await btn('Save recipe').click();
       await text('Ingredients for 2 servings').waitFor();
       await text('Test bowl').waitFor();
+      await page.goBack();
+    });
+    await step('reload keeps data (diary stored per month)', async () => {
+      await page.reload();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await text('Apple', { exact: true }).waitFor();
+      const keys = await idbKeys();
+      if (!keys.some((k) => k.startsWith('openplate-v1:entries:'))) throw new Error(`no month values stored: ${keys.join(', ')}`);
+    });
+    await step('hostile backup is neutralised', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      const chooser = page.waitForEvent('filechooser');
+      await text('Import data', { exact: true }).click();
+      await (await chooser).setFiles({ name: 'evil.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(HOSTILE_BACKUP)) });
+      await btn('Replace').click();
+      await btn('OK').click();
+      await page.getByRole('tab', { name: 'Recipes' }).click();
+      await text('Evil stew').click();
+      await text('Stir.').waitFor();
+      await page.waitForTimeout(800); // let the save finish
+      const main = JSON.parse((await idbGet('openplate-v1')) ?? '{}');
+      const openai = main.state?.ai?.providers?.openai?.baseUrl;
+      if (openai !== 'https://api.openai.com/v1') throw new Error(`OpenAI address changed by the import: ${openai}`);
+      if (main.state?.ai?.primary === 'openai') throw new Error('provider choice taken from the import');
+      if (trackerHits.length) throw new Error(`requests to the tracker: ${trackerHits.join(', ')}`);
       await page.goBack();
     });
     console.log(`✓ ${scheme}: all steps passed`);
