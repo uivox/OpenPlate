@@ -50,7 +50,6 @@ Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a
 2. Open it and allow *Install unknown apps* for your browser when asked.
 3. Updates: download the newer APK and install it over the old one. Your data stays.
 
-**One-time reinstall (releases after 1.0.5).** Earlier APKs were signed with the public Android debug key, which every Expo project shares, so anyone could have built an "update" that installs over OpenPlate. Releases are now signed with OpenPlate's own key. Android doesn't allow installing over an app signed with a different key, so once: in the *old* app use *Profile → Export data* and send it somewhere you can open it again (Google Drive, Files, or an email to yourself), uninstall OpenPlate, install the new APK, then *Profile → Import data* (or *Import your data* on the welcome screen). API keys need to be entered again.
 
 ### iPhone (free, with SideStore)
 
@@ -119,7 +118,7 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 
 - Weight-loss goals and fasting plans are for adults (18+). Under 18 the goal is what keeps your weight.
 - No weight loss is planned at a BMI of 18.5 or below, and targets below a BMI of 18.5 can't be set.
-- No daily goal goes below 1,200 kcal (women) / 1,500 kcal (men), or below maintenance when that is lower, not even an exact number you type.
+- Automatic goals never go below 1,200 kcal (women) / 1,500 kcal (men), or below maintenance when that is lower. Adults can type a lower exact goal, down to 800 kcal, and get a clear warning.
 - Streaks never reward eating far less than the goal.
 - Backup files are checked row by row: implausible values, remote images (which could track who opens the app) and anything the app wouldn't create itself are left out.
 

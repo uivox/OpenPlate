@@ -316,10 +316,14 @@ test('custom goals: free pace, exact kcal, own activity and maintenance', () => 
   const exact = goalDetails({ ...profile, goalMode: 'custom', customKcal: 1850 }, 72, now);
   assert.equal(exact.kcal, 1850);
   assert.ok(exact.kgPerWeek < 0);
-  // an exact number below the minimum is raised to it as well (safety floor), and says so
+  // an adult may choose an exact number below the usual minimum, with a warning
   const low = goalDetails({ ...profile, goalMode: 'custom', customKcal: 1100 }, 72, now);
-  assert.equal(low.kcal, 1200);
-  assert.ok(low.warnings.includes('floored'));
+  assert.equal(low.kcal, 1100);
+  assert.ok(low.warnings.includes('below_minimum'));
+  // but never below 800 kcal
+  const tooLow = goalDetails({ ...profile, goalMode: 'custom', customKcal: 600 }, 72, now);
+  assert.equal(tooLow.kcal, 800);
+  assert.ok(tooLow.warnings.includes('floored'));
   assert.ok(goalDetails({ ...profile, goalMode: 'custom', customKcal: 1300 }, 72, now).warnings.includes('below_bmr'));
   // auto mode floors and says so
   const floored = goalDetails({ ...profile, paceKgPerWeek: 1 }, 72, now);
@@ -790,9 +794,15 @@ test('safety: weight loss only for adults with a healthy target', () => {
   assert.ok(Math.abs(goalDetails(profile, 64, nowS).delta) <= 5);
   assert.ok(goalDetails(profile, 64, nowS).warnings.includes('reached'));
 
-  // nobody gets less than 1200 kcal (or their maintenance, when that is lower), whatever they type
-  for (const kcal of [100, 500, 800, 1100]) assert.ok(goalDetails({ ...profile, goalMode: 'custom', customKcal: kcal }, 72, nowS).kcal >= 1200);
-  assert.ok(goalDetails({ ...profile, sex: 'male', goalMode: 'custom', customKcal: 1200 }, 72, nowS).kcal >= 1500);
+  // automatic goals never go below 1200 / 1500 kcal
+  assert.ok(goalDetails({ ...profile, paceKgPerWeek: 2 }, 72, nowS).kcal >= 1200);
+  assert.ok(goalDetails({ ...profile, sex: 'male', paceKgPerWeek: 2 }, 72, nowS).kcal >= 1500);
+  // adults can type less (warned), never below 800
+  for (const kcal of [100, 500, 799]) assert.equal(goalDetails({ ...profile, goalMode: 'custom', customKcal: kcal }, 72, nowS).kcal, 800);
+  assert.deepEqual(goalDetails({ ...profile, goalMode: 'custom', customKcal: 1000 }, 72, nowS).warnings.filter((w) => w === 'below_minimum'), ['below_minimum']);
+  // under-18s and BMI <= 18.5 get no deficit, whatever they type
+  assert.ok(goalDetails({ ...teen, goalMode: 'custom', customKcal: 900 }, 60, nowS).kcal >= teenGoal.maintenance - 5);
+  assert.ok(goalDetails({ ...thin, goalMode: 'custom', customKcal: 900 }, 45, nowS).kcal >= goalDetails(thin, 45, nowS).maintenance - 5);
   const tiny = { ...profile, birthYear: 1940, heightCm: 150, startWeightKg: 50, targetWeightKg: 47, activity: 'sedentary' as const };
   const tinyGoal = goalDetails({ ...tiny, paceKgPerWeek: 1 }, 50, nowS);
   assert.ok(tinyGoal.kcal <= tinyGoal.maintenance + 5, 'the floor never turns weight loss into gain');

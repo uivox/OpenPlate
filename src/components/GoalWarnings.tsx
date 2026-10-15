@@ -22,6 +22,8 @@ export function GoalWarnings({ details }: { details: GoalDetails; sex?: Sex }) {
               ? t('warn_below_bmr', { bmr: details.bmr })
               : w === 'floored'
                 ? t('warn_floored', { min: details.kcal })
+                : w === 'below_minimum'
+                  ? t('warn_below_minimum', { kcal: details.kcal })
                 : t(`warn_${w}`)
           }
         />

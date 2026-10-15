@@ -111,6 +111,12 @@ export function goalStatus(p: Profile, weightKg: number, now = new Date()): Goal
 }
 
 /** Lowest daily goal the app sets: the usual minimum, or maintenance when that is lower still. */
+/**
+ * Lowest exact goal an adult can choose on purpose (below the usual minimum, with a warning).
+ * Below about 800 kcal a diet counts as a very-low-calorie diet that needs medical supervision.
+ */
+export const ABSOLUTE_MIN_KCAL = 800;
+
 export function kcalFloor(sex: Profile['sex'], maintenance: number): number {
   return Math.min(minimumKcal(sex), Math.round(maintenance / 10) * 10);
 }
@@ -120,7 +126,7 @@ export function kcalPerDayForPace(kgPerWeek: number): number {
   return (kgPerWeek * KCAL_PER_KG_FAT) / 7;
 }
 
-export type GoalWarning = 'fast_pace' | 'below_bmr' | 'floored' | 'minor' | 'underweight' | 'reached';
+export type GoalWarning = 'fast_pace' | 'below_bmr' | 'floored' | 'below_minimum' | 'minor' | 'underweight' | 'reached';
 
 export interface GoalDetails {
   /** Daily calorie goal, rounded to 10 kcal. */
@@ -161,10 +167,14 @@ export function goalDetails(p: Profile, weightKg: number, now = new Date()): Goa
     warnings.push(status);
   }
   if (status === 'reached' && p.goalMode !== 'custom') warnings.push('reached');
-  if (goal < floor) {
-    goal = floor;
+  // An adult may deliberately type an exact goal below the usual minimum (warned, never below
+  // ABSOLUTE_MIN_KCAL). Automatic goals, under-18s and BMI ≤ 18.5 keep the usual minimum.
+  const ownChoice = p.goalMode === 'custom' && (status === 'active' || status === 'reached');
+  const lowest = ownChoice ? Math.min(floor, ABSOLUTE_MIN_KCAL) : floor;
+  if (goal < lowest) {
+    goal = lowest;
     warnings.push('floored');
-  }
+  } else if (goal < floor) warnings.push('below_minimum');
   const kcal = Math.round(goal / 10) * 10;
   const delta = kcal - maintenance;
   const kgPerWeek = (delta * 7) / KCAL_PER_KG_FAT;
