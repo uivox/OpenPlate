@@ -213,6 +213,7 @@ export const SWATCHES = [
 // ---------- colour maths ----------
 
 export function parseHex(hex: string): [number, number, number] | null {
+  if (typeof hex !== 'string') return null;
   const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return null;
   const h = m[1].length === 3 ? m[1].split('').map((x) => x + x).join('') : m[1];
@@ -329,14 +330,16 @@ export function buildColors(a: Appearance, scheme: 'light' | 'dark'): Colors {
 
 /** Fills in defaults and drops unknown values (for stored or imported settings). */
 export function normalizeAppearance(a: Partial<Appearance> | undefined): Appearance {
-  const v = a ?? {};
+  // Also used for imported backups and stored data, so any shape must be handled.
+  const v: Partial<Appearance> = a && typeof a === 'object' ? a : {};
   const theme = THEME_IDS.includes(v.theme as ThemeId) ? (v.theme as ThemeId) : DEFAULT_APPEARANCE.theme;
   const scheme = v.scheme === 'light' || v.scheme === 'dark' ? v.scheme : 'system';
   const motion = v.motion === 'calm' || v.motion === 'off' ? v.motion : 'lively';
   const accent = v.accent ? (normalizeHex(v.accent) ?? undefined) : undefined;
   const macroColors: Appearance['macroColors'] = {};
   for (const k of ['carbs', 'protein', 'fat'] as const) {
-    const hex = v.macroColors?.[k] ? normalizeHex(v.macroColors[k]!) : null;
+    const own = v.macroColors && typeof v.macroColors === 'object' ? v.macroColors[k] : undefined;
+    const hex = own ? normalizeHex(own) : null;
     if (hex) macroColors[k] = hex;
   }
   return { theme, scheme, motion, accent, macroColors: Object.keys(macroColors).length ? macroColors : undefined };

@@ -6,7 +6,7 @@ import { ActivityField, BodyFields, GoalField, WeightFields, draftErrors, type P
 import { Button, Card, ChipGroup, Field, NumField, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
 import { weightOn } from '../src/lib/goals';
-import { goalDetails, isValidSplit, kcalFromMacros, MACRO_PRESETS, type PresetId } from '../src/lib/nutrition';
+import { goalDetails, isValidSplit, kcalFromMacros, MACRO_PRESETS, minimumKcal, type PresetId } from '../src/lib/nutrition';
 import { buildProfile, draftFromProfile } from '../src/lib/profile';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -53,7 +53,10 @@ export default function EditProfileScreen() {
 
   const error =
     draftErrors(draft, t) ??
-    (goalMode === 'custom' && (!customKcal || customKcal < 500 || customKcal > 6000) ? t('err_custom_kcal') : null) ??
+    // An exact goal can't go below the usual minimum (safety floor, see nutrition.ts).
+    (goalMode === 'custom' && (!customKcal || customKcal < minimumKcal(draft.sex) || customKcal > 6000)
+      ? t('err_custom_kcal', { min: minimumKcal(draft.sex).toLocaleString(lang === 'de' ? 'de-DE' : 'en-US') })
+      : null) ??
     (ownMaintenance && (!maintenanceKcal || maintenanceKcal < 1000 || maintenanceKcal > 6000) ? t('err_maintenance') : null) ??
     (macroChoice === 'custom' && !isValidSplit(split as MacroSplit) ? t('err_split') : null) ??
     (macroChoice === 'grams' && !gramsComplete ? t('err_macro_grams') : null) ??

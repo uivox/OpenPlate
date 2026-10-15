@@ -103,6 +103,21 @@ export interface Profile {
   macroGramsTarget?: MacroGrams;
 }
 
+/** Profile fields as edited in onboarding and edit-profile (numbers may still be empty). */
+export interface ProfileDraft {
+  goal: Goal;
+  sex: Sex;
+  birthYear: number | null;
+  heightCm: number | null;
+  startWeightKg: number | null;
+  targetWeightKg: number | null;
+  activity: Activity;
+  paceKgPerWeek: number | null;
+  /** When true, `customActivityFactor` replaces the activity level. */
+  useCustomActivity: boolean;
+  customActivityFactor: number | null;
+}
+
 export interface MacroGrams {
   carbs: number;
   protein: number;

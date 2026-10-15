@@ -22,7 +22,7 @@ export interface DayGoal {
 /** Calorie and macro goals for one day: weight on that day, 5:2 / 6:1 fasting days, custom goals. */
 export function dayGoal(profile: Profile, weights: WeightEntry[], date: string, now = new Date()): DayGoal {
   const weight = weightOn(weights, profile, date);
-  const fastDay = isFastingDay(profile, date);
+  const fastDay = isFastingDay(profile, date, now);
   const normal = goalDetails(profile, weight, now).kcal;
   const kcal = fastDay ? fastingDayKcal(profile.sex) : normal;
   return { weight, fastDay, kcal, macros: macroTargets(profile, kcal, normal) };

@@ -1,13 +1,13 @@
 import React from 'react';
 import { View } from 'react-native';
-import { minimumKcal, type GoalDetails } from '../lib/nutrition';
+import type { GoalDetails } from '../lib/nutrition';
 import { useColors } from '../lib/theme';
 import type { Sex } from '../lib/types';
 import { useT } from '../lib/useT';
 import { Banner, Row, Txt } from './ui';
 
-/** Informational notes about a goal (too fast, below BMR, …). They never block saving. */
-export function GoalWarnings({ details, sex }: { details: GoalDetails; sex: Sex }) {
+/** Notes about a goal (too fast, below BMR, raised to the minimum, no deficit for under-18s, …). */
+export function GoalWarnings({ details }: { details: GoalDetails; sex?: Sex }) {
   const { t } = useT();
   if (details.warnings.length === 0) return null;
   return (
@@ -21,7 +21,7 @@ export function GoalWarnings({ details, sex }: { details: GoalDetails; sex: Sex 
             w === 'below_bmr'
               ? t('warn_below_bmr', { bmr: details.bmr })
               : w === 'floored'
-                ? t('warn_floored', { min: minimumKcal(sex) })
+                ? t('warn_floored', { min: details.kcal })
                 : t(`warn_${w}`)
           }
         />

@@ -41,13 +41,16 @@ function complete<T extends string>(order: unknown, all: T[]): T[] {
 }
 
 export function normalizeLayout(l: Partial<LayoutPrefs> | undefined): LayoutPrefs {
-  const v = l ?? {};
+  // Also used for imported backups and stored data, so any shape must be handled.
+  const v: Partial<LayoutPrefs> = l && typeof l === 'object' ? l : {};
+  const hiddenTabs: unknown[] = Array.isArray(v.hiddenTabs) ? v.hiddenTabs : [];
+  const hiddenDiary: unknown[] = Array.isArray(v.hiddenDiary) ? v.hiddenDiary : [];
   return {
     tabOrder: complete(v.tabOrder, ALL_TABS),
-    hiddenTabs: complete(v.hiddenTabs, ALL_TABS).filter((id) => (v.hiddenTabs ?? []).includes(id) && !FIXED_TABS.includes(id)),
+    hiddenTabs: complete(v.hiddenTabs, ALL_TABS).filter((id) => hiddenTabs.includes(id) && !FIXED_TABS.includes(id)),
     addButton: v.addButton === 'left' || v.addButton === 'right' ? v.addButton : 'center',
     diaryOrder: complete(v.diaryOrder, ALL_DIARY),
-    hiddenDiary: complete(v.hiddenDiary, ALL_DIARY).filter((id) => (v.hiddenDiary ?? []).includes(id) && !FIXED_DIARY.includes(id)),
+    hiddenDiary: complete(v.hiddenDiary, ALL_DIARY).filter((id) => hiddenDiary.includes(id) && !FIXED_DIARY.includes(id)),
   };
 }
 

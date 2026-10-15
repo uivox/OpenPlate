@@ -1,4 +1,5 @@
 import { weekdayOf } from './dates';
+import { isAdult } from './nutrition';
 import type { FastingSession, Profile } from './types';
 
 export interface FastingPlan {
@@ -39,9 +40,25 @@ export function stageFor(elapsedHours: number) {
   return stage;
 }
 
-export function isFastingDay(profile: Pick<Profile, 'fastingPlanId' | 'fastingDays'>, dateKey: string): boolean {
+/**
+ * Weekdays that count as low-calorie days for the current plan. Only as many days as the plan
+ * allows are used (a 6:1 plan never has two fasting days, even if two were picked under 5:2).
+ */
+export function activeFastingDays(profile: Pick<Profile, 'fastingPlanId' | 'fastingDays'>): number[] {
   const plan = planById(profile.fastingPlanId);
-  return plan.kind === 'weekly' && profile.fastingDays.includes(weekdayOf(dateKey));
+  if (plan.kind !== 'weekly') return [];
+  const unique = profile.fastingDays.filter((d, i, all) => all.indexOf(d) === i);
+  return unique.slice(-(plan.fastDays ?? 0));
+}
+
+/** Fasting plans are for adults only; for under-18s no day is ever a fasting day. */
+export function isFastingDay(
+  profile: Pick<Profile, 'fastingPlanId' | 'fastingDays' | 'birthYear'>,
+  dateKey: string,
+  now = new Date(),
+): boolean {
+  if (!isAdult(profile.birthYear, now)) return false;
+  return activeFastingDays(profile).includes(weekdayOf(dateKey));
 }
 
 export function sessionHours(s: FastingSession, now = Date.now()): number {

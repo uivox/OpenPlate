@@ -61,12 +61,66 @@ export function minimumKcal(sex: Profile['sex']): number {
   return sex === 'male' ? 1500 : 1200;
 }
 
+/* ---------- Safety rules ----------
+ * A calorie tracker can do harm: to children and teenagers, who need to grow, and to people with
+ * (or at risk of) an eating disorder. So:
+ * - weight loss is only applied for adults and only above a BMI of 18.5, and targets below a BMI of
+ *   18.5 can't be set;
+ * - no daily goal goes below the usual minimum (1200 / 1500 kcal), or below maintenance for people
+ *   whose maintenance is lower than that, not even an exact number the user typed;
+ * - fasting plans are for adults only (fasting.ts).
+ */
+
+/** Only the birth year is known, so someone counts as an adult from the calendar year they turn 18. */
+export const ADULT_AGE = 18;
+export function isAdult(birthYear: number, now = new Date()): boolean {
+  return ageFromBirthYear(birthYear, now) >= ADULT_AGE;
+}
+
+/** Lowest BMI a weight-loss target may have (WHO lower bound of normal weight). */
+export const MIN_TARGET_BMI = 18.5;
+export function minHealthyWeight(heightCm: number): number {
+  const m = heightCm / 100;
+  return Math.ceil(MIN_TARGET_BMI * m * m * 10) / 10;
+}
+
+/** Accepted body weight range everywhere in the app. */
+export const MIN_WEIGHT_KG = 35;
+export const MAX_WEIGHT_KG = 300;
+export function validWeight(kg: number | null | undefined): kg is number {
+  return typeof kg === 'number' && kg >= MIN_WEIGHT_KG && kg <= MAX_WEIGHT_KG;
+}
+
+/**
+ * Whether the chosen goal is currently applied:
+ * - 'active': deficit or surplus as planned (or 'maintain')
+ * - 'reached': the target weight is reached, so the plan holds the weight
+ * - 'minor': weight loss is not applied for under-18s
+ * - 'underweight': weight loss is not applied at or below a BMI of 18.5
+ */
+export type GoalStatus = 'active' | 'reached' | 'minor' | 'underweight';
+
+export function goalStatus(p: Profile, weightKg: number, now = new Date()): GoalStatus {
+  if (p.goal === 'lose') {
+    if (!isAdult(p.birthYear, now)) return 'minor';
+    if (bmi(weightKg, p.heightCm) <= MIN_TARGET_BMI) return 'underweight';
+    if (weightKg <= p.targetWeightKg) return 'reached';
+  }
+  if (p.goal === 'gain' && weightKg >= p.targetWeightKg) return 'reached';
+  return 'active';
+}
+
+/** Lowest daily goal the app sets: the usual minimum, or maintenance when that is lower still. */
+export function kcalFloor(sex: Profile['sex'], maintenance: number): number {
+  return Math.min(minimumKcal(sex), Math.round(maintenance / 10) * 10);
+}
+
 /** Daily kcal difference for a weekly pace (≈7,700 kcal per kg of body fat): 0.4 kg/week → 440 kcal/day. */
 export function kcalPerDayForPace(kgPerWeek: number): number {
   return (kgPerWeek * KCAL_PER_KG_FAT) / 7;
 }
 
-export type GoalWarning = 'fast_pace' | 'below_bmr' | 'floored' | 'very_low';
+export type GoalWarning = 'fast_pace' | 'below_bmr' | 'floored' | 'minor' | 'underweight' | 'reached';
 
 export interface GoalDetails {
   /** Daily calorie goal, rounded to 10 kcal. */
@@ -77,31 +131,39 @@ export interface GoalDetails {
   delta: number;
   /** Implied weekly change in kg from `delta` (negative while losing). */
   kgPerWeek: number;
+  /** Whether the weight goal is applied (see goalStatus). */
+  status: GoalStatus;
   warnings: GoalWarning[];
 }
 
 /**
  * The daily goal and everything worth telling the user about it. In 'custom' mode the user's own
- * number is used as is; in 'auto' mode the weekly pace is turned into a daily surplus/deficit and a
- * deficit never goes below the usual minimum (1200/1500 kcal). Warnings inform but never block.
+ * number is used; in 'auto' mode the weekly pace is turned into a daily surplus/deficit. Either way
+ * the safety rules above apply: no deficit for under-18s or at a BMI of 18.5 or less, and never
+ * below the minimum (kcalFloor). Warnings explain what was changed and why.
  */
 export function goalDetails(p: Profile, weightKg: number, now = new Date()): GoalDetails {
   const maintenance = maintenanceKcal(p, weightKg, now);
   const rest = bmr(p, weightKg, now);
+  const status = goalStatus(p, weightKg, now);
+  const floor = kcalFloor(p.sex, maintenance);
   const warnings: GoalWarning[] = [];
   let goal = maintenance;
   if (p.goalMode === 'custom' && p.customKcal && p.customKcal > 0) {
     goal = p.customKcal;
-  } else {
+  } else if (status === 'active') {
     const delta = kcalPerDayForPace(p.paceKgPerWeek);
-    if (p.goal === 'lose') {
-      goal = maintenance - delta;
-      if (goal < minimumKcal(p.sex)) {
-        goal = minimumKcal(p.sex);
-        warnings.push('floored');
-      }
-    }
+    if (p.goal === 'lose') goal = maintenance - delta;
     if (p.goal === 'gain') goal = maintenance + delta;
+  }
+  if (status === 'minor' || status === 'underweight') {
+    goal = Math.max(goal, maintenance);
+    warnings.push(status);
+  }
+  if (status === 'reached' && p.goalMode !== 'custom') warnings.push('reached');
+  if (goal < floor) {
+    goal = floor;
+    warnings.push('floored');
   }
   const kcal = Math.round(goal / 10) * 10;
   const delta = kcal - maintenance;
@@ -109,8 +171,7 @@ export function goalDetails(p: Profile, weightKg: number, now = new Date()): Goa
   // More than about 1 % of body weight per week is aggressive in either direction.
   if (Math.abs(kgPerWeek) > weightKg * 0.01 + 0.005) warnings.push('fast_pace');
   if (kcal < rest) warnings.push('below_bmr');
-  if (kcal < 1000) warnings.push('very_low');
-  return { kcal, maintenance: Math.round(maintenance), bmr: Math.round(rest), delta: Math.round(delta), kgPerWeek, warnings };
+  return { kcal, maintenance: Math.round(maintenance), bmr: Math.round(rest), delta: Math.round(delta), kgPerWeek, status, warnings };
 }
 
 /** Daily calorie goal from profile and current weight, rounded to 10 kcal. */

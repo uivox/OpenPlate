@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 import { Banner, Button, Card, ChipGroup, Field, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
-import { DEFAULT_AI_SETTINGS, KEY_OPTIONAL, PROVIDER_NAMES, testProvider } from '../src/lib/ai';
+import { DEFAULT_AI_SETTINGS, KEY_OPTIONAL, PROVIDER_NAMES, serverUrlProblem, testProvider } from '../src/lib/ai';
 import { getApiKey, setApiKey } from '../src/lib/secure';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -86,6 +86,11 @@ function ProviderCard({ provider, t }: { provider: AIProviderId; t: TFn }) {
   };
 
   const showUrl = provider === 'local' || provider === 'openai';
+  const url = (config.baseUrl ?? '').trim();
+  const urlProblem = url ? serverUrlProblem(url) : null;
+  // A custom OpenAI address receives the OpenAI key: say so plainly.
+  const customOpenAI = provider === 'openai' && url && !urlProblem && !/^https:\/\/api\.openai\.com(\/|$)/i.test(url);
+  const urlHost = url.replace(/^https?:\/\//i, '').split(/[/:]/)[0];
 
   return (
     <>
@@ -148,6 +153,12 @@ function ProviderCard({ provider, t }: { provider: AIProviderId; t: TFn }) {
             }
           />
         ) : null}
+        {showUrl && urlProblem ? (
+          <Txt v="small" color={c.danger}>
+            {t(urlProblem === 'insecure' ? 'server_url_insecure' : 'server_url_invalid')}
+          </Txt>
+        ) : null}
+        {customOpenAI ? <Banner icon="warning" tone="warn" text={t('openai_custom_url_note', { host: urlHost })} /> : null}
         <Button kind="secondary" small icon="pulse" title={t('test_connection')} onPress={test} loading={testing} />
         {result ? (
           <Txt v="small" color={result.ok ? c.accent : c.danger}>

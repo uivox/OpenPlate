@@ -5,11 +5,22 @@ import type { DiaryEntry, Goal } from './types';
 /**
  * Streaks and the calendar.
  * - A day counts towards the streak as soon as anything is logged.
- * - "Goal hit" allows 5 % either way; when losing, anything under the goal counts too, when gaining
- *   anything above it. Today is only judged once the day is over ("pending" until then).
+ * - "Goal hit" means eating close to the goal: 5 % either way, with a little more room in the
+ *   direction of the goal (10 % under while losing, 10 % over while gaining). Eating far less than
+ *   the goal is never a "hit": the app must not reward skipping meals or starving (it shows as
+ *   "under", in a calm colour). Today is only judged once the day is over ("pending" until then).
  */
 
 export const GOAL_TOLERANCE = 0.05;
+/** Extra room in the direction of the goal. */
+export const GOAL_DIRECTION_TOLERANCE = 0.1;
+
+/** kcal range that counts as goal hit. */
+export function hitRange(goalKcal: number, goal: Goal): { low: number; high: number } {
+  const below = goal === 'lose' ? GOAL_DIRECTION_TOLERANCE : GOAL_TOLERANCE;
+  const above = goal === 'gain' ? GOAL_DIRECTION_TOLERANCE : GOAL_TOLERANCE;
+  return { low: goalKcal * (1 - below), high: goalKcal * (1 + above) };
+}
 
 export type DayStatus = 'empty' | 'hit' | 'over' | 'under' | 'pending' | 'future';
 
@@ -21,10 +32,9 @@ export function dailyTotals(entries: DiaryEntry[]): Map<string, number> {
 }
 
 export function judgeDay(eaten: number, goalKcal: number, goal: Goal): 'hit' | 'over' | 'under' {
-  const low = goalKcal * (1 - GOAL_TOLERANCE);
-  const high = goalKcal * (1 + GOAL_TOLERANCE);
-  if (eaten > high) return goal === 'gain' ? 'hit' : 'over';
-  if (eaten < low) return goal === 'lose' ? 'hit' : 'under';
+  const { low, high } = hitRange(goalKcal, goal);
+  if (eaten > high) return 'over';
+  if (eaten < low) return 'under';
   return 'hit';
 }
 

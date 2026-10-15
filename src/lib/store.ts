@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { DEFAULT_AI_SETTINGS } from './ai';
+import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import type { BackupData } from './backup';
 import { newId } from './id';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
@@ -172,18 +172,16 @@ export const useStore = create<State>()(
 
       resetAll: () => set({ ...initial }),
       importBackup: (d) =>
-        set({
+        set((s) => ({
           ...initial,
           ...d,
           // older exports have no look/layout: keep the current one
-          appearance: d.appearance ? normalizeAppearance(d.appearance) : get().appearance,
-          layout: d.layout ? normalizeLayout(d.layout) : get().layout,
-          ai: {
-            ...DEFAULT_AI_SETTINGS,
-            ...(d.ai ?? {}),
-            providers: { ...DEFAULT_AI_SETTINGS.providers, ...(d.ai?.providers ?? {}) },
-          },
-        }),
+          appearance: d.appearance ? normalizeAppearance(d.appearance) : s.appearance,
+          layout: d.layout ? normalizeLayout(d.layout) : s.layout,
+          // Only model names come from the file; providers and server addresses stay as set on this
+          // device, so a backup can never redirect a saved API key (see sanitizeImportedAI).
+          ai: sanitizeImportedAI(d.ai, s.ai),
+        })),
     }),
     {
       name: 'openplate-v1',

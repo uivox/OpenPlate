@@ -1,23 +1,12 @@
 import React from 'react';
 import { View } from 'react-native';
 import { ACTIVITY_FACTORS } from '../lib/nutrition';
-import type { Activity, Goal, Sex } from '../lib/types';
+import type { Activity, Goal, ProfileDraft, Sex } from '../lib/types';
+import { draftProblem } from '../lib/validation';
+
+export type { ProfileDraft };
 import type { TFn } from '../lib/useT';
 import { ChipGroup, NumField, Row, Txt } from './ui';
-
-export interface ProfileDraft {
-  goal: Goal;
-  sex: Sex;
-  birthYear: number | null;
-  heightCm: number | null;
-  startWeightKg: number | null;
-  targetWeightKg: number | null;
-  activity: Activity;
-  paceKgPerWeek: number | null;
-  /** When true, `customActivityFactor` replaces the activity level. */
-  useCustomActivity: boolean;
-  customActivityFactor: number | null;
-}
 
 export const ACTIVITIES: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
 export const PACES = [0.25, 0.5, 0.75, 1];
@@ -113,15 +102,10 @@ export function ActivityField({ draft, set, t }: Props) {
   );
 }
 
+/** First problem with the draft as a translated message, or null (rules in validation.ts). */
 export function draftErrors(d: ProfileDraft, t: TFn): string | null {
-  const year = new Date().getFullYear();
-  if (!d.birthYear || d.birthYear < year - 100 || d.birthYear > year - 13) return t('err_birth_year');
-  if (!d.heightCm || d.heightCm < 120 || d.heightCm > 230) return t('err_height');
-  if (!d.startWeightKg || d.startWeightKg < 35 || d.startWeightKg > 300) return t('err_weight');
-  if (d.goal !== 'maintain' && (!d.targetWeightKg || d.targetWeightKg < 35 || d.targetWeightKg > 300)) return t('err_weight');
-  if (d.goal === 'lose' && d.targetWeightKg! >= d.startWeightKg) return t('err_target_lose');
-  if (d.goal === 'gain' && d.targetWeightKg! <= d.startWeightKg) return t('err_target_gain');
-  if (d.goal !== 'maintain' && (d.paceKgPerWeek === null || d.paceKgPerWeek < 0.05 || d.paceKgPerWeek > 2)) return t('err_pace');
-  if (d.useCustomActivity && (d.customActivityFactor === null || d.customActivityFactor < 1 || d.customActivityFactor > 2.5)) return t('err_factor');
-  return null;
+  const p = draftProblem(d);
+  if (!p) return null;
+  const params = p.params && Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, typeof v === 'number' ? String(v).replace('.', t('decimal_sep')) : v]));
+  return t(p.key, params);
 }

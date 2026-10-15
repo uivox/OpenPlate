@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, TextInput, View } from 'react-native';
 import { Sprout } from '../src/components/Sprout';
 import { Banner, Button, Card, ChipGroup, Divider, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
-import { analyzeMeal, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
+import { analyzeMeal, CANCELLED, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
 import { dayKey } from '../src/lib/dates';
 import { pickMealPhoto, type PreparedPhoto } from '../src/lib/device';
 import { newId } from '../src/lib/id';
@@ -46,16 +46,25 @@ export default function PhotoScreen() {
 
   const configured = providerOrder(ai).length > 0;
 
+  // Leaving the screen cancels a running analysis, so the photo isn't sent on after the user changed their mind.
+  const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
+
   const run = async (p: PreparedPhoto) => {
     setPhase('analyzing');
     setError('');
+    abort.current?.abort();
+    const ctrl = new AbortController();
+    abort.current = ctrl;
     try {
-      const res = await analyzeMeal(p.base64, ai, getApiKey, lang, hint);
+      const res = await analyzeMeal(p.base64, ai, getApiKey, lang, hint, undefined, ctrl.signal);
+      if (ctrl.signal.aborted) return;
       setOutcome(res);
       setItems(res.result.items.map((it) => ({ key: newId(), base: it, name: it.name, grams: it.grams, include: true })));
       setPhase(res.result.items.length ? 'review' : 'error');
       if (!res.result.items.length) setError(res.result.notes ?? t('ai_no_food'));
     } catch (e) {
+      if ((e as Error).message === CANCELLED || ctrl.signal.aborted) return;
       setError((e as Error).message);
       setPhase('error');
     }

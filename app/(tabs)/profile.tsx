@@ -11,7 +11,7 @@ import { PROVIDER_NAMES } from '../../src/lib/ai';
 import { showAlert } from '../../src/lib/alert';
 import { buildBackup } from '../../src/lib/backup';
 import { dayKey } from '../../src/lib/dates';
-import { canPickFiles, shareExport } from '../../src/lib/device';
+import { cancelNotification, canPickFiles, shareExport } from '../../src/lib/device';
 import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
 import { clearAllKeys } from '../../src/lib/secure';
@@ -44,6 +44,8 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearAllKeys();
+          // A running fast's reminder must not fire after its data is gone.
+          await cancelNotification(useStore.getState().fastingActive?.notificationId).catch(() => {});
           useStore.getState().resetAll();
           router.replace('/onboarding');
         },
