@@ -175,16 +175,6 @@ On the list for later:
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
 
-## Release signing (maintainers)
-
-Android release APKs are signed with the project's own key (`plugins/withReleaseSigning.js`); CI refuses to publish an APK signed with the debug key and publishes nothing until type check and tests pass. Create the key once and keep a safe copy (losing it means users have to reinstall again):
-
-```bash
-keytool -genkeypair -v -keystore openplate-release.jks -alias openplate -keyalg RSA -keysize 4096 -validity 10000
-base64 -w0 openplate-release.jks   # macOS: base64 -i openplate-release.jks
-```
-
-Add repository secrets (*Settings → Secrets and variables → Actions*): `ANDROID_KEYSTORE_BASE64` (the base64 output), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`openplate`), and optionally `ANDROID_KEY_PASSWORD`.
 
 ## Credits and licence
 
