@@ -910,3 +910,38 @@ test('storage: migration clears the old sample LAN address and cleans old import
   const used = migrateState({ ...v1, ai: { ...v1.ai, primary: 'local' } }, 1) as any;
   assert.equal(used.ai.providers.local.baseUrl, OLD_LOCAL_DEFAULT_URL);
 });
+
+
+test('release signing: Android release builds use the project key, never silently the public debug key', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { addReleaseSigning } = require(require('node:path').resolve('plugins/addReleaseSigning.js'));
+  // the relevant part of the Expo SDK 54 template (templates/expo-template-bare-minimum/android/app/build.gradle)
+  const template = [
+    'android {',
+    '    signingConfigs {',
+    '        debug {',
+    "            storeFile file('debug.keystore')",
+    "            storePassword 'android'",
+    "            keyAlias 'androiddebugkey'",
+    "            keyPassword 'android'",
+    '        }',
+    '    }',
+    '    buildTypes {',
+    '        debug {',
+    '            signingConfig signingConfigs.debug',
+    '        }',
+    '        release {',
+    '            signingConfig signingConfigs.debug',
+    '            minifyEnabled enableMinifyInReleaseBuilds',
+    '        }',
+    '    }',
+    '}',
+  ].join('\n');
+  const out: string = addReleaseSigning(template);
+  assert.match(out, /release \{\n\s+if \(System\.getenv\('OPENPLATE_KEYSTORE_PATH'\)\)/);
+  assert.match(out, /release \{\n\s+signingConfig System\.getenv\('OPENPLATE_KEYSTORE_PATH'\) \? signingConfigs\.release : signingConfigs\.debug/);
+  // the debug build type keeps the debug key
+  assert.match(out, /debug \{\n\s+signingConfig signingConfigs\.debug\n/);
+  assert.equal(addReleaseSigning(out), out);
+  assert.throws(() => addReleaseSigning('android {}'), /signingConfigs/);
+});

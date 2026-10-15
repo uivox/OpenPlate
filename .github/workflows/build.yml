@@ -2,6 +2,14 @@ name: Build apps
 
 # Every push to main builds an Android APK and an iPhone IPA and publishes them
 # as a GitHub release (version 1.0.<run number>). Public repos build for free.
+#
+# A release is only published when the type check and tests pass and the Android APK is signed
+# with the project's own key (never the public debug key). Required repository secrets
+# (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64    base64 of the release keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD  keystore password
+#   ANDROID_KEY_ALIAS          key alias
+#   ANDROID_KEY_PASSWORD       key password (optional, defaults to the keystore password)
 on:
   push:
     branches: [main]
@@ -9,8 +17,9 @@ on:
     paths-ignore: ['**.md', 'docs/**', 'public/**', '**/*.web.ts', '**/*.web.tsx', 'scripts/web-pwa.mjs', '.github/workflows/web.yml']
   workflow_dispatch:
 
+# Read-only by default; only the release job gets write access.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -20,7 +29,7 @@ env:
   BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:
-  # Type check and logic tests run alongside the builds, so a small type error never blocks a build.
+  # Type check and logic tests run alongside the builds; the release waits for them.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -28,9 +37,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
-      - name: Align native package versions with the Expo SDK
-        run: bash scripts/ci-run.sh npx expo install --fix
+      - run: bash scripts/install-deps.sh
       - run: bash scripts/ci-run.sh npx tsc --noEmit
       - run: bash scripts/ci-run.sh npm test
 
@@ -45,14 +52,38 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
-      - run: bash scripts/ci-run.sh npx expo install --fix
+      - name: Restore the release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error title=Missing signing key::Add the ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS secrets. Release APKs are no longer signed with the public debug key."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+      - run: bash scripts/install-deps.sh
       - run: node scripts/set-version.mjs
       - run: bash scripts/ci-run.sh npx expo prebuild --platform android --no-install --clean
       - name: Build release APK
         working-directory: android
+        env:
+          OPENPLATE_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          OPENPLATE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          OPENPLATE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          OPENPLATE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash ../scripts/ci-run.sh ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
       - run: cp android/app/build/outputs/apk/release/app-release.apk OpenPlate.apk
+      - name: Refuse APKs signed with the debug key
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          CERTS=$("$APKSIGNER" verify --print-certs OpenPlate.apk)
+          echo "$CERTS"
+          if echo "$CERTS" | grep -q "CN=Android Debug"; then
+            echo "::error title=Debug-signed APK::The APK is signed with the public debug key."
+            exit 1
+          fi
+      - run: rm -f "$RUNNER_TEMP/release.jks"
+        if: always()
       - uses: actions/upload-artifact@v4
         with:
           name: android
@@ -65,8 +96,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
-      - run: bash scripts/ci-run.sh npx expo install --fix
+      - run: bash scripts/install-deps.sh
       - run: node scripts/set-version.mjs
       - name: Generate the Xcode project (also runs pod install)
         run: bash scripts/ci-run.sh npx expo prebuild --platform ios --clean
@@ -91,8 +121,11 @@ jobs:
           path: OpenPlate.ipa
 
   release:
-    needs: [android, ios]
+    # Nothing is published unless type check and tests pass too.
+    needs: [check, android, ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4

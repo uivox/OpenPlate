@@ -28,8 +28,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - run: bash scripts/ci-run.sh npm install --no-audit --no-fund
-      - run: bash scripts/ci-run.sh npx expo install --fix
+      - run: bash scripts/install-deps.sh
+      # The live web app is only updated when type check and tests pass.
+      - run: bash scripts/ci-run.sh npx tsc --noEmit
+      - run: bash scripts/ci-run.sh npm test
       - name: Export web build
         run: bash scripts/ci-run.sh npx expo export --platform web --output-dir dist
       - run: node scripts/web-pwa.mjs dist "$WEB_BASE_URL"

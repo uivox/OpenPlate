@@ -157,7 +157,7 @@ const en = {
   // AI settings
   ai_settings: 'AI settings',
   ai_settings_intro: 'Choose which AI analyses your meal photos. The fallback is asked when the first one fails or is unsure.',
-  ai_privacy: 'Keys are stored in the iPhone Keychain and only sent to the provider they belong to. Photos go straight from your phone to that provider.',
+  ai_privacy: 'Keys are stored in your phone’s secure storage (iPhone Keychain, Android Keystore) and only sent to the provider they belong to. Photos go straight from your phone to that provider.',
   ai_privacy_web: 'Keys are stored only in this browser and only sent to the provider they belong to. Photos go straight from your device to that provider.',
   ai_primary: 'Primary AI',
   ai_fallback: 'Fallback AI',
@@ -666,7 +666,7 @@ const de: Record<TKey, string> = {
   ai_settings: 'KI-Einstellungen',
   ai_settings_intro: 'Wähle, welche KI deine Essensfotos analysiert. Die Ersatz-KI wird gefragt, wenn die erste scheitert oder unsicher ist.',
   ai_privacy:
-    'Schlüssel werden im iPhone-Schlüsselbund gespeichert und nur an den jeweiligen Anbieter gesendet. Fotos gehen direkt vom Handy zu diesem Anbieter.',
+    'Schlüssel werden im sicheren Speicher deines Handys gespeichert (iPhone-Schlüsselbund, Android Keystore) und nur an den jeweiligen Anbieter gesendet. Fotos gehen direkt vom Handy zu diesem Anbieter.',
   ai_privacy_web: 'Schlüssel werden nur in diesem Browser gespeichert und nur an den jeweiligen Anbieter geschickt. Fotos gehen direkt von deinem Gerät zu diesem Anbieter.',
   ai_primary: 'Haupt-KI',
   ai_fallback: 'Ersatz-KI',

@@ -1,7 +1,10 @@
+import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
+import * as Sharing from 'expo-sharing';
 import { Share } from 'react-native';
 import { endOfDay, startOfDay } from './dates';
 
@@ -35,16 +38,55 @@ export async function pickMealPhoto(source: 'camera' | 'library', maxWidth = 102
 
 /* ---------- Data files ---------- */
 
-/** Picking a backup file needs a document picker; only the web build has one (device.web.ts). */
-export const canPickFiles = false;
+/** Backups can be imported on every platform (needed to move to a new install). */
+export const canPickFiles = true;
 
+/** Largest file accepted for import; real backups with photos stay far below this. */
+const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
+
+/** Reads a text file the user picks (used for importing a backup). Null when cancelled. */
 export async function pickTextFile(): Promise<string | null> {
-  return null;
+  const picked = await DocumentPicker.getDocumentAsync({
+    // Some file providers report .json files as plain text or octet-stream; parseBackup validates.
+    type: '*/*',
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (picked.canceled || !picked.assets?.length) return null;
+  const asset = picked.assets[0];
+  const file = new File(asset.uri);
+  try {
+    if ((asset.size ?? file.size ?? 0) > MAX_IMPORT_BYTES) throw new Error('FILE_TOO_LARGE');
+    return await file.text();
+  } finally {
+    // The picked copy holds personal data; don't leave it in the cache.
+    try {
+      file.delete();
+    } catch {
+      /* already gone */
+    }
+  }
 }
 
-/** Hands the exported JSON to the share sheet. */
+/** Writes the export to a JSON file and opens the share sheet (Files, AirDrop, mail, …). */
 export async function shareExport(json: string, filename: string): Promise<void> {
-  await Share.share({ message: json, title: filename });
+  if (!(await Sharing.isAvailableAsync())) {
+    await Share.share({ message: json, title: filename });
+    return;
+  }
+  const file = new File(Paths.cache, filename);
+  try {
+    if (file.exists) file.delete();
+    file.create();
+    file.write(json);
+    await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: filename });
+  } finally {
+    try {
+      file.delete();
+    } catch {
+      /* already gone */
+    }
+  }
 }
 
 /* ---------- Notifications ---------- */
