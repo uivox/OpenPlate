@@ -42,8 +42,14 @@ let failed = false;
 
 async function run(scheme) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', colorScheme: scheme, deviceScaleFactor: 2 });
+  // Collects Content Security Policy violations; any violation fails the step it happened in.
+  await ctx.addInitScript(() => {
+    window.__csp = [];
+    document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.effectiveDirective} ${e.blockedURI || '(inline)'}`));
+  });
   const page = await ctx.newPage();
   const crashes = [];
+  const cspViolations = () => page.evaluate(() => window.__csp ?? []).catch(() => []);
   page.on('pageerror', (e) => crashes.push(String(e)));
   page.on('console', (m) => m.type() === 'error' && console.log(`[${scheme} console] ${m.text().slice(0, 300)}`));
   page.setDefaultTimeout(15000);
@@ -55,6 +61,8 @@ async function run(scheme) {
     await page.waitForTimeout(250);
     await page.screenshot({ path: `smoke-shots/${scheme}-${String(++n).padStart(2, '0')}-${name.replace(/\W+/g, '_')}.png` });
     if (crashes.length) throw new Error(`page error: ${crashes.join(' | ')}`);
+    const csp = await cspViolations();
+    if (csp.length) throw new Error(`CSP violation: ${csp.join(' | ')}`);
   };
   // Buttons with an icon get the icon font's glyph in their accessible name, so match the label at the end.
   const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -103,6 +111,22 @@ async function run(scheme) {
       for (let i = 0; i < 5; i++) await btn('Next').click();
       await btn("Let's go").click();
       await text('Breakfast', { exact: true }).waitFor();
+    });
+    await step('CSP is active and blocks injected scripts', async () => {
+      const policy = await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ?? '');
+      if (!policy.includes("script-src 'self'")) throw new Error(`no CSP meta tag: "${policy}"`);
+      const referrer = await page.evaluate(() => document.querySelector('meta[name="referrer"]')?.getAttribute('content'));
+      if (referrer !== 'no-referrer') throw new Error(`referrer policy missing: ${referrer}`);
+      await page.evaluate(() => {
+        const s = document.createElement('script');
+        s.textContent = 'window.__pwned = true';
+        document.body.appendChild(s);
+      });
+      await page.waitForTimeout(200);
+      if (await page.evaluate(() => window.__pwned === true)) throw new Error('an injected inline script ran');
+      const seen = await cspViolations();
+      if (!seen.some((v) => v.startsWith('script-src'))) throw new Error(`injected script was not reported as blocked: ${seen.join(' | ')}`);
+      await page.evaluate(() => (window.__csp = []));
     });
     for (const food of ['Apple', 'Banana']) {
       await step(`log ${food}`, async () => {

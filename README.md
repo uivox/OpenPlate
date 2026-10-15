@@ -168,7 +168,7 @@ src/lib/
   backup.ts             export / import format
   *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
 public/icons/           home-screen icons for the web version
-scripts/web-pwa.mjs     turns the web export into an installable, offline web app
+scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 tests/logic.test.ts     tests for the logic modules (npm test)
 ```
 
