@@ -1,14 +1,15 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Image, View } from 'react-native';
-import { Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
+import { Image, Linking, View } from 'react-native';
+import { Banner, Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { dayKey } from '../src/lib/dates';
-import { addToMealDraft, getFood } from '../src/lib/foodCache';
+import { addToMealDraft, getFood, setFoodDraft } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
 import { leaveToDiary } from '../src/lib/nav';
 import { scaleNutrients } from '../src/lib/nutrition';
+import { offContributeUrl } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
@@ -18,7 +19,7 @@ export default function FoodScreen() {
   const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
   /** Picking an ingredient for the meal builder ('1', meal-edit.tsx) or the recipe editor ('recipe'). */
   const pick = params.pick === '1' || params.pick === 'recipe';
-  const { t } = useT();
+  const { t, lang } = useT();
   const c = useColors();
   const entry = useStore((s) => (params.entryId ? s.entries.find((e) => e.id === params.entryId) : undefined));
   const addEntry = useStore((s) => s.addEntry);
@@ -85,6 +86,21 @@ export default function FoodScreen() {
     }
   };
 
+  /** Open Food Facts has the product but not its protein, carbs or fat: read them off the label instead. */
+  const completeFromLabel = () => {
+    setFoodDraft({ barcode: food.barcode, name: food.name, brand: food.brand, unit, servings: food.servings, issues: [] });
+    router.push({ pathname: '/label', params: { barcode: food.barcode ?? '', ...(params.meal ? { meal: params.meal } : {}), ...(params.date ? { date: params.date } : {}) } });
+  };
+
+  /** Sends the user to Open Food Facts to add the product there; they sign in on that site, never in this app. */
+  const contribute = () => {
+    const code = food.barcode ?? '';
+    showAlert(t('contribute_off'), t('contribute_off_text', { code }), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('open_site'), onPress: () => Linking.openURL(offContributeUrl(code, food.dataFrom === 'robotoff' || food.source === 'off', lang)).catch(() => {}) },
+    ]);
+  };
+
   const remove = () =>
     showAlert(t('delete_entry_q'), food.name, [
       { text: t('cancel'), style: 'cancel' },
@@ -111,6 +127,13 @@ export default function FoodScreen() {
           <Txt v="small">{t(`source_${food.source}`)}</Txt>
         </View>
       </Row>
+
+      {food.source === 'off' && food.incomplete && food.barcode && !editing ? (
+        <>
+          <Banner icon="warning" tone="warn" text={t('off_incomplete')} />
+          <Button kind="secondary" title={t('complete_from_label')} icon="camera-outline" onPress={completeFromLabel} />
+        </>
+      ) : null}
 
       <Card style={{ alignItems: 'center' }}>
         <Txt v="big">{Math.round(n.kcal)}</Txt>
@@ -165,7 +188,12 @@ export default function FoodScreen() {
         <Txt v="h3">{t('per_100', { unit })}</Txt>
         <NutrientTable n={food.per100} />
       </Card>
-      {food.source === 'off' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
+      {food.source === 'custom' && food.barcode && !pick ? (
+        <Button kind="ghost" icon="globe-outline" title={t('contribute_off')} onPress={contribute} />
+      ) : null}
+      {food.dataFrom === 'label' ? <Txt v="small">{t('label_note')}</Txt> : null}
+      {food.dataFrom === 'robotoff' ? <Txt v="small">{t('robotoff_note')}</Txt> : null}
+      {food.source === 'off' || food.dataFrom === 'robotoff' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
       {food.source === 'bls' ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
       {food.source === 'ai' ? <Txt v="small">{t('ai_estimate_note')}</Txt> : null}
     </Screen>

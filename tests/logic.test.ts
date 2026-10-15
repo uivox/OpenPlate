@@ -2,7 +2,7 @@
 // Run: npx tsc -p tests/tsconfig.json && node --test .test-build/tests/logic.test.js
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
+import { analyzeLabel, analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
 import { blsFood, searchBLS } from '../src/lib/bls';
 import { buildLabelPrompt, checkPer100, nutrientsFromRobotoff, parseLabelJson, readLabelNumber } from '../src/lib/labelScan';
@@ -32,7 +32,19 @@ import {
 } from '../src/lib/nutrition';
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
-import { _resetSearchState, foodFromOFF, isBarcode, nutrientsFromOFF, parseRetailer, rankHits, RateLimitedError, searchOFF } from '../src/lib/openFoodFacts';
+import {
+  _resetSearchState,
+  fetchRobotoffNutrition,
+  foodFromOFF,
+  isBarcode,
+  lookupBarcodeDetailed,
+  nutrientsFromOFF,
+  offContributeUrl,
+  parseRetailer,
+  rankHits,
+  RateLimitedError,
+  searchOFF,
+} from '../src/lib/openFoodFacts';
 import { draftProblem } from '../src/lib/validation';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
@@ -1122,6 +1134,111 @@ test('Robotoff: real insight for a German product with no nutrition in Open Food
 test('checkPer100: shared plausibility check', () => {
   assert.equal(checkPer100({ kcal: -1, protein: 0, carbs: 0, fat: 0 }).per100, null);
   assert.equal(checkPer100({ kcal: 899, protein: 0, carbs: 0, fat: 99.9 }).per100?.kcal, 899); // oil
-  assert.ok(checkPer100({ kcal: 330, protein: 0, carbs: 82, fat: 0, sugar: 82 }, 'ml').issues.length === 0); // syrup
+  assert.ok(checkPer100({ kcal: 330, protein: 0, carbs: 82, fat: 0, sugar: 82 }).issues.length === 0); // syrup
+  assert.equal(checkPer100({ kcal: 500, protein: 40, carbs: 40, fat: 30 }).per100, null); // 110 g of macros in 100 g
   assert.ok(checkPer100({ kcal: 50, protein: 20, carbs: 20, fat: 20 }).issues.includes('energy_vs_macros'));
+  assert.ok(checkPer100({ kcal: 900, protein: 5, carbs: 20, fat: 10 }).issues.includes('energy_vs_macros')); // kJ typed as kcal
+  assert.deepEqual(checkPer100({ kcal: 231, protein: 0, carbs: 0, fat: 0 }).issues, []); // vodka: energy from alcohol
+});
+
+/* ---------- Better product data: partial products, Robotoff, label reader ---------- */
+
+const jsonFetch = (body: unknown, status = 200, seen?: string[]) => async (url: string) => {
+  seen?.push(url);
+  return new Response(JSON.stringify(body), { status });
+};
+
+test('barcode lookup keeps name and brand of products without usable nutrition', async () => {
+  const partial = await lookupBarcodeDetailed('4006446005476', 'de', jsonFetch({
+    status: 1,
+    product: { product_name: 'Nussnougat Creme', brands: 'Musterhof, Other', quantity: '400 g', nutriments: {}, image_front_small_url: 'https://evil.example/x.jpg' },
+  }));
+  assert.equal(partial.food, null);
+  assert.equal(partial.partial?.name, 'Nussnougat Creme');
+  assert.equal(partial.partial?.brand, 'Musterhof');
+  assert.equal(partial.partial?.imageUrl, undefined); // images only from Open Food Facts
+  const full = await lookupBarcodeDetailed('4006446005476', 'de', jsonFetch({
+    status: 1,
+    product: { product_name: 'Skyr', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11 } },
+  }));
+  assert.equal(full.food?.name, 'Skyr');
+  assert.equal(full.food?.incomplete, true); // carbs and fat missing
+  const missing = await lookupBarcodeDetailed('4099999991235', 'de', jsonFetch({ status: 0 }));
+  assert.deepEqual(missing, { food: null });
+});
+
+test('Robotoff suggestion: values, source photo, rejected insights and failures', async () => {
+  const seen: string[] = [];
+  const insight = {
+    barcode: '4006446005476',
+    annotation: null,
+    source_image: '/400/644/600/5476/1.jpg',
+    data: { nutrients: {
+      'energy-kcal_100g': { value: '556', unit: 'kcal', score: 0.999 },
+      fat_100g: { value: '34', unit: 'g', score: 0.999 },
+      carbohydrates_100g: { value: '57', unit: 'g', score: 0.994 },
+      proteins_100g: { value: '4.8', unit: 'g', score: 0.999 },
+    } },
+  };
+  const r = await fetchRobotoffNutrition('4006446005476', jsonFetch({ insights: [insight] }, 200, seen));
+  assert.equal(r?.per100.kcal, 556);
+  assert.equal(r?.imageUrl, 'https://images.openfoodfacts.org/images/products/400/644/600/5476/1.jpg');
+  assert.match(seen[0], /robotoff\.openfoodfacts\.org\/api\/v1\/insights\?barcode=4006446005476&insight_types=nutrient_extraction/);
+  assert.equal(await fetchRobotoffNutrition('4006446005476', jsonFetch({ insights: [{ ...insight, annotation: 0 }] })), null);
+  assert.equal(await fetchRobotoffNutrition('4006446005476', jsonFetch({ insights: [{ ...insight, barcode: '1234567890128' }] })), null);
+  const odd = await fetchRobotoffNutrition('4006446005476', jsonFetch({ insights: [{ ...insight, source_image: 'https://evil.example/a.jpg' }] }));
+  assert.equal(odd?.imageUrl, undefined);
+  assert.equal(await fetchRobotoffNutrition('4006446005476', jsonFetch({}, 503)), null);
+  assert.equal(await fetchRobotoffNutrition('4006446005476', async () => { throw new Error('offline'); }), null);
+  assert.equal(await fetchRobotoffNutrition('12', jsonFetch({ insights: [insight] })), null);
+});
+
+test('contribute link: edit page for existing products, add page otherwise, never a password in the app', () => {
+  assert.equal(offContributeUrl('4006446005476', true, 'de'), 'https://de.openfoodfacts.org/cgi/product.pl?type=edit&code=4006446005476');
+  assert.equal(offContributeUrl('4099999991235', false, 'en'), 'https://world.openfoodfacts.org/cgi/product.pl');
+  assert.equal(offContributeUrl('40064460<b>05476', true, 'en'), 'https://world.openfoodfacts.org/cgi/product.pl?type=edit&code=4006446005476');
+});
+
+test('provider requests carry several photos in order', async () => {
+  const bodies: any[] = [];
+  const fake = async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: '{}' }], candidates: [{ content: { parts: [{ text: '{}' }] } }], choices: [{ message: { content: '{}' } }] }), { status: 200 });
+  };
+  await callProvider({ provider: 'anthropic', config: { model: 'm' }, apiKey: 'k', prompt: 'p', images: ['A', 'B'] }, fake);
+  assert.deepEqual(bodies[0].messages[0].content.map((c: any) => c.source?.data ?? c.text), ['A', 'B', 'p']);
+  await callProvider({ provider: 'gemini', config: { model: 'm' }, apiKey: 'k', prompt: 'p', images: ['A', 'B'] }, fake);
+  assert.deepEqual(bodies[1].contents[0].parts.map((c: any) => c.inline_data?.data ?? c.text), ['A', 'B', 'p']);
+  await callProvider({ provider: 'openai', config: { model: 'm' }, apiKey: 'k', prompt: 'p', images: ['A', 'B'] }, fake);
+  assert.deepEqual(bodies[2].messages[0].content.map((c: any) => c.image_url?.url ?? c.text), ['p', 'data:image/jpeg;base64,A', 'data:image/jpeg;base64,B']);
+});
+
+const label = (kcal: string, extra: Record<string, string> = {}) =>
+  JSON.stringify({ readable: true, unit: 'g', per100: { energy_kcal: kcal, fat: '10', carbs: '20', protein: '5', ...extra } });
+
+test('label reader: clean first reading is used alone, doubtful one asks the fallback', async () => {
+  const calls: string[] = [];
+  const clean = await analyzeLabel(['T', 'F'], settings('gemini', 'anthropic'), async () => 'k', 'de', async (r) => {
+    calls.push(r.provider);
+    assert.deepEqual(r.images, ['T', 'F']);
+    assert.match(r.prompt, /second its front/);
+    return label('190');
+  });
+  assert.deepEqual(calls, ['gemini']);
+  assert.equal(clean.result.per100?.kcal, 190);
+  assert.equal(clean.usedFallback, false);
+
+  // 900 kcal with these macros (~190) is doubtful → fallback asked, its clean reading wins
+  const fixed = await analyzeLabel(['T'], settings('gemini', 'anthropic'), async () => 'k', 'de', async (r) =>
+    r.provider === 'gemini' ? label('900') : label('190'),
+  );
+  assert.equal(fixed.provider, 'anthropic');
+  assert.equal(fixed.result.per100?.kcal, 190);
+  assert.equal(fixed.usedFallback, true);
+
+  // no table on the first photo → fallback; nothing anywhere → unreadable result, no throw
+  const none = await analyzeLabel(['T'], settings('gemini', 'anthropic'), async () => 'k', 'de', async () => '{"readable":false,"per100":null}');
+  assert.equal(none.result.per100, null);
+  await assert.rejects(analyzeLabel(['T'], settings('gemini', null), async () => 'k', 'de', async () => { throw new Error('HTTP 500'); }), /HTTP 500/);
+  await assert.rejects(analyzeLabel(['T'], settings(null, null), async () => null, 'de'), /NO_PROVIDER/);
 });

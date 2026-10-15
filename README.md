@@ -7,7 +7,10 @@ German and English, light and dark mode, all data stays on your device.
 
 - **Food diary** with breakfast, lunch, dinner and snacks, calorie ring, macro bars and per-meal targets
 - **Food search**: ~100 built-in basics, the complete **German nutrient database BLS 4.0** (7,140 foods and dishes in German and English, works offline) and millions of packaged products from [Open Food Facts](https://world.openfoodfacts.org). Products sold in Germany come first; start with a supermarket ("Lidl Skyr", "Aldi Joghurt") to see its products and house brands first.
-- **Barcode scanner** (EAN-13/8, UPC) with Open Food Facts lookup; unknown products can be created on the spot
+- **Barcode scanner** (EAN-13/8, UPC) with Open Food Facts lookup. When a product is missing or has no nutrition there:
+  - values that Open Food Facts' photo AI ([Robotoff](https://github.com/openfoodfacts/robotoff)) already read off a package photo are offered as a suggestion, no account or key needed;
+  - **photograph the nutrition table** and your own AI copies the printed values (it doesn't estimate);
+  - or type the values in. Every value is checked for plausibility and shown next to the photo before you save it, and a link takes you to Open Food Facts to add the product there for everyone.
 - **AI photo logging** with *your own* AI: Claude, OpenAI, Google Gemini (free tier), or a model running on your own PC via Ollama / LM Studio. Primary + fallback provider; the fallback is asked when the first fails or is unsure, and the more confident answer wins. Every item and portion can be corrected before saving.
 - **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**
 - **My meals**: save the foods you always eat together (e.g. your breakfast) and log them with one tap, at any portion size. Build them from search, recent foods and the barcode scanner, or save a meal straight from the diary.
@@ -110,6 +113,8 @@ Model names are editable in the app; defaults are `gemini-3.8-flash`, `claude-so
 
 A local 7B model on a normal PC takes roughly 10–60 seconds per photo and is less accurate than the cloud models; using it as primary with Gemini as fallback works well.
 
+The same AI also reads nutrition labels (**Scan → Read nutrition label**, or **Complete from the label** on a product with missing values). There it only copies printed numbers; the app checks them (kJ vs kcal, calories vs macros, sugar vs carbs, nothing above 100 g per 100 g) and you compare them with the photo before saving.
+
 API keys are stored in the phone's secure storage (expo-secure-store: iOS Keychain, Android Keystore) and only ever sent to the provider they belong to. Backups never contain keys, and importing a backup never changes AI server addresses or providers.
 
 ## Safety
@@ -120,6 +125,7 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 - No weight loss is planned at a BMI of 18.5 or below, and targets below a BMI of 18.5 can't be set.
 - Automatic goals never go below 1,200 kcal (women) / 1,500 kcal (men), or below maintenance when that is lower. Adults can type a lower exact goal, down to 800 kcal, and get a clear warning.
 - Streaks never reward eating far less than the goal.
+- Nutrition from outside (Open Food Facts, its photo AI, your label photos, backups) goes through the same plausibility checks; values from photos are never logged without you checking them first.
 - Backup files are checked row by row: implausible values, remote images (which could track who opens the app) and anything the app wouldn't create itself are left out.
 
 ## Project layout
@@ -135,7 +141,8 @@ app/                    screens (expo-router, file-based)
   food.tsx              portion picker / edit entry
   scan.tsx              barcode scanner
   photo.tsx             AI photo flow
-  custom-food.tsx       create food / quick add
+  custom-food.tsx       create food / quick add / check values from a label or Open Food Facts
+  label.tsx             read a nutrition table from a photo
   meal.tsx, meal-edit.tsx  saved meals: log / build
   (tabs)/recipes.tsx, recipe.tsx, recipe-edit.tsx  recipes: list / view / edit
   streak.tsx            streak and calendar
@@ -151,7 +158,8 @@ src/lib/
   recipes.ts            recipes (nutrition, scaling, community format and checks)
   communityRecipes.ts   community recipes (see RECIPES.md)
   themes.ts, layout.ts  colour themes and tab/diary layout
-  openFoodFacts.ts      barcode lookup and search
+  openFoodFacts.ts      barcode lookup and search, Robotoff suggestions, link to add products
+  labelScan.ts          nutrition label prompt and parser, plausibility checks for outside nutrition data
   genericFoods.ts       built-in basic foods
   bls.ts, blsData.ts    German nutrient database (BLS 4.0) search and data
   fasting.ts            plans and phases

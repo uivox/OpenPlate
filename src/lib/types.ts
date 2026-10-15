@@ -30,6 +30,10 @@ export interface Food {
   servings: Serving[];
   imageUrl?: string;
   unit?: 'g' | 'ml';
+  /** Where the values of an own food came from when they weren't typed: read off a label photo, or Open Food Facts' photo AI. */
+  dataFrom?: 'label' | 'robotoff';
+  /** Open Food Facts product without protein, carbs or fat (they count as 0); offers completing it from the label. Not stored in backups. */
+  incomplete?: boolean;
 }
 
 export interface SavedMealItem {

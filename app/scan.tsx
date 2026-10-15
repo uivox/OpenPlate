@@ -6,8 +6,8 @@ import { BarcodeScanner } from '../src/components/BarcodeScanner';
 import { Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { dayKey } from '../src/lib/dates';
-import { putFood } from '../src/lib/foodCache';
-import { lookupBarcode } from '../src/lib/openFoodFacts';
+import { putFood, setFoodDraft } from '../src/lib/foodCache';
+import { fetchRobotoffNutrition, lookupBarcodeDetailed } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useT } from '../src/lib/useT';
 
@@ -28,19 +28,40 @@ export default function ScanScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
       const own = customFoods.find((f) => f.barcode === data);
-      const food = own ?? (await lookupBarcode(data, lang));
-      if (food) {
-        putFood(food);
-        router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...pick } });
+      const found = own ? { food: own } : await lookupBarcodeDetailed(data, lang);
+      if (found.food) {
+        putFood(found.food);
+        router.replace({ pathname: '/food', params: { fid: found.food.id, meal, date, ...pick } });
         return;
       }
-      showAlert(t('not_found'), t('not_found_text', { code: data }), [
-        { text: t('scan_again'), onPress: () => (locked.current = false) },
-        {
-          text: t('create_food'),
-          onPress: () => router.replace({ pathname: '/custom-food', params: { meal, date, barcode: data, ...pick } }),
-        },
-      ]);
+      // Not in Open Food Facts, or there without nutrition: Open Food Facts' photo AI may have read the
+      // values off a package photo already. That's only a suggestion; the user checks it in the form.
+      const partial = 'partial' in found ? found.partial : undefined;
+      const base = {
+        barcode: data,
+        name: partial?.name,
+        brand: partial?.brand,
+        unit: partial?.unit ?? ('g' as const),
+        servings: partial?.servings ?? [],
+        issues: [],
+      };
+      const suggestion = await fetchRobotoffNutrition(data);
+      const params = { meal, date, barcode: data, ...pick };
+      if (suggestion) {
+        setFoodDraft({ ...base, per100: suggestion.per100, issues: suggestion.issues, dataFrom: 'robotoff', imageUri: suggestion.imageUrl });
+        router.replace({ pathname: '/custom-food', params: { ...params, draft: '1' } });
+        return;
+      }
+      setFoodDraft({ ...base, imageUri: partial?.imageUrl });
+      showAlert(
+        partial ? t('incomplete_title') : t('not_found'),
+        partial ? t('incomplete_text', { name: partial.name ?? data }) : t('not_found_text', { code: data }),
+        [
+          { text: t('scan_label'), onPress: () => router.replace({ pathname: '/label', params }) },
+          { text: t('create_food'), onPress: () => router.replace({ pathname: '/custom-food', params: { ...params, draft: '1' } }) },
+          { text: t('scan_again'), style: 'cancel', onPress: () => (locked.current = false) },
+        ],
+      );
     } catch {
       showAlert(t('network_error'), t('network_error_text'), [{ text: t('ok'), onPress: () => (locked.current = false) }]);
     } finally {

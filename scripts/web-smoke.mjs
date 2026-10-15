@@ -183,6 +183,51 @@ async function run(scheme) {
       await text('Test bowl').waitFor();
       await page.goBack();
     });
+    await step('scan: product without nutrition gets a Robotoff suggestion', async () => {
+      // Open Food Facts knows the product but has no nutrition; its photo AI (Robotoff) read the label.
+      // Both are faked here so the test doesn't depend on (or load) their servers.
+      const json = (body) => ({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+      await page.route('https://world.openfoodfacts.org/api/v2/product/**', (r) =>
+        r.fulfill(json({ status: 1, product: { product_name: '', brands: 'Smoke Brand', quantity: '400 g', nutriments: {} } })),
+      );
+      await page.route('https://robotoff.openfoodfacts.org/**', (r) =>
+        r.fulfill(
+          json({
+            insights: [
+              {
+                barcode: '4006446005476',
+                annotation: null,
+                source_image: '/400/644/600/5476/1.jpg',
+                data: {
+                  nutrients: {
+                    'energy-kcal_100g': { value: '556', unit: 'kcal', score: 0.999 },
+                    fat_100g: { value: '34', unit: 'g', score: 0.999 },
+                    carbohydrates_100g: { value: '57', unit: 'g', score: 0.994 },
+                    proteins_100g: { value: '4.8', unit: 'g', score: 0.999 },
+                  },
+                },
+              },
+            ],
+          }),
+        ),
+      );
+      await page.route('https://images.openfoodfacts.org/**', (r) => r.fulfill({ status: 404, body: '' }));
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').click();
+      await btn('Scan').click();
+      await page.locator('input[inputmode="numeric"]').filter({ visible: true }).first().fill('4006446005476');
+      await btn('Look up').click();
+      await text(/Recognised automatically from a package photo/).waitFor();
+      const prefilled = await page.evaluate(() => [...document.querySelectorAll('input')].some((i) => i.value === '556' && i.offsetParent));
+      if (!prefilled) throw new Error('Robotoff calories not filled in');
+      await page.getByRole('textbox').filter({ visible: true }).first().fill('Smoke nougat cream');
+      await btn('Save and continue').click();
+      await text(/recognised automatically from an Open Food Facts photo/).waitFor();
+      await btn('Add to Open Food Facts').waitFor();
+      await btn('Add').click();
+      await text('Smoke nougat cream', { exact: true }).waitFor();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
     await step('reload keeps data (diary stored per month)', async () => {
       await page.reload();
       await page.getByRole('tab', { name: 'Diary' }).click();

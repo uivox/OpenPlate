@@ -1,3 +1,4 @@
+import { buildLabelPrompt, MAX_KCAL_PER_100G, parseLabelJson, type LabelResult, type NutrientIssue } from './labelScan';
 import type { AIItem, AIProviderConfig, AIProviderId, AIResult, AISettings } from './types';
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
@@ -112,7 +113,7 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /** Upper limits for plausible values (also used for Open Food Facts data). */
 export const MAX_AI_PORTION_G = 5000;
-export const MAX_KCAL_PER_100G = 950;
+export { MAX_KCAL_PER_100G };
 
 /** Extracts and validates the meal JSON from a model reply. Throws when nothing usable is found. */
 export function parseMealJson(text: string): { items: AIItem[]; confidence: number; notes?: string } {
@@ -178,6 +179,8 @@ export interface ProviderRequest {
   apiKey: string | null;
   prompt: string;
   imageBase64?: string;
+  /** Several JPEGs (base64) in this order, e.g. a nutrition table and the package front. Used instead of imageBase64. */
+  images?: string[];
   timeoutMs?: number;
   /** Aborts the request, e.g. when the user leaves the screen. */
   signal?: AbortSignal;
@@ -208,7 +211,8 @@ const trimSlash = (s: string) => s.replace(/\/+$/, '');
 
 /** Sends one prompt (optionally with a JPEG) to a provider and returns the text reply. */
 export async function callProvider(req: ProviderRequest, fetchImpl: FetchLike = fetch): Promise<string> {
-  const { provider, config, apiKey, prompt, imageBase64 } = req;
+  const { provider, config, apiKey, prompt } = req;
+  const images = req.images ?? (req.imageBase64 ? [req.imageBase64] : []);
   if (!KEY_OPTIONAL[provider] && !apiKey) throw new Error('No API key saved for this provider.');
   if (req.signal?.aborted) throw new Error(CANCELLED);
   const ctrl = new AbortController();
@@ -230,14 +234,14 @@ export async function callProvider(req: ProviderRequest, fetchImpl: FetchLike = 
         'anthropic-dangerous-direct-browser-access': 'true',
       };
       const content: unknown[] = [];
-      if (imageBase64) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } });
+      for (const data of images) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } });
       content.push({ type: 'text', text: prompt });
       body = { model: config.model, max_tokens: 1500, messages: [{ role: 'user', content }] };
     } else if (provider === 'gemini') {
       url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`;
       headers = { ...headers, 'x-goog-api-key': apiKey ?? '' };
       const parts: unknown[] = [];
-      if (imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
+      for (const data of images) parts.push({ inline_data: { mime_type: 'image/jpeg', data } });
       parts.push({ text: prompt });
       body = { contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } };
     } else {
@@ -250,7 +254,7 @@ export async function callProvider(req: ProviderRequest, fetchImpl: FetchLike = 
       url = `${base}/chat/completions`;
       if (apiKey) headers = { ...headers, authorization: `Bearer ${apiKey}` };
       const content: unknown[] = [{ type: 'text', text: prompt }];
-      if (imageBase64) content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } });
+      for (const data of images) content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${data}` } });
       body = {
         model: config.model,
         messages: [{ role: 'user', content }],
@@ -351,6 +355,60 @@ export async function analyzeMeal(
     throw new Error(attempts.map((a) => `${PROVIDER_NAMES[a.provider]}: ${a.error}`).join('\n'));
   }
   return { result: best, attempts, usedFallback: best.provider !== order[0] };
+}
+
+export interface LabelOutcome {
+  result: LabelResult;
+  provider: AIProviderId;
+  model: string;
+  attempts: AnalyzeAttempt[];
+  usedFallback: boolean;
+}
+
+/** Issues that make a reading doubtful (worth asking the fallback provider). */
+const DOUBTFUL: NutrientIssue[] = ['energy_mismatch', 'energy_vs_macros', 'sugar_over_carbs', 'satfat_over_fat', 'macros_over_100', 'missing_macros'];
+const doubts = (r: LabelResult) => r.issues.filter((i) => DOUBTFUL.includes(i)).length;
+
+/**
+ * Reads a nutrition label: `images[0]` is the nutrition table, an optional `images[1]` the package
+ * front (for name and brand). Asks the fallback provider too when the first reading fails, finds no
+ * table or looks doubtful, and keeps the cleaner reading. The result is always reviewed by the user.
+ */
+export async function analyzeLabel(
+  images: string[],
+  settings: AISettings,
+  getKey: (p: AIProviderId) => Promise<string | null>,
+  lang: 'de' | 'en',
+  call: (req: ProviderRequest) => Promise<string> = (r) => callProvider(r),
+  signal?: AbortSignal,
+): Promise<LabelOutcome> {
+  const order = providerOrder(settings);
+  if (!order.length) throw new Error('NO_PROVIDER');
+  if (!images.length) throw new Error('No photo.');
+  const prompt = buildLabelPrompt(lang, images.length > 1);
+  const attempts: AnalyzeAttempt[] = [];
+  let best: LabelOutcome | null = null;
+
+  for (const provider of order) {
+    if (signal?.aborted) throw new Error(CANCELLED);
+    const config = settings.providers[provider];
+    try {
+      const text = await call({ provider, config, apiKey: await getKey(provider), prompt, images: images.slice(0, 2), signal });
+      const result = parseLabelJson(text);
+      attempts.push({ provider, ok: true });
+      const better =
+        !best ||
+        (result.per100 && !best.result.per100) ||
+        (result.per100 && best.result.per100 && doubts(result) < doubts(best.result));
+      if (better) best = { result, provider, model: config.model, attempts, usedFallback: provider !== order[0] };
+      if (result.per100 && doubts(result) === 0) break;
+    } catch (e) {
+      if (signal?.aborted) throw new Error(CANCELLED);
+      attempts.push({ provider, ok: false, error: (e as Error)?.message ?? String(e) });
+    }
+  }
+  if (!best) throw new Error(attempts.map((a) => `${PROVIDER_NAMES[a.provider]}: ${a.error}`).join('\n'));
+  return best;
 }
 
 /** Quick connectivity check used by the "Test" button. */

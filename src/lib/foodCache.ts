@@ -1,4 +1,5 @@
-import type { Food } from './types';
+import type { NutrientIssue } from './labelScan';
+import type { Food, Nutrients, Serving } from './types';
 
 /**
  * Screens receive only string params, so foods picked in search or the scanner are parked
@@ -49,4 +50,31 @@ export function addToMealDraft(item: import('./types').SavedMealItem) {
 export function subscribeMealDraft(listener: () => void): () => void {
   draftListeners.add(listener);
   return () => draftListeners.delete(listener);
+}
+
+/**
+ * A food being created from outside data (a Robotoff suggestion, a label photo, or what Open Food
+ * Facts knows about a product without nutrition). The scanner and the label screen fill it; the
+ * custom-food form starts from it, and the user checks every value before it is saved.
+ */
+export interface FoodDraft {
+  barcode?: string;
+  name?: string;
+  brand?: string;
+  unit: 'g' | 'ml';
+  per100?: Nutrients;
+  servings: Serving[];
+  dataFrom?: 'label' | 'robotoff';
+  /** Name of the AI that read the label, shown in the review hint. */
+  readBy?: string;
+  issues: NutrientIssue[];
+  /** Photo to compare against: the label photo, or the Open Food Facts image the values came from. */
+  imageUri?: string;
+}
+let foodDraft: FoodDraft | null = null;
+export function setFoodDraft(d: FoodDraft | null) {
+  foodDraft = d;
+}
+export function getFoodDraft(): FoodDraft | null {
+  return foodDraft;
 }
