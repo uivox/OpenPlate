@@ -4,10 +4,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { exportBackupFlow } from '../../src/components/exportBackup';
 import { Burst, Tap, useCountUp } from '../../src/components/motion';
 import { PlateRing } from '../../src/components/PlateRing';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
+import { backupDue } from '../../src/lib/backupReminder';
 import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/dates';
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
@@ -67,6 +69,9 @@ export default function DiaryScreen() {
   const remaining = Math.round(budget - totals.kcal);
   const shownRemaining = useCountUp(remaining);
   const layout = useStore((s) => s.layout);
+  const lastBackupAt = useStore((s) => s.lastBackupAt);
+  const backupSnoozedUntil = useStore((s) => s.backupSnoozedUntil);
+  const showBackupReminder = backupDue(Date.now(), { since: profile.createdAt, lastBackupAt, snoozedUntil: backupSnoozedUntil });
 
   const dateLabel = date === today ? t('today') : date === addDays(today, -1) ? t('yesterday') : formatShortDate(date, lang);
   const hour = new Date().getHours();
@@ -123,6 +128,15 @@ export default function DiaryScreen() {
         <View>
           <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
           <Burst trigger={streak.current} colors={[c.coral, c.carbs, c.accent, c.leaf]} size={260} />
+        </View>
+      ) : null}
+      {showBackupReminder ? (
+        <View style={{ gap: space.s }}>
+          <Banner icon="save-outline" text={t('backup_reminder')} />
+          <Row style={{ justifyContent: 'flex-end' }}>
+            <Button small kind="ghost" title={t('backup_later')} onPress={() => useStore.getState().snoozeBackupReminder()} />
+            <Button small icon="share-outline" title={t('backup_now')} onPress={exportBackupFlow} />
+          </Row>
         </View>
       ) : null}
 

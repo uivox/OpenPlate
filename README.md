@@ -22,7 +22,7 @@ German and English, light and dark mode, all data stays on your device.
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
 - **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only; Android doesn't offer daily step history to apps without Health Connect)
-- **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too)
+- **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too). Your data only lives on your device, so the diary reminds you to save a copy two weeks after you start and then once a month ("Later" hides it for a week).
 - **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.md).

@@ -69,10 +69,14 @@ export async function pickTextFile(): Promise<string | null> {
 }
 
 /** Writes the export to a JSON file and opens the share sheet (Files, AirDrop, mail, …). */
-export async function shareExport(json: string, filename: string): Promise<void> {
+/**
+ * Hands the export file to the share sheet. Resolves false when the person visibly cancelled;
+ * the iOS/Android share sheet for files doesn't report that, so it counts as done.
+ */
+export async function shareExport(json: string, filename: string): Promise<boolean> {
   if (!(await Sharing.isAvailableAsync())) {
-    await Share.share({ message: json, title: filename });
-    return;
+    const res = await Share.share({ message: json, title: filename });
+    return res.action !== Share.dismissedAction;
   }
   const file = new File(Paths.cache, filename);
   try {
@@ -80,6 +84,7 @@ export async function shareExport(json: string, filename: string): Promise<void>
     file.create();
     file.write(json);
     await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: filename });
+    return true;
   } finally {
     try {
       file.delete();
