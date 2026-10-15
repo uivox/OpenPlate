@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
+import { snoozeEnd } from './backupReminder';
 import type { BackupData } from './backup';
 import { dayKey } from './dates';
 import { newId } from './id';
@@ -52,6 +53,10 @@ interface State {
   recipes: Recipe[];
   appearance: Appearance;
   layout: LayoutPrefs;
+  /** Last export (or import of a backup file) on this device, ms. Not part of backups. */
+  lastBackupAt: number | null;
+  /** The backup reminder stays hidden until then, ms. */
+  backupSnoozedUntil: number | null;
 
   setProfile: (p: Profile) => void;
   updateProfile: (patch: Partial<Profile>) => void;
@@ -79,6 +84,8 @@ interface State {
   setAppearance: (patch: Partial<Appearance>) => void;
   setLayout: (patch: Partial<LayoutPrefs>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
+  markBackedUp: () => void;
+  snoozeBackupReminder: () => void;
   resetAll: () => void;
   /** Replaces all data with an imported backup (see backup.ts). */
   importBackup: (d: BackupData) => void;
@@ -101,6 +108,8 @@ type Persisted = Pick<
   | 'recipes'
   | 'appearance'
   | 'layout'
+  | 'lastBackupAt'
+  | 'backupSnoozedUntil'
 >;
 
 const initial = {
@@ -118,6 +127,8 @@ const initial = {
   recipes: [] as Recipe[],
   appearance: DEFAULT_APPEARANCE,
   layout: DEFAULT_LAYOUT,
+  lastBackupAt: null as number | null,
+  backupSnoozedUntil: null as number | null,
 };
 
 export const useStore = create<State>()(
@@ -199,6 +210,9 @@ export const useStore = create<State>()(
       setProviderConfig: (id, patch) =>
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
 
+      markBackedUp: () => set({ lastBackupAt: Date.now(), backupSnoozedUntil: null }),
+      snoozeBackupReminder: () => set({ backupSnoozedUntil: snoozeEnd(Date.now()) }),
+
       resetAll: () => set({ ...initial }),
       importBackup: (d) =>
         set((s) => ({
@@ -210,6 +224,9 @@ export const useStore = create<State>()(
           // Only model names come from the file; providers and server addresses stay as set on this
           // device, so a backup can never redirect a saved API key (see sanitizeImportedAI).
           ai: sanitizeImportedAI(d.ai, s.ai),
+          // The data now matches a file the user has, so that file counts as a backup.
+          lastBackupAt: Date.now(),
+          backupSnoozedUntil: null,
         })),
     }),
     {
@@ -236,6 +253,8 @@ export const useStore = create<State>()(
         recipes: s.recipes,
         appearance: s.appearance,
         layout: s.layout,
+        lastBackupAt: s.lastBackupAt,
+        backupSnoozedUntil: s.backupSnoozedUntil,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<State>;
@@ -249,6 +268,8 @@ export const useStore = create<State>()(
           },
           appearance: normalizeAppearance(p.appearance),
           layout: normalizeLayout(p.layout),
+          lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,
+          backupSnoozedUntil: typeof p.backupSnoozedUntil === 'number' ? p.backupSnoozedUntil : null,
         };
       },
     },

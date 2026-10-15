@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeLabel, analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
+import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
 import { blsFood, searchBLS } from '../src/lib/bls';
 import { buildLabelPrompt, checkPer100, nutrientsFromRobotoff, parseLabelJson, readLabelNumber } from '../src/lib/labelScan';
 import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
@@ -1241,4 +1242,30 @@ test('label reader: clean first reading is used alone, doubtful one asks the fal
   assert.equal(none.result.per100, null);
   await assert.rejects(analyzeLabel(['T'], settings('gemini', null), async () => 'k', 'de', async () => { throw new Error('HTTP 500'); }), /HTTP 500/);
   await assert.rejects(analyzeLabel(['T'], settings(null, null), async () => null, 'de'), /NO_PROVIDER/);
+});
+
+test('backup reminder: first after two weeks, then monthly, snooze hides it', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const start = Date.UTC(2026, 0, 1);
+  const at = (days: number) => start + days * DAY;
+  // no profile, no reminder
+  assert.equal(backupDue(at(400), { since: null, lastBackupAt: null, snoozedUntil: null }), false);
+  // never exported: only after the first two weeks
+  assert.equal(backupDue(at(FIRST_BACKUP_AFTER_DAYS - 1), { since: start, lastBackupAt: null, snoozedUntil: null }), false);
+  assert.equal(backupDue(at(FIRST_BACKUP_AFTER_DAYS), { since: start, lastBackupAt: null, snoozedUntil: null }), true);
+  // after an export: quiet for the interval
+  const exported = at(20);
+  assert.equal(backupDue(exported + (BACKUP_INTERVAL_DAYS - 1) * DAY, { since: start, lastBackupAt: exported, snoozedUntil: null }), false);
+  assert.equal(backupDue(exported + BACKUP_INTERVAL_DAYS * DAY, { since: start, lastBackupAt: exported, snoozedUntil: null }), true);
+  // "later" hides it for the snooze period, then it comes back
+  const now = at(60);
+  const until = snoozeEnd(now);
+  assert.equal(until - now, BACKUP_SNOOZE_DAYS * DAY);
+  assert.equal(backupDue(now + DAY, { since: start, lastBackupAt: null, snoozedUntil: until }), false);
+  assert.equal(backupDue(until, { since: start, lastBackupAt: null, snoozedUntil: until }), true);
+  // days since the last export
+  assert.equal(daysSinceBackup(at(5), null), null);
+  assert.equal(daysSinceBackup(at(5), at(5) - 1000), 0);
+  assert.equal(daysSinceBackup(at(5), at(3)), 2);
+  assert.equal(daysSinceBackup(at(5), at(6)), 0); // clock moved back: never negative
 });

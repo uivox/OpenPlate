@@ -235,6 +235,17 @@ async function run(scheme) {
       const keys = await idbKeys();
       if (!keys.some((k) => k.startsWith('openplate-v1:entries:'))) throw new Error(`no month values stored: ${keys.join(', ')}`);
     });
+    await step('export remembers the last backup', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text(/Not exported yet/).waitFor();
+      const download = page.waitForEvent('download');
+      await text('Export data', { exact: true }).click();
+      const file = await download;
+      const data = JSON.parse(readFileSync(await file.path(), 'utf8'));
+      if (!Array.isArray(data.entries) || !data.entries.length) throw new Error('export has no entries');
+      if ('lastBackupAt' in data) throw new Error('device-only reminder state leaked into the export');
+      await text(/Last export: today/).waitFor();
+    });
     await step('hostile backup is neutralised', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
       const chooser = page.waitForEvent('filechooser');

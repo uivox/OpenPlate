@@ -3,15 +3,16 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { exportBackupFlow } from '../../src/components/exportBackup';
 import { importBackupFlow } from '../../src/components/importBackup';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { PROVIDER_NAMES } from '../../src/lib/ai';
 import { showAlert } from '../../src/lib/alert';
-import { buildBackup } from '../../src/lib/backup';
+import { daysSinceBackup } from '../../src/lib/backupReminder';
 import { dayKey } from '../../src/lib/dates';
-import { cancelNotification, canPickFiles, shareExport } from '../../src/lib/device';
+import { cancelNotification, canPickFiles } from '../../src/lib/device';
 import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
 import { clearAllKeys } from '../../src/lib/secure';
@@ -29,10 +30,16 @@ export default function ProfileScreen() {
   const goals = goalsFor(profile, state.weights, dayKey());
   const chevron = <Ionicons name="chevron-forward" size={18} color={c.sub} />;
 
-  const exportData = async () => {
-    const data = buildBackup(useStore.getState());
-    await shareExport(JSON.stringify(data, null, 2), `openplate-export-${dayKey()}.json`);
-  };
+  const exportData = () => exportBackupFlow();
+  const sinceBackup = daysSinceBackup(Date.now(), state.lastBackupAt);
+  const lastExport =
+    sinceBackup == null
+      ? t('export_last_never')
+      : sinceBackup === 0
+        ? t('export_last_today')
+        : sinceBackup === 1
+          ? t('export_last_yesterday')
+          : t('export_last_n', { n: sinceBackup });
 
   const importData = () => importBackupFlow(t);
 
@@ -128,7 +135,7 @@ export default function ProfileScreen() {
 
       <SectionTitle>{t('data')}</SectionTitle>
       <Card>
-        <ListRow icon="share-outline" title={t('export_data')} subtitle={t('export_data_sub')} onPress={exportData} />
+        <ListRow icon="share-outline" title={t('export_data')} subtitle={`${t('export_data_sub')} · ${lastExport}`} onPress={exportData} />
         <Divider />
         {canPickFiles ? (
           <>

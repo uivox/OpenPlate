@@ -70,16 +70,17 @@ export async function pickTextFile(): Promise<string | null> {
 }
 
 /** Share sheet with the file where supported (iPhone: "Save to Files"), otherwise a download. */
-export async function shareExport(json: string, filename: string): Promise<void> {
+/** Shares or downloads the export file. Resolves false when the person cancelled the share sheet. */
+export async function shareExport(json: string, filename: string): Promise<boolean> {
   const blob = new Blob([json], { type: 'application/json' });
   try {
     const file = new File([blob], filename, { type: 'application/json' });
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title: filename });
-      return;
+      return true;
     }
   } catch (e) {
-    if ((e as Error).name === 'AbortError') return;
+    if ((e as Error).name === 'AbortError') return false;
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -89,6 +90,7 @@ export async function shareExport(json: string, filename: string): Promise<void>
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 /* ---------- Notifications ---------- */
