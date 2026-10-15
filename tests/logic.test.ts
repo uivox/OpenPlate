@@ -874,6 +874,12 @@ test('storage: never writes before a successful read, and passes read errors on'
   assert.equal(broken.writes.length, 0);
   assert.equal(broken.data.get('openplate-v1:entries:2026-10'), '{oops');
 
+  // months without a main value: the diary is kept (as version 0, so the migration runs)
+  const orphan = memoryStore({ 'openplate-v1:entries:2026-10': JSON.stringify([{ id: 'x', date: '2026-10-01' }]) });
+  const kept = await createShardedStorage<any>(orphan).getItem('openplate-v1');
+  assert.equal(kept!.state.entries.length, 1);
+  assert.equal(kept!.version, 0);
+
   const failing = { ...memoryStore(), multiGet: async () => Promise.reject(new Error('disk')) };
   const s3 = createShardedStorage<any>(failing as any);
   await assert.rejects(s3.getItem('openplate-v1'), /disk/);

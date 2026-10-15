@@ -140,5 +140,5 @@ jobs:
         run: |
           gh release create "v${{ steps.v.outputs.version }}" OpenPlate.apk OpenPlate.ipa source.json \
             --title "OpenPlate ${{ steps.v.outputs.version }}" \
-            --notes "Android: download OpenPlate.apk on your phone and install it. iPhone: update in SideStore (source: https://github.com/${{ github.repository }}/releases/latest/download/source.json) or install OpenPlate.ipa. Built from ${GITHUB_SHA::7}." \
+            --notes "Android: download OpenPlate.apk on your phone and install it. Coming from 1.0.5 or older: export your data first, uninstall, install this APK, then import (one-time, because releases are now signed with OpenPlate's own key; see the README). iPhone: update in SideStore (source: https://github.com/${{ github.repository }}/releases/latest/download/source.json) or install OpenPlate.ipa. Built from ${GITHUB_SHA::7}." \
             --latest

@@ -50,7 +50,7 @@ Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a
 2. Open it and allow *Install unknown apps* for your browser when asked.
 3. Updates: download the newer APK and install it over the old one. Your data stays.
 
-**One-time reinstall (releases after 1.0.5).** Earlier APKs were signed with the public Android debug key, which every Expo project shares, so anyone could have built an "update" that installs over OpenPlate. Releases are now signed with OpenPlate's own key. Android doesn't allow installing over an app signed with a different key, so once: in the *old* app use *Profile → Export data* and save the file, uninstall OpenPlate, install the new APK, then *Profile → Import data* (or *Import your data* on the welcome screen). API keys need to be entered again.
+**One-time reinstall (releases after 1.0.5).** Earlier APKs were signed with the public Android debug key, which every Expo project shares, so anyone could have built an "update" that installs over OpenPlate. Releases are now signed with OpenPlate's own key. Android doesn't allow installing over an app signed with a different key, so once: in the *old* app use *Profile → Export data* and send it somewhere you can open it again (Google Drive, Files, or an email to yourself), uninstall OpenPlate, install the new APK, then *Profile → Import data* (or *Import your data* on the welcome screen). API keys need to be entered again.
 
 ### iPhone (free, with SideStore)
 

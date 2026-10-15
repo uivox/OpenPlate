@@ -85,7 +85,12 @@ export function createShardedStorage<S extends Shardable>(kv: KeyValueStore) {
       written.clear();
       for (const [k, v] of seen) written.set(k, v);
       loaded = true;
-      if (!main) return null;
+      if (!main) {
+        // Normally impossible (the main value is written in the same transaction). If it happens,
+        // keep the diary rather than starting empty and deleting the months on the next save.
+        if (!hasEntryShards) return null;
+        return { state: { entries } as S, version: 0 };
+      }
       // Month values win once they exist; a legacy main value may still hold an old copy.
       const legacy = main.state.entries ?? [];
       const all = hasEntryShards || main.entriesSharded ? entries : legacy;
