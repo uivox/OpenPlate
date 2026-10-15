@@ -37,7 +37,7 @@ Every push to `main` builds both apps on GitHub for free (Actions tab → *Build
 
 The web version runs in Safari and can be added to the home screen, where it opens full-screen like an app and works offline.
 
-1. On the iPhone, open **<https://uivox.github.io/OpenPlate/>** in **Safari**.
+1. On the iPhone, open **<https://openplate-app.github.io/>** in **Safari**.
 2. Tap the **Share** button → **Add to Home Screen** → **Add**.
 3. Open OpenPlate from the home screen icon.
 
@@ -45,7 +45,21 @@ Your data is stored only in that home-screen app on this phone (IndexedDB). It d
 
 Differences to the native app: no step counter (browsers can't read it); the fasting notification only fires while the app is open; a local AI server (Ollama / LM Studio) must be reachable over https, because browsers block plain http from an https page. Claude, OpenAI and Gemini work as in the app. API keys are kept in this browser instead of the Keychain.
 
-Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a few minutes). One-time setup in the repository: *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a few minutes) and publishes it to its own site; see *Web version hosting* below for the one-time setup.
+
+#### Web version hosting
+
+The web app keeps everything in its site's browser storage, and every GitHub Pages site of one account or organisation shares that storage (one origin). So the web version is published to the Pages site of a separate organisation that hosts nothing else, not to this repository's own Pages.
+
+1. Create a GitHub organisation used only for this, e.g. `openplate-app`. **Never host another Pages site in it**: any site there could read the app's data.
+2. In it, create the public repository `openplate-app.github.io` (it is served at `https://openplate-app.github.io/`).
+3. Create a deploy key on your computer: `ssh-keygen -t ed25519 -N "" -C "OpenPlate web deploy" -f openplate-web`. In the site repository: *Settings → Deploy keys → Add deploy key*, paste `openplate-web.pub`, tick *Allow write access*.
+4. In this repository:
+   - *Settings → Environments → New environment* `web`; *Deployment branches and tags*: *Selected branches*, add `main`. Add the environment secret `WEB_DEPLOY_KEY` with the content of the private key file `openplate-web`. Then delete both key files.
+   - *Settings → Secrets and variables → Actions → Variables*: `WEB_SITE_REPO` = `openplate-app/openplate-app.github.io`, `WEB_SITE_URL` = `https://openplate-app.github.io/`.
+5. *Actions → Web app → Run workflow*. When it's done, in the site repository: *Settings → Pages → Deploy from a branch → main / (root)*, and tick *Enforce HTTPS*.
+
+Each run replaces the site repository's content with one fresh commit. The key can only write to that one repository, and only workflows on `main` can use it.
 
 ### Android
 
@@ -127,6 +141,14 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 - Streaks never reward eating far less than the goal.
 - Nutrition from outside (Open Food Facts, its photo AI, your label photos, backups) goes through the same plausibility checks; values from photos are never logged without you checking them first.
 - Backup files are checked row by row: implausible values, remote images (which could track who opens the app) and anything the app wouldn't create itself are left out.
+
+## Privacy and security
+
+- **No accounts, no OpenPlate server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them.
+- **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. These services, and GitHub, which hosts the web version, see your IP address. Nothing is sent to the OpenPlate project.
+- **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys are stored in that site's browser storage on your device.
+- **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
+- Anyone who can unlock your phone can open the app; there is no separate app lock.
 
 ## Project layout
 
