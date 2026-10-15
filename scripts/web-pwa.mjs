@@ -1,5 +1,6 @@
 // Turns the `expo export --platform web` output into an installable web app (PWA):
-// iPhone home-screen tags, web manifest, an offline service worker and a 404.html for deep links.
+// iPhone home-screen tags, web manifest, an offline service worker, a 404.html for deep links and a
+// Content Security Policy (meta tag; GitHub Pages can't set headers).
 // Usage: node scripts/web-pwa.mjs <dist dir> [base path]   (base path defaults to $WEB_BASE_URL, e.g. /OpenPlate)
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -10,6 +11,28 @@ const base = (process.argv[3] ?? process.env.WEB_BASE_URL ?? '').replace(/\/+$/,
 const root = `${base}/`;
 const LIGHT = '#EEF2E5';
 const DARK = '#17121B';
+
+// Content Security Policy. All data lives in this origin's storage, so the main job is to make sure
+// no script other than our own bundle ever runs here.
+// - script-src 'self': no inline or foreign scripts (the service worker is registered from a file for that reason).
+// - style-src 'unsafe-inline': react-native-web and expo-font add style elements at runtime.
+// - img-src: own files, photos the user picks (data:/blob:) and Open Food Facts product images only.
+// - connect-src https:: users can point the AI feature at their own server, so any https host is allowed.
+// - frame-ancestors can't be set from a meta tag; a framed copy gets separate (empty) storage anyway.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://images.openfoodfacts.org https://static.openfoodfacts.org https://images.openfoodfacts.net https://static.openfoodfacts.net",
+  "font-src 'self' data:",
+  "connect-src 'self' https:",
+  "media-src 'self' blob:",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
 
 if (!existsSync(join(dist, 'index.html'))) {
   console.error(`No index.html in ${dist}. Run "npx expo export --platform web" first.`);
@@ -38,6 +61,23 @@ const manifest = {
 };
 writeFileSync(join(dist, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2));
 
+// Registered from a file, not an inline script, so the CSP can forbid inline scripts.
+writeFileSync(
+  join(dist, 'register-sw.js'),
+  `if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register(${JSON.stringify(`${root}sw.js`)}, { scope: ${JSON.stringify(root)} }).catch(function () {});
+  });
+}
+`,
+);
+
+// First in <head> (right after the charset): a meta CSP only covers what comes after it.
+// no-referrer: Open Food Facts and AI providers don't learn which page a request came from.
+const security = `
+    <meta http-equiv="Content-Security-Policy" content="${CSP}" />
+    <meta name="referrer" content="no-referrer" />`;
+
 const head = `
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -54,13 +94,7 @@ const head = `
       body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-text-size-adjust: 100%; }
       input, textarea { -webkit-user-select: text; user-select: text; }
     </style>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-          navigator.serviceWorker.register('${root}sw.js', { scope: '${root}' }).catch(function () {});
-        });
-      }
-    </script>
+    <script src="${root}register-sw.js" defer></script>
 `;
 
 let html = readFileSync(join(dist, 'index.html'), 'utf8');
@@ -70,6 +104,17 @@ html = /<meta\s+name="viewport"[^>]*>/i.test(html) ? html.replace(/<meta\s+name=
 html = html.replace(/<html([^>]*)\slang="[^"]*"/i, '<html$1').replace(/<html/i, '<html lang="en"');
 html = html.replace(/<title>[^<]*<\/title>/i, '<title>OpenPlate</title>');
 if (!html.includes('rel="manifest"')) html = html.replace('</head>', `${head}</head>`);
+if (!html.includes('Content-Security-Policy')) {
+  const charset = html.match(/<meta\s+charset=[^>]*>/i);
+  html = charset ? html.replace(charset[0], `${charset[0]}${security}`) : html.replace(/<head[^>]*>/i, (h) => `${h}${security}`);
+}
+// The CSP forbids inline scripts. If an Expo update starts adding one, fail the build here
+// instead of shipping an app that silently doesn't start.
+const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(([, attrs, body]) => !/\bsrc=/i.test(attrs) && body.trim());
+if (inlineScripts.length) {
+  console.error(`index.html contains ${inlineScripts.length} inline script(s), which the CSP blocks:\n${inlineScripts.map((m) => m[0].slice(0, 200)).join('\n')}`);
+  process.exit(1);
+}
 writeFileSync(join(dist, 'index.html'), html);
 // GitHub Pages serves 404.html for unknown paths, so deep links and reloads land in the app.
 writeFileSync(join(dist, '404.html'), html);
