@@ -42,7 +42,7 @@ jobs:
           npm i --no-save --no-audit --no-fund playwright@1
           npx playwright install --with-deps chromium
           bash scripts/ci-run.sh node scripts/web-smoke.mjs dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: web-preview

@@ -1,0 +1,30 @@
+name: Generate lockfile (temporary)
+
+# One-off: resolves dependencies like CI does and commits package-lock.json to this branch.
+# Removed again in the next commit.
+on:
+  push:
+    branches: [chore/lockfile-actions]
+    paths: ['.github/workflows/lockfile.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx expo install --fix
+      - run: npx expo install --check
+      - name: Commit package-lock.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json package.json
+          git commit -m "Add package-lock.json"
+          git push
