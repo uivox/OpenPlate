@@ -61,6 +61,8 @@ The web app keeps everything in its site's browser storage, and every GitHub Pag
 
 Each run replaces the site repository's content with one fresh commit. The key can only write to that one repository, and only workflows on `main` can use it.
 
+Keep GitHub Pages turned off in this repository. The web version used to live at the Pages site of the account that first hosted this repository, which shares its storage with every other Pages site of that account; that site is unpublished. A browser that opened it may still show the old copy from its offline cache until the site's data is cleared in the browser settings.
+
 ### Android
 
 1. On the phone, open the latest release and download **OpenPlate.apk**.
@@ -210,6 +212,8 @@ On the list for later:
 - **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
+- **Offline product pack for Germany**: products sold in Germany from the Open Food Facts export, downloaded once (signed, built in its own workflow), so barcodes and product search work without a connection.
+- **Uploading products to Open Food Facts from the app.** Today the app links to their website; direct uploads need a login (OAuth) that Open Food Facts first has to set up for OpenPlate.
 - **Upgrade to a newer Expo SDK.** It also clears the remaining dependency alerts that have a fix (decode-uri-component, image-size).
 
 
