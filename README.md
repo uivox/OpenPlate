@@ -101,7 +101,9 @@ npx expo install --fix
 npx expo start
 ```
 
-Scan the QR code with the phone camera. `npm run web` opens the web version on the PC; `npm run build:web` writes the installable build to `dist/` (set `WEB_BASE_URL=/OpenPlate` when it is served from a sub-folder). The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
+Scan the QR code with the phone camera. `npm run web` opens the web version on the PC; `npm run build:web` writes the installable build to `dist/`, for the root of a site (set `WEB_BASE_URL=/folder` only when it is served from a sub-folder). The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
+
+Dependencies are locked in `package-lock.json` (CI installs with `npm ci`). Add packages with `npx expo install <package>` so the version fits the SDK, and commit the updated lockfile. `overrides` in `package.json` force fixed versions of two build-time packages with security advisories (postcss, and uuid for the iOS project generator); keep them until an Expo upgrade makes them unnecessary.
 
 ## Set up the AI photo feature
 
@@ -149,6 +151,8 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 - **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys are stored in that site's browser storage on your device.
 - **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
 - Anyone who can unlock your phone can open the app; there is no separate app lock.
+- **The project itself:** `main` only changes through pull requests that pass the checks; GitHub scans the code (CodeQL), secrets and dependencies (Dependabot). The dependency alerts still open are in build tools that never reach your device or have no fixed version yet, apart from one URL-parsing library in the app's router that is fixed by the next Expo upgrade.
+- Found a security problem? Please report it privately, see [SECURITY.md](SECURITY.md).
 
 ## Project layout
 
@@ -188,13 +192,16 @@ src/lib/
   i18n.ts               German and English texts
   store.ts              persisted state (zustand + AsyncStorage; IndexedDB on the web)
   backup.ts             export / import format
+  backupReminder.ts     when the diary reminds you to save a copy
   *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
+src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows)
 public/icons/           home-screen icons for the web version
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
+scripts/web-smoke.mjs   clicks through the built web app in a headless browser
 tests/logic.test.ts     tests for the logic modules (npm test)
 ```
 
-Checks: `npm run check` (TypeScript) and `npm test` (logic tests). Pull requests and branches also run `.github/workflows/check.yml`: type check, tests, a web build and `scripts/web-smoke.mjs`, which clicks through the web app in a headless browser (light and dark). It never publishes anything.
+Checks: `npm run check` (TypeScript) and `npm test` (logic tests). Pull requests and branches also run `.github/workflows/check.yml`: type check, tests, an Android prebuild, a web build and `scripts/web-smoke.mjs`, which clicks through the web app in a headless browser (light and dark), including an export, a hostile backup import and the Content Security Policy. It never publishes anything. `main` is protected: changes go through a pull request, and this check must pass before it can be merged.
 
 ## Not included yet
 
@@ -203,6 +210,7 @@ On the list for later:
 - **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
+- **Upgrade to a newer Expo SDK.** It also clears the remaining dependency alerts that have a fix (decode-uri-component, image-size).
 
 
 ## Credits and licence
