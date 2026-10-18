@@ -7,20 +7,25 @@ import { RecipeCard } from '../src/components/RecipeCard';
 import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
-import { putFood, setMealDraft } from '../src/lib/foodCache';
+import { looksLikeBarcode } from '../src/lib/barcode';
+import { flowParams, resolveBarcode } from '../src/lib/barcodeFlow';
+import { putFood, setFoodDraft, setMealDraft, type FoodDraft } from '../src/lib/foodCache';
 import { foodSubtitle } from '../src/lib/format';
 import { searchBLS } from '../src/lib/bls';
 import { searchGeneric } from '../src/lib/genericFoods';
 import { useRecipes } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
-import { isBarcode, lookupBarcode, RateLimitedError, searchOFF } from '../src/lib/openFoodFacts';
+import { lookupFailure, RateLimitedError, searchOFF, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
 type ListTab = 'recent' | 'meals' | 'recipes' | 'mine';
+
+/** A barcode typed into the search box that didn't lead straight to a product. */
+type BarcodeState = { kind: 'missing'; code: string; draft: FoodDraft; partial?: PartialProduct } | { kind: 'failed'; code: string; failure: LookupFailure };
 
 export default function AddFoodScreen() {
   const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
@@ -41,6 +46,7 @@ export default function AddFoodScreen() {
   const [remote, setRemote] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [barcode, setBarcode] = useState<BarcodeState | null>(null);
   const requestId = useRef(0);
 
   const q = query.trim();
@@ -67,8 +73,14 @@ export default function AddFoodScreen() {
     setRemote([]);
     setLoading(false);
     setError(null);
+    setBarcode(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, lang]);
+
+  // Only digits, as many as a barcode has: look the barcode up instead of searching names.
+  const asBarcode = looksLikeBarcode(q);
+  const pickParam = pick ? { pick: params.pick! } : {};
+  const barcodeParams = (code: string) => flowParams({ meal, date, ...pickParam, barcode: code });
 
   const searchProducts = async () => {
     if (q.length < 2 || loading) return;
@@ -76,19 +88,71 @@ export default function AddFoodScreen() {
     setSearched(q);
     setLoading(true);
     setError(null);
+    setBarcode(null);
     try {
-      const res = isBarcode(q) ? ((await lookupBarcode(q, lang)) ?? undefined) : await searchOFF(q, lang);
-      const list = Array.isArray(res) ? res : res ? [res] : [];
-      if (id === requestId.current) setRemote(list.filter((r) => !local.some((l) => l.id === r.id)));
+      if (asBarcode) {
+        const out = await resolveBarcode(q, lang, custom);
+        if (id !== requestId.current) return;
+        if (out.kind === 'found') setRemote([out.food]);
+        else if (out.kind === 'suggestion') {
+          // Straight to the form with the suggested values, as in the scanner; coming back shows the choices.
+          setBarcode({ kind: 'missing', code: out.code, draft: out.draft });
+          setFoodDraft(out.draft);
+          router.push({ pathname: '/custom-food', params: { ...barcodeParams(out.code), draft: '1' } });
+        } else setBarcode({ kind: 'missing', code: out.code, draft: out.draft, partial: out.partial });
+        return;
+      }
+      const res = await searchOFF(q, lang);
+      if (id === requestId.current) setRemote(res.filter((r) => !local.some((l) => l.id === r.id)));
     } catch (e) {
-      if (id === requestId.current) setError(e instanceof RateLimitedError ? t('search_rate_limited') : t('search_failed'));
+      if (id !== requestId.current) return;
+      if (asBarcode) setBarcode({ kind: 'failed', code: q.replace(/\s+/g, ''), failure: lookupFailure(e) });
+      else setError(e instanceof RateLimitedError ? t('search_rate_limited') : t('search_failed'));
     } finally {
       if (id === requestId.current) setLoading(false);
     }
   };
 
+  /** The same choices the scanner offers when a barcode doesn't lead to a product. */
+  const readLabel = (b: BarcodeState & { kind: 'missing' }) => {
+    setFoodDraft(b.draft);
+    router.push({ pathname: '/label', params: barcodeParams(b.code) });
+  };
+  const typeIn = (b: BarcodeState) => {
+    const valid = b.kind === 'missing' || b.failure !== 'invalid';
+    setFoodDraft(b.kind === 'missing' ? b.draft : { barcode: valid ? b.code : undefined, unit: 'g', servings: [], issues: [] });
+    router.push({ pathname: '/custom-food', params: { ...(valid ? barcodeParams(b.code) : flowParams({ meal, date, ...pickParam })), draft: '1' } });
+  };
+
+  const renderBarcode = (b: BarcodeState) => {
+    const [title, text] =
+      b.kind === 'missing'
+        ? b.partial
+          ? [t('incomplete_title'), t('incomplete_text', { name: b.partial.name ?? b.code })]
+          : [t('not_found'), t('not_found_text', { code: b.code })]
+        : b.failure === 'invalid'
+          ? [t('barcode_invalid'), t('barcode_invalid_text', { code: b.code })]
+          : b.failure === 'rate_limited'
+            ? [t('barcode_rate_limited'), t('barcode_rate_limited_text')]
+            : b.failure === 'server'
+              ? [t('server_error'), t('server_error_text')]
+              : [t('network_error'), t('network_error_text')];
+    return (
+      <Card style={{ gap: 10 }}>
+        <Txt v="h3">{title}</Txt>
+        <Txt v="sub">{text}</Txt>
+        {b.kind === 'failed' && b.failure === 'invalid' ? null : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {b.kind === 'missing' ? <Button small icon="camera-outline" title={t('scan_label')} onPress={() => readLabel(b)} /> : null}
+            <Button small kind="secondary" icon="create-outline" title={t('type_in')} onPress={() => typeIn(b)} />
+            {b.kind === 'failed' && b.failure !== 'rate_limited' ? <Button small kind="secondary" icon="refresh" title={t('try_again')} onPress={searchProducts} /> : null}
+          </View>
+        )}
+      </Card>
+    );
+  };
+
   const matchingMeals = useMemo(() => (q && !pick ? searchMeals(meals, q).slice(0, 4) : []), [q, meals, pick]);
-  const pickParam = pick ? { pick: params.pick! } : {};
 
   const open = (f: Food) => {
     putFood(f);
@@ -160,9 +224,17 @@ export default function AddFoodScreen() {
           <SectionTitle right={loading ? <ActivityIndicator color={c.accent} /> : undefined}>{t('products')}</SectionTitle>
           {error ? <Txt v="sub">{error}</Txt> : null}
           {q.length >= 2 && searched !== q && !loading ? (
-            <Button small kind="secondary" icon="search" title={t('search_products', { q })} onPress={searchProducts} style={{ alignSelf: 'flex-start' }} />
+            <Button
+              small
+              kind="secondary"
+              icon={asBarcode ? 'barcode-outline' : 'search'}
+              title={asBarcode ? t('barcode_search', { code: q }) : t('search_products', { q })}
+              onPress={searchProducts}
+              style={{ alignSelf: 'flex-start' }}
+            />
           ) : null}
-          {!loading && !error && remote.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
+          {barcode && searched === q && !loading ? renderBarcode(barcode) : null}
+          {!loading && !error && !barcode && remote.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
           {remote.length > 0 ? <Card>{remote.map(renderFood)}</Card> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
           {local.some((f) => f.source === 'bls') ? <Txt v="small">{t('bls_attribution')}</Txt> : null}

@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { analyzeLabel, analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
 import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
+import { checkBarcode, expandUpcE, gtinCheckDigit, isValidBarcode, looksLikeBarcode, scannedBarcode } from '../src/lib/barcode';
+import { flowParams, resolveBarcode, sameBarcode } from '../src/lib/barcodeFlow';
 import { blsFood, searchBLS } from '../src/lib/bls';
 import { buildLabelPrompt, checkPer100, nutrientsFromRobotoff, parseLabelJson, readLabelNumber } from '../src/lib/labelScan';
 import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
@@ -37,7 +39,9 @@ import {
   _resetSearchState,
   fetchRobotoffNutrition,
   foodFromOFF,
-  isBarcode,
+  HttpError,
+  InvalidBarcodeError,
+  lookupFailure,
   lookupBarcodeDetailed,
   nutrientsFromOFF,
   offContributeUrl,
@@ -986,7 +990,7 @@ test('Open Food Facts: implausible values rejected, only OFF images, rate limit 
   const p = { code: '4001', product_name: 'Skyr', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11 } };
   assert.equal(foodFromOFF({ ...p, image_front_small_url: 'https://tracker.example/a.jpg' }, 'de')!.imageUrl, undefined);
   assert.equal(foodFromOFF({ ...p, image_front_small_url: 'https://images.openfoodfacts.org/images/products/400/1/front.jpg' }, 'de')!.imageUrl, 'https://images.openfoodfacts.org/images/products/400/1/front.jpg');
-  assert.ok(isBarcode('40084107') && isBarcode('4008400401621') && !isBarcode('123456789'));
+  assert.ok(isValidBarcode('40084107') && isValidBarcode('4008400401621') && !isValidBarcode('123456789'));
 
   _resetSearchState();
   const calls: string[] = [];
@@ -1165,7 +1169,7 @@ test('barcode lookup keeps name and brand of products without usable nutrition',
   assert.equal(full.food?.name, 'Skyr');
   assert.equal(full.food?.incomplete, true); // carbs and fat missing
   const missing = await lookupBarcodeDetailed('4099999991235', 'de', jsonFetch({ status: 0 }));
-  assert.deepEqual(missing, { food: null });
+  assert.deepEqual(missing, { code: '4099999991235', food: null });
 });
 
 test('Robotoff suggestion: values, source photo, rejected insights and failures', async () => {
@@ -1268,4 +1272,197 @@ test('backup reminder: first after two weeks, then monthly, snooze hides it', ()
   assert.equal(daysSinceBackup(at(5), at(5) - 1000), 0);
   assert.equal(daysSinceBackup(at(5), at(3)), 2);
   assert.equal(daysSinceBackup(at(5), at(6)), 0); // clock moved back: never negative
+});
+
+/* ---------- Barcodes: check digits, unknown products, failures ---------- */
+
+test('barcode check: EAN-8, UPC-A, EAN-13, GTIN-14 and UPC-E', () => {
+  assert.deepEqual(checkBarcode('4006446005476'), { ok: true, kind: 'ean13', code: '4006446005476' });
+  assert.deepEqual(checkBarcode(' 4 006446 005476 '), { ok: true, kind: 'ean13', code: '4006446005476' }); // as printed under the bars
+  assert.deepEqual(checkBarcode('40084107'), { ok: true, kind: 'ean8', code: '40084107' });
+  assert.deepEqual(checkBarcode('853640759131'), { ok: true, kind: 'upca', code: '853640759131' });
+  // a GTIN-14 with a leading 0 is the EAN-13 behind it; other GTIN-14s stay as they are
+  assert.deepEqual(checkBarcode('04006446005476'), { ok: true, kind: 'gtin14', code: '4006446005476' });
+  const g = `1400644600547${gtinCheckDigit('1400644600547')}`;
+  assert.deepEqual(checkBarcode(g), { ok: true, kind: 'gtin14', code: g });
+  // UPC-E: written out as UPC-A when the EAN-8 check digit doesn't fit
+  assert.equal(expandUpcE('04252614'), '042100005264');
+  assert.deepEqual(checkBarcode('04252614'), { ok: true, kind: 'upce', code: '042100005264' });
+  // 01234565 is valid as both; typed in it counts as EAN-8, the scanner says which one it is
+  assert.deepEqual(checkBarcode('01234565'), { ok: true, kind: 'ean8', code: '01234565' });
+  assert.equal(scannedBarcode('01234565', 'upc_e'), '012345000065');
+  assert.equal(scannedBarcode('01234565', 'org.gs1.UPC-E'), '012345000065');
+  assert.equal(scannedBarcode('01234565', 'UPC_E'), '012345000065');
+  assert.equal(scannedBarcode('4006446005476', 'ean13'), '4006446005476');
+  assert.equal(scannedBarcode('4006446005476'), '4006446005476');
+  assert.equal(expandUpcE('21234565'), undefined); // number system 2 doesn't exist for UPC-E
+  assert.equal(expandUpcE('0123456'), undefined);
+});
+
+test('barcode check: hostile and mistyped input', () => {
+  const problem = (s: unknown) => {
+    const r = checkBarcode(s as string);
+    return r.ok ? 'ok' : r.problem;
+  };
+  // the example from the bug report: UPC-A whose check digit should be 1, not 4
+  assert.equal(problem('853640759134'), 'check_digit');
+  assert.equal(problem(''), 'empty');
+  assert.equal(problem('   '), 'empty');
+  assert.equal(problem('abc'), 'not_digits');
+  assert.equal(problem('4006446005476a'), 'not_digits');
+  assert.equal(problem('4006-446-005476'), 'not_digits');
+  assert.equal(problem('٤٠٠٦٤٤٦٠٠٥٤٧٦'), 'not_digits'); // Arabic-Indic digits
+  assert.equal(problem('4006446005476<script>'), 'not_digits');
+  assert.equal(problem('-40084107'), 'not_digits');
+  assert.equal(problem('4.0084107'), 'not_digits');
+  for (const n of [1, 7, 9, 10, 11, 15, 20]) assert.equal(problem('4'.repeat(n)), 'length', `${n} digits`);
+  assert.equal(problem('9'.repeat(65)), 'length');
+  assert.equal(problem('9'.repeat(100_000)), 'length');
+  assert.equal(problem(null), 'length');
+  assert.equal(problem(4006446005476), 'length');
+  // every single wrong digit is caught
+  const good = '4006446005476';
+  for (let i = 0; i < good.length; i++) {
+    for (const d of '0123456789') {
+      if (d === good[i]) continue;
+      assert.equal(problem(good.slice(0, i) + d + good.slice(i + 1)), 'check_digit', `digit ${i} -> ${d}`);
+    }
+  }
+  assert.ok(looksLikeBarcode('853640759134') && looksLikeBarcode('4006 4460 05476') && looksLikeBarcode('40084107'));
+  assert.ok(!looksLikeBarcode('skyr') && !looksLikeBarcode('500') && !looksLikeBarcode('12345678a') && !looksLikeBarcode('9'.repeat(100)) && !looksLikeBarcode(''));
+});
+
+/** Answers like Open Food Facts: 404 + {"status":0} for unknown products (checked against the live API). */
+const offFake = (opts: { product?: unknown; status?: number; robotoff?: unknown; fail?: 'product' | 'robotoff'; headers?: Record<string, string> }, seen: string[] = []) =>
+  async (url: string) => {
+    seen.push(url);
+    if (url.includes('robotoff')) {
+      if (opts.fail === 'robotoff') throw new TypeError('Failed to fetch');
+      return new Response(JSON.stringify(opts.robotoff ?? { count: 0, insights: [], status: 'no_insights' }), { status: 200 });
+    }
+    if (opts.fail === 'product') throw new TypeError('Failed to fetch');
+    if (opts.product) return new Response(JSON.stringify({ status: 1, product: opts.product }), { status: 200 });
+    const status = opts.status ?? 404;
+    const body = status === 404 ? JSON.stringify({ code: '0853640759131', status: 0, status_verbose: 'product not found' }) : 'error';
+    return new Response(body, { status, headers: opts.headers });
+  };
+
+test('barcode lookup: unknown product (HTTP 404) is "not found", not a network error', async () => {
+  _resetSearchState();
+  assert.deepEqual(await lookupBarcodeDetailed('853640759131', 'de', offFake({})), { code: '853640759131', food: null });
+  // a 404 without JSON (e.g. from a proxy) still means not found
+  const html = async () => new Response('<h1>Not found</h1>', { status: 404 });
+  assert.deepEqual(await lookupBarcodeDetailed('853640759131', 'de', html), { code: '853640759131', food: null });
+  // UPC-E is written out before the lookup
+  const seen: string[] = [];
+  await lookupBarcodeDetailed('04252614', 'de', offFake({}, seen));
+  assert.match(seen[0], /\/product\/042100005264\.json/);
+});
+
+test('barcode lookup: invalid numbers are never sent', async () => {
+  _resetSearchState();
+  const seen: string[] = [];
+  await assert.rejects(lookupBarcodeDetailed('853640759134', 'de', offFake({}, seen)), (e) => e instanceof InvalidBarcodeError && e.problem === 'check_digit');
+  await assert.rejects(lookupBarcodeDetailed('../../search?q=x', 'de', offFake({}, seen)), (e) => e instanceof InvalidBarcodeError && e.problem === 'not_digits');
+  assert.equal(seen.length, 0);
+  assert.equal(await fetchRobotoffNutrition('853640759134', offFake({}, seen)), null);
+  assert.equal(seen.length, 0);
+});
+
+test('barcode lookup: failures are told apart', async () => {
+  _resetSearchState();
+  const failure = async (p: Promise<unknown>) => {
+    try {
+      await p;
+      return 'resolved';
+    } catch (e) {
+      return lookupFailure(e);
+    }
+  };
+  assert.equal(await failure(lookupBarcodeDetailed('853640759131', 'de', offFake({ fail: 'product' }))), 'offline');
+  assert.equal(await failure(lookupBarcodeDetailed('853640759131', 'de', offFake({ status: 500 }))), 'server');
+  assert.equal(await failure(lookupBarcodeDetailed('853640759131', 'de', offFake({ status: 503 }))), 'server');
+  assert.equal(await failure(lookupBarcodeDetailed('853640759134', 'de', offFake({}))), 'invalid');
+  // a captive portal answering with a web page
+  assert.equal(await failure(lookupBarcodeDetailed('853640759131', 'de', async () => new Response('<html>portal</html>', { status: 200 }))), 'offline');
+  assert.equal(lookupFailure(new DOMException('aborted', 'AbortError')), 'offline'); // timeout
+  assert.equal(lookupFailure(new RateLimitedError()), 'rate_limited');
+  assert.equal(lookupFailure(new HttpError(429)), 'rate_limited');
+  assert.equal(lookupFailure(new HttpError(403)), 'server');
+  _resetSearchState();
+});
+
+test('fair use: only 429 pauses requests, an unknown product never does', async () => {
+  _resetSearchState();
+  const t0 = 5_000_000;
+  const seen: string[] = [];
+  // many unknown products in a row: every lookup is sent, and search keeps working
+  for (let i = 0; i < 5; i++) await lookupBarcodeDetailed('853640759131', 'de', offFake({}, seen), t0 + i);
+  assert.equal(seen.length, 5);
+  const hits = async (url: string) => {
+    seen.push(url);
+    return new Response(JSON.stringify({ hits: [] }), { status: 200 });
+  };
+  await searchOFF('skyr', 'de', 10, hits, t0 + 10);
+  assert.equal(seen.length, 6);
+
+  // a 429 pauses lookups and search for a minute, without sending anything
+  await assert.rejects(lookupBarcodeDetailed('853640759131', 'de', offFake({ status: 429 }, seen), t0 + 20), (e) => lookupFailure(e) === 'rate_limited');
+  const before = seen.length;
+  await assert.rejects(lookupBarcodeDetailed('4006446005476', 'de', offFake({}, seen), t0 + 30_000), (e) => e instanceof RateLimitedError);
+  await assert.rejects(searchOFF('quark', 'de', 10, hits, t0 + 30_000), (e) => e instanceof RateLimitedError);
+  assert.equal(seen.length, before);
+  await lookupBarcodeDetailed('4006446005476', 'de', offFake({}, seen), t0 + 61_000);
+  assert.equal(seen.length, before + 1);
+
+  // Retry-After longer than a minute is respected (capped at ten minutes)
+  _resetSearchState();
+  await assert.rejects(searchOFF('milch', 'de', 10, offFake({ status: 429, headers: { 'retry-after': '120' } }), t0));
+  await assert.rejects(searchOFF('milch 2', 'de', 10, hits, t0 + 90_000), (e) => e instanceof RateLimitedError);
+  await searchOFF('milch 3', 'de', 10, hits, t0 + 121_000);
+  _resetSearchState();
+  await assert.rejects(lookupBarcodeDetailed('853640759131', 'de', offFake({ status: 429, headers: { 'retry-after': '999999' } }), t0));
+  await assert.rejects(lookupBarcodeDetailed('853640759131', 'de', offFake({}), t0 + 9 * 60_000), (e) => e instanceof RateLimitedError);
+  await lookupBarcodeDetailed('853640759131', 'de', offFake({}), t0 + 10 * 60_000 + 1);
+  _resetSearchState();
+});
+
+test('barcode flow: own foods, found, suggestion, missing', async () => {
+  _resetSearchState();
+  const own = { id: 'c1', source: 'custom' as const, name: 'My basket snack', barcode: '853640759131', per100: { kcal: 100, protein: 1, carbs: 1, fat: 1 }, servings: [] };
+  const seen: string[] = [];
+  // own food first, also with a leading zero (iPhones report UPC-A as EAN-13)
+  const mine = await resolveBarcode('0853640759131', 'de', [own], offFake({}, seen));
+  assert.equal(mine.kind === 'found' && mine.food.id, 'c1');
+  assert.equal(seen.length, 0);
+
+  const found = await resolveBarcode('4006446005476', 'de', [], offFake({ product: { product_name: 'Skyr', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 } } }));
+  assert.equal(found.kind === 'found' && found.food.name, 'Skyr');
+
+  // the clothes basket: unknown product, no Robotoff values -> the choice screen with an empty draft
+  const missing = await resolveBarcode('853640759131', 'de', [], offFake({}));
+  assert.equal(missing.kind, 'missing');
+  assert.equal(missing.kind === 'missing' && missing.partial, undefined);
+  assert.equal(missing.kind === 'missing' && missing.draft.barcode, '853640759131');
+  // Robotoff unreachable doesn't turn "not found" into an error
+  assert.equal((await resolveBarcode('853640759131', 'de', [], offFake({ fail: 'robotoff' }))).kind, 'missing');
+
+  const partial = await resolveBarcode('4006446005476', 'de', [], offFake({ product: { product_name: 'Nussnougat', brands: 'Musterhof', nutriments: {} } }));
+  assert.equal(partial.kind === 'missing' && partial.partial?.name, 'Nussnougat');
+  assert.equal(partial.kind === 'missing' && partial.draft.brand, 'Musterhof');
+
+  const robotoff = {
+    insights: [{ barcode: '4006446005476', annotation: null, data: { nutrients: { 'energy-kcal_100g': { value: '556', unit: 'kcal', score: 1 }, fat_100g: { value: '34', unit: 'g', score: 1 }, carbohydrates_100g: { value: '57', unit: 'g', score: 1 }, proteins_100g: { value: '4.8', unit: 'g', score: 1 } } } }],
+  };
+  const suggestion = await resolveBarcode('4006446005476', 'de', [], offFake({ robotoff }));
+  assert.equal(suggestion.kind === 'suggestion' && suggestion.draft.per100?.kcal, 556);
+  assert.equal(suggestion.kind === 'suggestion' && suggestion.draft.dataFrom, 'robotoff');
+
+  await assert.rejects(resolveBarcode('853640759134', 'de', [own], offFake({})), (e) => e instanceof InvalidBarcodeError);
+  assert.ok(sameBarcode('853640759131', '0853640759131') && !sameBarcode('853640759131', '4006446005476'));
+});
+
+test('barcode flow: only set params are passed on', () => {
+  assert.deepEqual(flowParams({ meal: 'lunch', date: '', pick: undefined, barcode: '853640759131' }), { meal: 'lunch', barcode: '853640759131' });
+  assert.deepEqual(flowParams({}), {});
 });

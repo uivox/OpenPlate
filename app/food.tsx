@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Image, Linking, View } from 'react-native';
 import { Banner, Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
+import { flowParams } from '../src/lib/barcodeFlow';
 import { dayKey } from '../src/lib/dates';
 import { addToMealDraft, getFood, setFoodDraft } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
@@ -89,7 +90,7 @@ export default function FoodScreen() {
   /** Open Food Facts has the product but not its protein, carbs or fat: read them off the label instead. */
   const completeFromLabel = () => {
     setFoodDraft({ barcode: food.barcode, name: food.name, brand: food.brand, unit, servings: food.servings, issues: [] });
-    router.push({ pathname: '/label', params: { barcode: food.barcode ?? '', ...(params.meal ? { meal: params.meal } : {}), ...(params.date ? { date: params.date } : {}) } });
+    router.push({ pathname: '/label', params: flowParams({ barcode: food.barcode, meal: params.meal, date: params.date, pick: params.pick }) });
   };
 
   /** Sends the user to Open Food Facts to add the product there; they sign in on that site, never in this app. */

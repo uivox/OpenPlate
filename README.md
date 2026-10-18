@@ -7,7 +7,7 @@ German and English, light and dark mode, all data stays on your device.
 
 - **Food diary** with breakfast, lunch, dinner and snacks, calorie ring, macro bars and per-meal targets
 - **Food search**: ~100 built-in basics, the complete **German nutrient database BLS 4.0** (7,140 foods and dishes in German and English, works offline) and millions of packaged products from [Open Food Facts](https://world.openfoodfacts.org). Products sold in Germany come first; start with a supermarket ("Lidl Skyr", "Aldi Joghurt") to see its products and house brands first.
-- **Barcode scanner** (EAN-13/8, UPC) with Open Food Facts lookup. When a product is missing or has no nutrition there:
+- **Barcode scanner** (EAN-13, EAN-8, UPC-A, UPC-E, GTIN-14) with Open Food Facts lookup, on the phone and in the browser. You can also type the number in, in the scanner (also without camera access) or straight into the food search. The check digit is checked first, so a mistyped or misread number is reported as *not a valid barcode* and can be corrected, instead of being looked up. Without a connection the scanner says so and offers to type the values in, which works offline. When a product is missing or has no nutrition there:
   - values that Open Food Facts' photo AI ([Robotoff](https://github.com/openfoodfacts/robotoff)) already read off a package photo are offered as a suggestion, no account or key needed;
   - **photograph the nutrition table** and your own AI copies the printed values (it doesn't estimate);
   - or type the values in. Every value is checked for plausibility and shown next to the photo before you save it, and a link takes you to Open Food Facts to add the product there for everyone.
@@ -165,7 +165,7 @@ app/                    screens (expo-router, file-based)
   onboarding.tsx        first-run plan setup
   add-food.tsx          search, recent, my foods
   food.tsx              portion picker / edit entry
-  scan.tsx              barcode scanner
+  scan.tsx              barcode scanner (camera or typed number) and what a barcode leads to
   photo.tsx             AI photo flow
   custom-food.tsx       create food / quick add / check values from a label or Open Food Facts
   label.tsx             read a nutrition table from a photo
@@ -184,7 +184,9 @@ src/lib/
   recipes.ts            recipes (nutrition, scaling, community format and checks)
   communityRecipes.ts   community recipes (see RECIPES.md)
   themes.ts, layout.ts  colour themes and tab/diary layout
-  openFoodFacts.ts      barcode lookup and search, Robotoff suggestions, link to add products
+  openFoodFacts.ts      barcode lookup and search, Robotoff suggestions, fair-use limits, link to add products
+  barcode.ts            barcode check (EAN-8, UPC-E, UPC-A, EAN-13, GTIN-14, check digit)
+  barcodeFlow.ts        what a barcode leads to, shared by the scanner and the food search
   labelScan.ts          nutrition label prompt and parser, plausibility checks for outside nutrition data
   genericFoods.ts       built-in basic foods
   bls.ts, blsData.ts    German nutrient database (BLS 4.0) search and data
@@ -194,7 +196,7 @@ src/lib/
   backup.ts             export / import format
   backupReminder.ts     when the diary reminds you to save a copy
   *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
-src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows)
+src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows, ScannerParts.tsx for both scanners)
 public/icons/           home-screen icons for the web version
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
