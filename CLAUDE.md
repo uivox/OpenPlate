@@ -29,6 +29,7 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 ## Expo SDK
 
 - Upgrading: `npx expo install expo@latest`, then `npx expo install --fix` and `npx expo-doctor@latest`; read the release notes of every SDK in between (expo.dev/changelog). Besides the checks above, have CI compile the APK and the iPhone app once before merging: the type check and the web build don't cover native code.
+- The iPhone app is built on the `macos-26` runner (`build.yml`): SDK 56+ needs Xcode 26.4 or newer.
 - Release APKs are built without R8 (`enableMinifyInReleaseBuilds: false` in app.json). Turning it on can need keep rules for libraries that use reflection, so test every native feature on an APK built that way first.
 - The custom tab bar (`TabBar.tsx`) takes expo-router's `BottomTabBarProps` (`emitter`, `navigateToTab`); keep it typed, so a router change shows up in the type check rather than as tabs that do nothing.
 - expo-file-system: `File.write()` returns a promise; await it (or use `writeSync`).

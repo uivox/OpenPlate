@@ -90,7 +90,8 @@ jobs:
           path: OpenPlate.apk
 
   ios:
-    runs-on: macos-15
+    # Expo SDK 56+ needs Xcode 26.4 or newer; macos-15 only has up to 26.3.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
