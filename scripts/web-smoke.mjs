@@ -207,6 +207,14 @@ async function run(scheme) {
       await btn('Off').waitFor();
       await page.goBack();
     });
+    await step('offline product data: screen opens and explains its state', async () => {
+      await text('Offline product data', { exact: true }).click();
+      // Without a signing key in this build it says so; with one it offers the download.
+      await text(/Not available yet|Not downloaded|On this device/).waitFor();
+      await text(/Open Database License/).waitFor();
+      await page.goBack();
+      await text('Offline product data', { exact: true }).waitFor();
+    });
     await step('layout: hide fasting tab, add button right', async () => {
       await text('Layout', { exact: true }).click();
       await page.getByRole('switch', { name: 'Fasting' }).filter({ visible: true }).first().click();

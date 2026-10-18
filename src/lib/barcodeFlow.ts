@@ -7,7 +7,7 @@ type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 /**
  * What a barcode leads to, shared by the scanner and the barcode typed into the food search:
- * - `found`: a product with usable nutrition (one of the user's own foods first)
+ * - `found`: a product with usable nutrition (the user's own foods first, then the offline pack, then Open Food Facts)
  * - `suggestion`: Open Food Facts' photo AI read nutrition off a package photo; the user checks it
  * - `missing`: unknown product, or known without nutrition (`partial`); the user picks label / type in / scan again
  * Errors are thrown as by `lookupBarcodeDetailed` and sorted with `lookupFailure`.
@@ -17,12 +17,21 @@ export type BarcodeOutcome =
   | { kind: 'suggestion'; code: string; draft: FoodDraft }
   | { kind: 'missing'; code: string; draft: FoodDraft; partial?: PartialProduct };
 
-export async function resolveBarcode(input: string, lang: 'de' | 'en', ownFoods: Food[], fetchImpl: FetchLike = fetch): Promise<BarcodeOutcome> {
+export async function resolveBarcode(
+  input: string,
+  lang: 'de' | 'en',
+  ownFoods: Food[],
+  fetchImpl: FetchLike = fetch,
+  /** The offline product pack, when one is installed: asked before Open Food Facts, works without a connection. */
+  offline?: { lookup(code: string): Food | undefined },
+): Promise<BarcodeOutcome> {
   const check = checkBarcode(input);
   if (!check.ok) throw new InvalidBarcodeError(check.problem);
   const code = check.code;
   const own = ownFoods.find((f) => f.barcode && sameBarcode(f.barcode, code));
   if (own) return { kind: 'found', code, food: own };
+  const packed = offline?.lookup(code);
+  if (packed) return { kind: 'found', code, food: packed };
   const found = await lookupBarcodeDetailed(code, lang, fetchImpl);
   if (found.food) return { kind: 'found', code, food: found.food };
   const partial = found.partial;

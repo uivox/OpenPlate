@@ -53,6 +53,7 @@ app/                    screens (expo-router, file-based)
   appearance.tsx        themes, colours, animations
   layout-settings.tsx   tab and diary order
   ai-settings.tsx       bring-your-own-AI setup
+  offline-data.tsx      download, update and delete the offline product pack
 src/lib/
   ai.ts                 providers, prompt, JSON parsing, fallback logic
   nutrition.ts          BMR/TDEE, goals, macros
@@ -68,6 +69,10 @@ src/lib/
   labelScan.ts          nutrition label prompt and parser, plausibility checks for outside nutrition data
   genericFoods.ts       built-in basic foods
   bls.ts, blsData.ts    German nutrient database (BLS 4.0) search and data
+  offlinePack.ts        offline product pack: row format, signature and manifest checks, barcode index and search
+  ed25519.ts            Ed25519 signature check and SHA-512 (for the offline pack)
+  packStore(.web).ts    where the offline pack is kept (app documents folder / its own IndexedDB)
+  packRuntime.ts        the loaded pack shared by scanner, search and settings
   fasting.ts            plans and phases
   i18n.ts               German and English texts
   store.ts              persisted state (zustand + AsyncStorage; IndexedDB on the web)
@@ -79,6 +84,7 @@ public/icons/           home-screen icons for the web version
 plugins/                Expo config plugins: release signing, storage size on Android
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
+scripts/build-offline-pack.mjs, pack-key.mjs  build and sign the offline product pack; create its key
 tests/logic.test.ts     tests for the logic modules (npm test)
 docs/                   this page, design notes, recipe format
 ```
@@ -86,6 +92,23 @@ docs/                   this page, design notes, recipe format
 ## German nutrient database (BLS 4.0)
 
 `src/lib/blsData.ts` is generated, don't edit it by hand. Download the data from <https://blsdb.de> and run `python3 scripts/import_bls.py BLS_4_0_Daten_2025_DE.xlsx` (needs `openpyxl`).
+
+## Offline product pack
+
+Products sold in Germany from Open Food Facts, which the app downloads on request so barcodes and product search work without a connection. `.github/workflows/offline-pack.yml` builds it every Monday (and on *Run workflow*): it streams Open Food Facts' export (about 1 GB), keeps products whose barcode and nutrition pass the app's own checks (`packRow` in `src/lib/offlinePack.ts`), most scanned first and at most about 32 MB, signs a manifest with an Ed25519 key and force-pushes the result as one commit to the `offline-pack` branch. The app reads it from `raw.githubusercontent.com` and uses it only if the signature matches the public key built into the app and the file's size and SHA-512 match the manifest; it also refuses a pack older than the one it has. The pack is never part of backups and is deleted with *Delete all data*. Data licence: ODbL, like Open Food Facts; the branch carries a README with the attribution.
+
+One-time setup (until it's done, the app shows *Not available yet* and the workflow stops at its first step):
+
+1. Create the key on your computer, in Git Bash (or any shell with OpenSSL 3):
+   `openssl genpkey -algorithm ed25519 -out pack-key.pem`
+   and print the public half: `openssl pkey -in pack-key.pem -pubout -outform DER | tail -c 32 | base64`
+   (or, with Node installed: `node scripts/pack-key.mjs`, which prints both).
+2. *Settings → Environments → New environment* `offline-pack`; *Deployment branches and tags*: *Selected branches*, add `main`. Add the environment secret `OFFLINE_PACK_PRIVATE_KEY` with the whole content of `pack-key.pem` (including the `BEGIN`/`END` lines).
+3. Put the public key (44 characters ending in `=`) into `PACK_PUBLIC_KEY` in `src/lib/offlinePack.ts` through a pull request. It is public; the workflow refuses to sign with a key that doesn't match it.
+4. Delete `pack-key.pem` from your computer once the secret is saved (a new key only means a new app release with the new public key).
+5. *Actions → Offline product pack → Run workflow* (takes about 20–40 minutes). If a branch ruleset covers all branches, allow GitHub Actions to create and force-push `offline-pack`.
+
+Never merge or base work on `offline-pack`; it holds only generated data. Check ignores it.
 
 ## Web version hosting
 

@@ -56,3 +56,11 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - `src/lib/steps.ts`: the pure part: Health Connect's SDK status, the permission check, the day's range and total, and which text and button go with each status (open the settings, open Health Connect, get it from the Play Store).
 - `src/lib/hooks.ts`: `useSteps` (reloads on focus, when the app comes back to the front and every minute for today), `canReadSteps`.
 - `app.json`: `android.permission.health.READ_STEPS`, the `react-native-health-connect` config plugin (adds the permission-rationale activity Health Connect requires) and `minSdkVersion` 26. `check.yml` greps the generated manifest for them.
+
+## Where things are (offline product pack)
+
+- `src/lib/offlinePack.ts` (pure): row format, `packRow` (used by the builder, so pack and app share one set of checks), `foodFromPackLine`, `PackIndex` (barcode lookup, search), `readEnvelope` (Ed25519 signature + manifest checks), `installPack`, `PACK_PUBLIC_KEY`. `src/lib/ed25519.ts`: verification and SHA-512, tested against Node.
+- `src/lib/packStore.ts` / `packStore.web.ts`: download, hash (native `File.digest`, `crypto.subtle` on the web) and keep the files; never in the zustand store or backups. `src/lib/packRuntime.ts`: the loaded pack (`usePack`, `currentPack`), read 1.5 s after start.
+- Uses: `resolveBarcode(…, offline)` asks the pack after the user's own foods and before Open Food Facts; `add-food.tsx` searches it while typing (250 ms pause); `app/offline-data.tsx` downloads, updates, deletes. *Delete all data* deletes it too.
+- `.github/workflows/offline-pack.yml` + `scripts/build-offline-pack.mjs`: weekly build from the Open Food Facts export, signed, force-pushed to the `offline-pack` branch. Setup and key handling: docs/CONTRIBUTING.md → *Offline product pack*. Never put the private key anywhere but the `offline-pack` environment secret.
+

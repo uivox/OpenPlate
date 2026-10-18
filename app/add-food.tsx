@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { RecipeCard } from '../src/components/RecipeCard';
 import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
-import { dayKey } from '../src/lib/dates';
+import { dayKey, locale } from '../src/lib/dates';
 import { looksLikeBarcode } from '../src/lib/barcode';
 import { flowParams, resolveBarcode } from '../src/lib/barcodeFlow';
 import { putFood, setFoodDraft, setMealDraft, type FoodDraft } from '../src/lib/foodCache';
@@ -17,6 +17,7 @@ import { useRecipes } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
 import { lookupFailure, RateLimitedError, searchOFF, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
+import { currentPack, usePack } from '../src/lib/packRuntime';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
@@ -63,6 +64,21 @@ export default function AddFoodScreen() {
     return [...mine.slice(0, 6), ...generic, ...bls];
   }, [q, custom, recent, lang]);
 
+  // The offline pack is searched on the phone while typing (a short pause after the last key, it holds
+  // hundreds of thousands of products); Open Food Facts itself only when the user submits.
+  const pack = usePack();
+  const [packQuery, setPackQuery] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setPackQuery(q), 250);
+    return () => clearTimeout(id);
+  }, [q]);
+  const packHits = useMemo(() => {
+    if (pack.status !== 'ready' || packQuery.length < 2 || looksLikeBarcode(packQuery)) return [];
+    return pack.index.search(packQuery, 20).filter((f) => !local.some((l) => l.id === f.id));
+  }, [pack, packQuery, local]);
+  const packDate = pack.status === 'ready' ? new Date(pack.manifest.created).toLocaleDateString(locale(lang)) : '';
+  const shownRemote = remote.filter((r) => !packHits.some((p) => p.id === r.id));
+
   // Open Food Facts is only asked when the user submits (their fair-use rules ask apps not to
   // search on every keystroke); local foods update while typing.
   const [searched, setSearched] = useState('');
@@ -91,7 +107,7 @@ export default function AddFoodScreen() {
     setBarcode(null);
     try {
       if (asBarcode) {
-        const out = await resolveBarcode(q, lang, custom);
+        const out = await resolveBarcode(q, lang, custom, fetch, currentPack());
         if (id !== requestId.current) return;
         if (out.kind === 'found') setRemote([out.food]);
         else if (out.kind === 'suggestion') {
@@ -234,9 +250,11 @@ export default function AddFoodScreen() {
             />
           ) : null}
           {barcode && searched === q && !loading ? renderBarcode(barcode) : null}
-          {!loading && !error && !barcode && remote.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
-          {remote.length > 0 ? <Card>{remote.map(renderFood)}</Card> : null}
+          {packHits.length > 0 && !barcode ? <Card>{packHits.map(renderFood)}</Card> : null}
+          {!loading && !error && !barcode && remote.length === 0 && packHits.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
+          {shownRemote.length > 0 ? <Card>{shownRemote.map(renderFood)}</Card> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
+          {packHits.length > 0 ? <Txt v="small">{t('pack_search_note', { date: packDate })}</Txt> : null}
           {local.some((f) => f.source === 'bls') ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
           {lang === 'de' && !/^(lidl|aldi|rewe|edeka|kaufland|penny|netto|dm|rossmann)\b/i.test(q) ? <Txt v="small">{t('retailer_hint')}</Txt> : null}
         </>

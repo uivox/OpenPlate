@@ -5,7 +5,8 @@ name: Check
 on:
   pull_request:
   push:
-    branches-ignore: [main]
+    # offline-pack holds only the generated product data (offline-pack.yml), no code to check.
+    branches-ignore: [main, offline-pack]
   workflow_dispatch:
 
 # Pull requests (also from forks, e.g. community recipes) run with a read-only token.

@@ -1,0 +1,67 @@
+name: Offline product pack
+
+# Builds the offline product pack for Germany once a week from Open Food Facts' export, signs it and
+# publishes it to the `offline-pack` branch, where the app downloads it on request (raw.githubusercontent.com).
+# It never touches main or the app releases.
+#
+# One-time setup: docs/CONTRIBUTING.md → "Offline product pack" (signing key, environment, branch).
+on:
+  schedule:
+    - cron: '17 3 * * 1' # Mondays 03:17 UTC; Open Food Facts updates its export daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-pack
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # The signing key lives in this environment, which only main may use (Settings → Environments → offline-pack).
+    environment: offline-pack
+    permissions:
+      contents: write # push the offline-pack branch
+    steps:
+      - name: Signing key present
+        env:
+          KEY: ${{ secrets.OFFLINE_PACK_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error title=No signing key::Add the OFFLINE_PACK_PRIVATE_KEY secret to the 'offline-pack' environment (docs/CONTRIBUTING.md: Offline product pack)."
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: bash scripts/install-deps.sh
+      # The pack uses the app's own checks (src/lib/offlinePack.ts); the tests compile them and prove they work.
+      - run: bash scripts/ci-run.sh npm test
+      - name: Build and sign the pack
+        env:
+          OFFLINE_PACK_PRIVATE_KEY: ${{ secrets.OFFLINE_PACK_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # About 1 GB compressed; streamed, never stored unpacked.
+          curl -fsSL --retry 3 --retry-delay 30 -A "OpenPlate offline pack builder (https://github.com/${GITHUB_REPOSITORY})" \
+            https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz \
+            | gzip -dc | node scripts/build-offline-pack.mjs out
+      - name: Publish to the offline-pack branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd out
+          git init -q -b offline-pack
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Offline pack from ${GITHUB_SHA::7}"
+          # One commit, force-pushed: the branch never grows with old packs.
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" offline-pack
+          echo "Published to the offline-pack branch" >> "$GITHUB_STEP_SUMMARY"
