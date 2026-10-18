@@ -83,7 +83,7 @@ export async function shareExport(json: string, filename: string): Promise<boole
   try {
     if (file.exists) file.delete();
     file.create();
-    file.write(json);
+    await file.write(json);
     await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: filename });
     return true;
   } finally {

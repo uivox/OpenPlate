@@ -14,7 +14,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      tabBar={(props: any) => <TabBar {...props} />}
+      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: c.bg }, animation: motion === 'lively' ? 'shift' : 'none' }}
     >
       <Tabs.Screen name="index" options={{ title: t('tab_diary') }} />

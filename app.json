@@ -7,7 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "io.github.uivox.openplate",
@@ -62,7 +61,8 @@
         {
           "android": {
             "usesCleartextTraffic": true,
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "enableMinifyInReleaseBuilds": false
           },
           "ios": {
             "deploymentTarget": "16.4"

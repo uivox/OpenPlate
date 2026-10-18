@@ -1,6 +1,6 @@
 # OpenPlate: notes for working on the code
 
-OpenPlate is a calorie tracker built with Expo (React Native, SDK 54) that runs as an iPhone app, an Android app and a web app (PWA). README.md describes the features and the project layout; DESIGN.md the palette, type and motion.
+OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md describes the features and the project layout; DESIGN.md the palette, type and motion.
 
 ## How to work on this project
 
@@ -25,6 +25,16 @@ OpenPlate is a calorie tracker built with Expo (React Native, SDK 54) that runs 
 - A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`) are exported from both `device` files instead of checking `Platform.OS` in screens.
 - The Content Security Policy is written by `scripts/web-pwa.mjs`; a new server the app talks to has to be added there.
 - `scripts/web-smoke.mjs` clicks through the built web app in CI. Extend it when a flow changes that the browser can run; fake outside servers with `page.route`.
+
+## Expo SDK
+
+- Upgrading: `npx expo install expo@latest`, then `npx expo install --fix` and `npx expo-doctor@latest`; read the release notes of every SDK in between (expo.dev/changelog). Besides the checks above, have CI compile the APK and the iPhone app once before merging: the type check and the web build don't cover native code.
+- The iPhone app is built on the `macos-26` runner (`build.yml`): SDK 56+ needs Xcode 26.4 or newer.
+- Release APKs are built without R8 (`enableMinifyInReleaseBuilds: false` in app.json). Turning it on can need keep rules for libraries that use reflection, so test every native feature on an APK built that way first.
+- The custom tab bar (`TabBar.tsx`) takes expo-router's `BottomTabBarProps` (`emitter`, `navigateToTab`); keep it typed, so a router change shows up in the type check rather than as tabs that do nothing.
+- expo-file-system: `File.write()` returns a promise; await it (or use `writeSync`).
+- React Native's strict TypeScript API is on: no deep imports from `react-native/Libraries/*`.
+- The web build is split per route (expo-router's async routes); `scripts/web-pwa.mjs` precaches every file in `dist/`, so the installed web app still works offline.
 
 ## Where things are (barcodes)
 
