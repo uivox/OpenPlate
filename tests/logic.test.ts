@@ -65,6 +65,23 @@ import {
   searchOFF,
 } from '../src/lib/openFoodFacts';
 import { draftProblem } from '../src/lib/validation';
+import { createHash, generateKeyPairSync, randomBytes, sign as edSign, type KeyObject } from 'node:crypto';
+import { base64ToBytes, sha512, toHex, utf8, verifyEd25519 } from '../src/lib/ed25519';
+import {
+  fetchRemoteManifest,
+  foldSearch,
+  foodFromPackLine,
+  installPack,
+  openInstalled,
+  packRow,
+  PACK_BASE_URL,
+  PACK_MANIFEST_URL,
+  PACK_PUBLIC_KEY,
+  PackError,
+  PackIndex,
+  readEnvelope,
+  type DownloadedPack,
+} from '../src/lib/offlinePack';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
@@ -1585,4 +1602,223 @@ test('steps: Android asks Health Connect for steps and keeps the permission shee
   assert.ok(app.plugins.includes('react-native-health-connect'));
   const props = app.plugins.find((p: unknown) => Array.isArray(p) && p[0] === 'expo-build-properties')[1];
   assert.ok(props.android.minSdkVersion >= 26, 'Health Connect needs Android 8 (API 26)');
+});
+
+/* ---------- Offline product pack ---------- */
+
+test('ed25519 and sha512 agree with Node', () => {
+  for (const n of [0, 1, 111, 112, 127, 128, 129, 239, 240, 1000]) {
+    const m = randomBytes(n);
+    assert.equal(toHex(sha512(m)), createHash('sha512').update(m).digest('hex'), `sha512 of ${n} bytes`);
+  }
+  for (let i = 0; i < 8; i++) {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const pk = new Uint8Array(publicKey.export({ format: 'der', type: 'spki' }).subarray(-32));
+    const msg = randomBytes(i * 37);
+    const sig = new Uint8Array(edSign(null, msg, privateKey));
+    assert.ok(verifyEd25519(pk, msg, sig));
+    const bad = sig.slice();
+    bad[i * 7] ^= 4;
+    assert.ok(!verifyEd25519(pk, msg, bad), 'changed signature');
+    const other = new Uint8Array(generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32));
+    assert.ok(!verifyEd25519(other, msg, sig), 'other key');
+    if (msg.length) assert.ok(!verifyEd25519(pk, Uint8Array.from(msg, (b, j) => (j === 0 ? b ^ 1 : b)), sig), 'changed message');
+  }
+  // RFC 8032 test 1
+  const pk = Buffer.from('d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a', 'hex');
+  const sig = Buffer.from(
+    'e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b',
+    'hex',
+  );
+  assert.ok(verifyEd25519(new Uint8Array(pk), new Uint8Array(0), new Uint8Array(sig)));
+  assert.equal(base64ToBytes('not base64!'), null);
+  assert.equal(base64ToBytes('QQ==')?.[0], 65);
+  assert.equal(PACK_PUBLIC_KEY === '' || base64ToBytes(PACK_PUBLIC_KEY)?.length === 32, true, 'PACK_PUBLIC_KEY is empty or 32 bytes');
+});
+
+const offRow = (over: Record<string, string> = {}) => ({
+  code: '4006446005476',
+  product_name: 'Nuss-Nougat-Creme',
+  brands: 'Milbona, Lidl',
+  stores: 'Lidl',
+  countries_tags: 'en:germany',
+  quantity: '400 g',
+  serving_quantity: '15',
+  serving_size: '15 g',
+  unique_scans_n: '120',
+  'energy-kcal_100g': '553',
+  proteins_100g: '4.8',
+  carbohydrates_100g: '57',
+  fat_100g: '34',
+  sugars_100g: '55',
+  'saturated-fat_100g': '6',
+  sodium_100g: '0.04',
+  ...over,
+});
+
+test('offline pack: rows are built and read with the app’s checks', () => {
+  const row = packRow(offRow())!;
+  assert.ok(row);
+  assert.equal(row.scans, 120);
+  const food = foodFromPackLine(row.line)!;
+  assert.equal(food.id, 'off:4006446005476');
+  assert.equal(food.source, 'off');
+  assert.equal(food.brand, 'Milbona');
+  assert.equal(food.per100.kcal, 553);
+  assert.equal(food.per100.salt, 0.1, 'salt from sodium');
+  assert.deepEqual(food.servings, [{ label: '15 g', grams: 15 }]);
+  assert.equal(row.line.split('\t')[15], 'nuss nougat creme milbona lidl lidl');
+  // left out: wrong check digit, no name, missing macros, kJ in the kcal field, values that don't fit
+  assert.equal(packRow(offRow({ code: '4006446005477' })), null);
+  assert.equal(packRow(offRow({ product_name: '' })), null);
+  assert.equal(packRow(offRow({ fat_100g: '' })), null);
+  assert.equal(packRow(offRow({ 'energy-kcal_100g': '2314' })), null);
+  assert.equal(packRow(offRow({ sugars_100g: '80' })), null);
+  // outside text can't break the format or inject markup
+  const sneaky = packRow(offRow({ product_name: 'Bad\tname\n<script>x', brands: 'A\u0000B' }))!;
+  assert.equal(sneaky.line.split('\t').length, 16);
+  assert.equal(foodFromPackLine(sneaky.line)!.name, 'Bad name script x');
+  assert.ok(!/[<>]/.test(sneaky.line));
+  // ml products, UPC-E/EAN-14 normalised like the scanner
+  assert.equal(foodFromPackLine(packRow(offRow({ quantity: '1,5 l' }))!.line)!.unit, 'ml');
+  assert.equal(foldSearch('Bärlauch-Soße  GUT&GÜNSTIG'), 'barlauch sosse gut gunstig');
+  // damaged lines are ignored, never thrown
+  assert.equal(foodFromPackLine('123'), undefined);
+  assert.equal(foodFromPackLine(row.line.replace('\t553\t', '\tabc\t')), undefined);
+});
+
+function packText(): string {
+  const rows = [
+    offRow(),
+    offRow({ code: '4000417025005', product_name: 'Skyr Natur', brands: 'Milbona', stores: 'Lidl', unique_scans_n: '90', 'energy-kcal_100g': '63', proteins_100g: '11', carbohydrates_100g: '4', fat_100g: '0.2', sugars_100g: '4', 'saturated-fat_100g': '0.1' }),
+    offRow({ code: '4388844009943', product_name: 'Skyr Vanille', brands: 'ja!', stores: 'Rewe', unique_scans_n: '50', 'energy-kcal_100g': '80', proteins_100g: '9', carbohydrates_100g: '10', fat_100g: '0.2', sugars_100g: '9', 'saturated-fat_100g': '0.1' }),
+    offRow({ code: '0012345678905', product_name: 'Peanut Butter', brands: 'Acme', stores: '', unique_scans_n: '10', 'energy-kcal_100g': '600', proteins_100g: '25', carbohydrates_100g: '15', fat_100g: '50', sugars_100g: '6', 'saturated-fat_100g': '10' }),
+  ];
+  return `${rows.map((r) => packRow(r)!.line).join('\n')}\n`;
+}
+
+test('offline pack: barcode lookup and search', () => {
+  const index = new PackIndex(packText());
+  assert.equal(index.size, 4);
+  assert.equal(index.lookup('4000417025005')?.name, 'Skyr Natur');
+  assert.equal(index.lookup('012345678905')?.name, 'Peanut Butter', 'leading zeros don’t matter');
+  assert.equal(index.lookup('4006446005477'), undefined, 'invalid barcode');
+  assert.equal(index.lookup('4006446005483'), undefined, 'unknown barcode');
+  assert.deepEqual(index.search('skyr').map((f) => f.name), ['Skyr Natur', 'Skyr Vanille'], 'most scanned first');
+  assert.deepEqual(index.search('rewe skyr').map((f) => f.name), ['Skyr Vanille', 'Skyr Natur'], 'asked-for supermarket first');
+  assert.deepEqual(index.search('vanille skyr').map((f) => f.name), ['Skyr Vanille'], 'every word must match');
+  assert.deepEqual(index.search('SKYR natür').map((f) => f.name), ['Skyr Natur']);
+  assert.deepEqual(index.search('553').map((f) => f.name), [], 'numbers in other columns don’t match');
+  assert.deepEqual(index.search('milbona').map((f) => f.name), ['Nuss-Nougat-Creme', 'Skyr Natur'], 'brand');
+  assert.deepEqual(index.search('a'), []);
+  assert.throws(() => new PackIndex('notabarcode\tx\n'), (e) => e instanceof PackError && e.reason === 'corrupt');
+  assert.equal(new PackIndex('').size, 0);
+});
+
+function signedPack(privateKey: KeyObject, text: string, over: Record<string, unknown> = {}) {
+  const sha = createHash('sha512').update(text).digest('hex');
+  const manifest = {
+    format: 1,
+    country: 'de',
+    created: '2026-10-19T03:20:00.000Z',
+    rows: text.split('\n').filter(Boolean).length,
+    bytes: Buffer.byteLength(text),
+    sha512: sha,
+    file: `de/products-${sha.slice(0, 16)}.txt`,
+    source: 'Open Food Facts',
+    license: 'ODbL 1.0',
+    ...over,
+  };
+  const signed = JSON.stringify(manifest);
+  return JSON.stringify({ signed, signature: edSign(null, Buffer.from(signed), privateKey).toString('base64') });
+}
+
+test('offline pack: only a signed, complete, newer pack is installed', async () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const key = publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64');
+  const text = packText();
+  const envelope = signedPack(privateKey, text);
+  const now = Date.parse('2026-10-19T12:00:00Z');
+
+  // signature and fields
+  const m = readEnvelope(JSON.parse(envelope), key, now);
+  assert.equal(m.rows, 4);
+  const reason = (fn: () => unknown) => {
+    try {
+      fn();
+      return 'ok';
+    } catch (e) {
+      return e instanceof PackError ? e.reason : String(e);
+    }
+  };
+  const env = JSON.parse(envelope);
+  assert.equal(reason(() => readEnvelope(env, '', now)), 'not_configured');
+  assert.equal(reason(() => readEnvelope({ ...env, signed: env.signed.replace('"rows":4', '"rows":5') }, key, now)), 'signature');
+  const otherKey = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64');
+  assert.equal(reason(() => readEnvelope(env, otherKey, now)), 'signature');
+  assert.equal(reason(() => readEnvelope(JSON.parse(signedPack(privateKey, text, { file: '../../evil.txt' })), key, now)), 'corrupt');
+  assert.equal(reason(() => readEnvelope(JSON.parse(signedPack(privateKey, text, { created: '2027-01-01T00:00:00Z' })), key, now)), 'corrupt');
+  assert.equal(reason(() => readEnvelope(JSON.parse(signedPack(privateKey, text, { bytes: 900_000_000 })), key, now)), 'too_large');
+  assert.equal(reason(() => readEnvelope('nonsense', key, now)), 'signature');
+
+  // fetching the manifest
+  const fakeFetch = (status: number, body: string) => async (url: string) => {
+    assert.equal(url, PACK_MANIFEST_URL);
+    return new Response(body, { status });
+  };
+  const remote = await fetchRemoteManifest(key, fakeFetch(200, envelope), now);
+  assert.equal(remote.manifest.sha512, m.sha512);
+  await assert.rejects(fetchRemoteManifest(key, fakeFetch(404, ''), now), (e) => e instanceof PackError && e.reason === 'not_configured');
+  await assert.rejects(fetchRemoteManifest(key, fakeFetch(503, ''), now), (e) => e instanceof PackError && e.reason === 'server');
+  await assert.rejects(fetchRemoteManifest(key, async () => { throw new TypeError('Network request failed'); }, now), (e) => e instanceof PackError && e.reason === 'offline');
+  await assert.rejects(fetchRemoteManifest('', fakeFetch(200, envelope), now), (e) => e instanceof PackError && e.reason === 'not_configured');
+
+  // download: kept only when size, hash and lines check out
+  const log: string[] = [];
+  const fakeDownload = (body: string) => async (url: string): Promise<DownloadedPack> => {
+    assert.equal(url, `${PACK_BASE_URL}${m.file}`);
+    return {
+      text: body,
+      sha512: createHash('sha512').update(body).digest('hex'),
+      bytes: Buffer.byteLength(body),
+      commit: async () => {
+        log.push('commit');
+      },
+      discard: async () => {
+        log.push('discard');
+      },
+    };
+  };
+  const ok = await installPack(remote, null, fakeDownload(text));
+  assert.equal(ok.index.lookup('4000417025005')?.name, 'Skyr Natur');
+  assert.deepEqual(log, ['commit']);
+  log.length = 0;
+  await assert.rejects(installPack(remote, null, fakeDownload(text.replace('Skyr Natur', 'Skyr Netur'))), (e) => e instanceof PackError && e.reason === 'corrupt');
+  await assert.rejects(installPack(remote, null, fakeDownload(text.slice(0, -40))), (e) => e instanceof PackError && e.reason === 'corrupt');
+  assert.deepEqual(log, ['discard', 'discard']);
+  // an older pack (replayed to undo fixes) is refused
+  await assert.rejects(installPack(remote, { ...m, created: '2026-10-26T03:20:00.000Z' }, fakeDownload(text)), (e) => e instanceof PackError && e.reason === 'older');
+
+  // reading it back on the next start
+  assert.equal(openInstalled(envelope, text, key).index.size, 4);
+  assert.throws(() => openInstalled(envelope, text, otherKey), (e) => e instanceof PackError && e.reason === 'signature');
+  assert.throws(() => openInstalled(envelope, text.split('\n').slice(1).join('\n'), key), (e) => e instanceof PackError && e.reason === 'corrupt');
+  assert.equal(utf8('ä').length, 2);
+});
+
+test('barcode flow: the offline pack answers before Open Food Facts', async () => {
+  _resetSearchState();
+  const index = new PackIndex(packText());
+  const seen: string[] = [];
+  const out = await resolveBarcode('4000417025005', 'de', [], offFake({}, seen), index);
+  assert.equal(out.kind === 'found' && out.food.name, 'Skyr Natur');
+  assert.equal(seen.length, 0, 'no request when the pack has it');
+  // own foods still come first
+  const own = { id: 'c1', source: 'custom' as const, name: 'Mein Skyr', barcode: '4000417025005', per100: { kcal: 60, protein: 10, carbs: 4, fat: 0 }, servings: [] };
+  const mine = await resolveBarcode('4000417025005', 'de', [own], offFake({}), index);
+  assert.equal(mine.kind === 'found' && mine.food.id, 'c1');
+  // not in the pack: asks Open Food Facts as before
+  const missing = await resolveBarcode('853640759131', 'de', [], offFake({}, seen), index);
+  assert.equal(missing.kind, 'missing');
+  assert.ok(seen.length > 0);
 });

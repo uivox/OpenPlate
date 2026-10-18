@@ -9,6 +9,7 @@ import { checkBarcode } from '../src/lib/barcode';
 import { flowParams, resolveBarcode } from '../src/lib/barcodeFlow';
 import { putFood, setFoodDraft } from '../src/lib/foodCache';
 import { lookupFailure } from '../src/lib/openFoodFacts';
+import { currentPack } from '../src/lib/packRuntime';
 import { useStore } from '../src/lib/store';
 import { useT } from '../src/lib/useT';
 
@@ -29,7 +30,7 @@ export default function ScanScreen() {
     setBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
-      const out = await resolveBarcode(data, lang, customFoods);
+      const out = await resolveBarcode(data, lang, customFoods, fetch, currentPack());
       if (out.kind === 'found') {
         putFood(out.food);
         router.replace({ pathname: '/food', params: { ...passOn, fid: out.food.id } });

@@ -13,6 +13,7 @@ import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { DialogHost } from '../src/components/DialogHost';
 import { setupNotifications } from '../src/lib/device';
+import { ensurePackLoaded } from '../src/lib/packRuntime';
 import { requestPersistentStorage } from '../src/lib/storage';
 import { useHydration } from '../src/lib/store';
 import { fonts, useColors } from '../src/lib/theme';
@@ -36,6 +37,9 @@ export default function RootLayout() {
   useEffect(() => {
     setupNotifications();
     requestPersistentStorage();
+    // The offline product pack (if installed) is read a moment after start, so it doesn't slow the first screen.
+    const id = setTimeout(() => ensurePackLoaded().catch(() => {}), 1500);
+    return () => clearTimeout(id);
   }, []);
 
   // Stored data could not be read: say so instead of showing a blank screen forever. Nothing is
@@ -91,6 +95,7 @@ export default function RootLayout() {
         <Stack.Screen name="recipe" options={{ title: t('tab_recipes') }} />
         <Stack.Screen name="recipe-edit" options={{ title: t('new_recipe') }} />
         <Stack.Screen name="layout-settings" options={{ title: t('layout_title') }} />
+        <Stack.Screen name="offline-data" options={{ title: t('pack_title') }} />
       </Stack>
       <DialogHost />
     </>

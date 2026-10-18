@@ -11,10 +11,11 @@ import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } fro
 import { PROVIDER_NAMES } from '../../src/lib/ai';
 import { showAlert } from '../../src/lib/alert';
 import { daysSinceBackup } from '../../src/lib/backupReminder';
-import { dayKey } from '../../src/lib/dates';
+import { dayKey, locale } from '../../src/lib/dates';
 import { cancelNotification, canPickFiles } from '../../src/lib/device';
 import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
+import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
 import { clearAllKeys } from '../../src/lib/secure';
 import { useStore } from '../../src/lib/store';
 import { useColors } from '../../src/lib/theme';
@@ -23,7 +24,7 @@ import { useT } from '../../src/lib/useT';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { t } = useT();
+  const { t, lang } = useT();
   const c = useColors();
   const state = useStore();
   const profile = state.profile!;
@@ -51,6 +52,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearAllKeys();
+          await removePack().catch(() => {});
           // A running fast's reminder must not fire after its data is gone.
           await cancelNotification(useStore.getState().fastingActive?.notificationId).catch(() => {});
           useStore.getState().resetAll();
@@ -58,6 +60,14 @@ export default function ProfileScreen() {
         },
       },
     ]);
+
+  const pack = usePack();
+  const packLabel =
+    pack.status === 'ready'
+      ? t('pack_row_ready', { n: pack.manifest.rows.toLocaleString(locale(lang)), date: new Date(pack.manifest.created).toLocaleDateString(locale(lang)) })
+      : packAvailable
+        ? t('pack_row_none')
+        : t('pack_row_unavailable');
 
   const aiLabel = state.ai.primary
     ? [state.ai.primary, state.ai.fallback].filter(Boolean).map((p) => PROVIDER_NAMES[p!]).join(' → ')
@@ -134,6 +144,9 @@ export default function ProfileScreen() {
       ) : null}
 
       <SectionTitle>{t('data')}</SectionTitle>
+      <Card>
+        <ListRow icon="cloud-download-outline" title={t('pack_title')} subtitle={packLabel} right={chevron} onPress={() => router.push('/offline-data')} />
+      </Card>
       <Card>
         <ListRow icon="share-outline" title={t('export_data')} subtitle={`${t('export_data_sub')} · ${lastExport}`} onPress={exportData} />
         <Divider />

@@ -23,6 +23,7 @@ German and English, light and dark mode, all data stays on your device.
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
 - **Steps** from the iPhone motion sensor or, on Android, from Health Connect, optionally added to the calorie budget (not in the web version, see [Differences between platforms](#differences-between-platforms))
 - **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too). Your data only lives on your device, so the diary reminds you to save a copy two weeks after you start and then once a month ("Later" hides it for a week).
+- **Offline product data** (Profile → *Offline product data*): download the products sold in Germany from Open Food Facts once (the size is shown first), and barcodes and product search work without a connection. Updated weekly; the app only downloads when you tap *Download* or *Update*, and every download is checked against OpenPlate's signature before it is used.
 - **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 ---
@@ -41,7 +42,7 @@ The iPhone app, the Android app and the web version have the same features. Wher
 | Haptic feedback | yes | yes | no (Safari has no vibration support) |
 | Apple Health / Health Connect | not available: HealthKit needs a paid Apple developer account, SideStore installs with a free Apple ID | reads steps only; nothing is written back (see *Not included yet*) | not available |
 
-Everything else works the same everywhere: barcode scanner (camera or typed number), label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout.
+Everything else works the same everywhere: barcode scanner (camera or typed number), offline product data, label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout.
 
 ## Install on your phone
 
@@ -130,7 +131,7 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 ## Privacy and security
 
 - **No accounts, no OpenPlate server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them.
-- **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. These services, and GitHub, which hosts the web version, see your IP address. Nothing is sent to the OpenPlate project.
+- **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. When you download the offline product data, GitHub (which hosts it, and the web version) sees that request; searches in that data and barcodes found in it stay on your device. These services and GitHub see your IP address. Nothing is sent to the OpenPlate project.
 - **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys are stored in that site's browser storage on your device.
 - **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
 - Anyone who can unlock your phone can open the app; there is no separate app lock.
@@ -144,7 +145,6 @@ On the list for later:
 - **Apple Health / Health Connect sync.** Steps already come from the iPhone's motion sensor and from Health Connect on Android. Writing meals, water and weight to Health Connect is not done yet.
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
-- **Offline product pack for Germany**: products sold in Germany from the Open Food Facts export, downloaded once (signed, built in its own workflow), so barcodes and product search work without a connection.
 - **Uploading products to Open Food Facts from the app.** Today the app links to their website; direct uploads need a login (OAuth) that Open Food Facts first has to set up for OpenPlate.
 
 ## Contributing
