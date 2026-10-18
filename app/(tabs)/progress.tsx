@@ -8,10 +8,12 @@ import { Button, Card, ChipGroup, NumField, Row, Screen, SectionTitle, Txt } fro
 import { showAlert } from '../../src/lib/alert';
 import { addDays, dayKey, lastNDays, locale, parseDayKey } from '../../src/lib/dates';
 import { goalsFor } from '../../src/lib/hooks';
-import { bmi, bmiCategory, sumEntries } from '../../src/lib/nutrition';
+import { bmi, bmiCategory } from '../../src/lib/nutrition';
 import { useStore, weightOn } from '../../src/lib/store';
+import { dailyTotals } from '../../src/lib/streaks';
 import { useColors } from '../../src/lib/theme';
 import { useT } from '../../src/lib/useT';
+import { weekSummary } from '../../src/lib/weekly';
 
 const RANGES = [30, 90, 365] as const;
 
@@ -44,15 +46,15 @@ export default function ProgressScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weights, range, lang, today]);
 
-  const week = lastNDays(today, 7);
-  const bars = week.map((d) => ({
-    label: parseDayKey(d).toLocaleDateString(locale(lang), { weekday: 'narrow' }),
-    value: Math.round(sumEntries(entries.filter((e) => e.date === d)).kcal),
+  const summary = useMemo(
+    () => weekSummary(lastNDays(today, 7), dailyTotals(entries), water, (d) => goalsFor(profile, weights, d).kcal),
+    [today, entries, water, profile, weights],
+  );
+  const bars = summary.bars.map((b) => ({
+    label: parseDayKey(b.date).toLocaleDateString(locale(lang), { weekday: 'narrow' }),
+    value: b.kcal,
+    goal: b.goal,
   }));
-  const loggedDays = bars.filter((b) => b.value > 0);
-  const avgKcal = loggedDays.length ? Math.round(loggedDays.reduce((s, b) => s + b.value, 0) / loggedDays.length) : 0;
-  const avgWater = Math.round(week.reduce((s, d) => s + (water[d] ?? 0), 0) / 7);
-  const goalToday = goalsFor(profile, weights, today).kcal;
 
   const save = () => {
     if (!input || input < 30 || input > 300) return;
@@ -121,15 +123,17 @@ export default function ProgressScreen() {
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="h3">{t('calories')}</Txt>
-          <Txt v="sub">{t('avg_kcal', { kcal: avgKcal })}</Txt>
+          <Txt v="sub">{t('avg_kcal', { kcal: summary.avgKcal })}</Txt>
         </Row>
-        <BarChart bars={bars} width={width} goal={goalToday} />
+        <BarChart bars={bars} width={width} />
         <Txt v="small">{t('chart_goal_line')}</Txt>
       </Card>
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="h3">{t('water')}</Txt>
-          <Txt v="sub">{t('avg_water', { l: dec(avgWater / 1000, 2) })}</Txt>
+          <Txt v="sub">
+            {summary.waterDays ? t('avg_water', { l: dec(summary.avgWater / 1000, 2) }) : t('no_water_week')}
+          </Txt>
         </Row>
       </Card>
     </Screen>

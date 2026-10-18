@@ -13,8 +13,10 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { formatNumberInput, parseNumber } from '../lib/numbers';
 import { fonts, radius, space, useColors } from '../lib/theme';
 import { readableOn } from '../lib/themes';
+import { useT } from '../lib/useT';
 import { Appear, Tap } from './motion';
 
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -308,10 +310,11 @@ export function NumField({
   decimals?: boolean;
   hint?: string;
 }) {
-  const [text, setText] = React.useState(value === null || Number.isNaN(value) ? '' : String(value).replace('.', ','));
+  const { lang } = useT();
+  const [text, setText] = React.useState(formatNumberInput(value, lang));
   React.useEffect(() => {
-    const parsed = parseNum(text);
-    if (value !== parsed) setText(value === null || Number.isNaN(value) ? '' : String(value).replace('.', ','));
+    const parsed = parseNumber(text, !decimals);
+    if (value !== parsed) setText(formatNumberInput(value, lang));
     // only react to outside changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
@@ -324,7 +327,7 @@ export function NumField({
           value={text}
           onChangeText={(t) => {
             setText(t);
-            onChange(parseNum(t));
+            onChange(parseNumber(t, !decimals));
           }}
           keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
           selectionColor={c.accent}
@@ -338,11 +341,6 @@ export function NumField({
       {hint ? <Txt v="small">{hint}</Txt> : null}
     </View>
   );
-}
-
-export function parseNum(t: string): number | null {
-  const n = parseFloat(t.replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
 }
 
 export function SectionTitle({ children, right }: { children?: React.ReactNode; right?: React.ReactNode }) {

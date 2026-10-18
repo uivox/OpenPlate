@@ -66,46 +66,42 @@ export function LineChart({
   );
 }
 
+/** Bars with each day's own goal drawn as a short dashed mark across that bar; bars above their goal turn coral. */
 export function BarChart({
   bars,
   width,
   height = 150,
-  goal,
 }: {
-  bars: { label: string; value: number }[];
+  bars: { label: string; value: number; goal?: number }[];
   width: number;
   height?: number;
-  goal?: number;
 }) {
   const c = useColors();
   if (width <= 0 || bars.length === 0) return <View style={{ height }} />;
-  const max = Math.max(goal ?? 0, ...bars.map((b) => b.value), 1) * 1.1;
+  const max = Math.max(...bars.map((b) => Math.max(b.value, b.goal ?? 0)), 1) * 1.1;
   const padB = 20;
   const h = height - padB;
   const slot = width / bars.length;
   const bw = Math.min(28, slot * 0.6);
+  const mark = Math.min(bw + 12, slot * 0.9);
   const y = (v: number) => h - (v / max) * h;
   return (
     <Svg width={width} height={height}>
       {bars.map((b, i) => {
-        const over = goal !== undefined && b.value > goal;
+        const over = b.goal !== undefined && b.goal > 0 && b.value > b.goal;
+        const mid = i * slot + slot / 2;
         return (
           <React.Fragment key={i}>
-            <Rect
-              x={i * slot + (slot - bw) / 2}
-              y={y(b.value)}
-              width={bw}
-              height={Math.max(0, h - y(b.value))}
-              rx={6}
-              fill={over ? c.coral : c.accent}
-            />
-            <SvgText x={i * slot + slot / 2} y={height - 5} fontSize={10} fill={c.sub} textAnchor="middle">
+            <Rect x={mid - bw / 2} y={y(b.value)} width={bw} height={Math.max(0, h - y(b.value))} rx={6} fill={over ? c.coral : c.accent} />
+            {b.goal ? (
+              <Line x1={mid - mark / 2} x2={mid + mark / 2} y1={y(b.goal)} y2={y(b.goal)} stroke={c.sub} strokeWidth={1.5} strokeDasharray="3 3" />
+            ) : null}
+            <SvgText x={mid} y={height - 5} fontSize={10} fill={c.sub} textAnchor="middle">
               {b.label}
             </SvgText>
           </React.Fragment>
         );
       })}
-      {goal !== undefined ? <Line x1={0} x2={width} y1={y(goal)} y2={y(goal)} stroke={c.sub} strokeWidth={1} strokeDasharray="4 4" /> : null}
     </Svg>
   );
 }
