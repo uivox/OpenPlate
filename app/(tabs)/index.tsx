@@ -14,7 +14,7 @@ import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
-import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
+import { goalsFor, STEPS_REASON, useNow, useSteps, useToday } from '../../src/lib/hooks';
 import { visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
@@ -217,7 +217,9 @@ export default function DiaryScreen() {
                   {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
                 </Txt>
               </>
-            ) : null}
+            ) : (
+              <Txt v="small">{t(STEPS_REASON)}</Txt>
+            )}
           </Card>
         );
       })}

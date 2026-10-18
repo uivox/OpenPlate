@@ -7,6 +7,7 @@ import { Button, Card, ChipGroup, Field, NumField, Row, Screen, SectionTitle, Tx
 import { dayKey } from '../src/lib/dates';
 import { weightOn } from '../src/lib/goals';
 import { ABSOLUTE_MIN_KCAL, goalDetails, isValidSplit, kcalFromMacros, MACRO_PRESETS, type PresetId } from '../src/lib/nutrition';
+import { canReadSteps, STEPS_REASON } from '../src/lib/hooks';
 import { buildProfile, draftFromProfile } from '../src/lib/profile';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -245,11 +246,18 @@ export default function EditProfileScreen() {
         </Row>
         <Txt v="sub">{t('glass_size')}</Txt>
         <ChipGroup options={[200, 250, 300, 500].map((v) => ({ value: v, label: `${v} ml` }))} value={glass} onChange={setGlass} />
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt style={{ flex: 1 }}>{t('add_activity_calories')}</Txt>
-          <Switch value={addActivity} onValueChange={setAddActivity} trackColor={{ true: c.accent }} />
-        </Row>
-        <Txt v="small">{t('add_activity_calories_hint')}</Txt>
+        {canReadSteps ? (
+          <>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Txt style={{ flex: 1 }}>{t('add_activity_calories')}</Txt>
+              <Switch value={addActivity} onValueChange={setAddActivity} trackColor={{ true: c.accent }} />
+            </Row>
+            <Txt v="small">{t('add_activity_calories_hint')}</Txt>
+          </>
+        ) : (
+          // The setting is kept as it is (e.g. from an iPhone backup); without steps it adds nothing.
+          <Txt v="small">{t(STEPS_REASON)}</Txt>
+        )}
       </Card>
 
       {error ? (

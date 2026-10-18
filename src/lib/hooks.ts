@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { COMMUNITY_RECIPES } from './communityRecipes';
 import { dayKey } from './dates';
-import { stepsForDay } from './device';
+import { stepSource, stepsForDay } from './device';
 import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
 import { resolveCommunity } from './recipes';
@@ -54,6 +54,11 @@ export function useNow(ms = 1000): number {
   }, [ms]);
   return now;
 }
+
+/** Why there is no step count on this device, for the diary card and the settings. */
+export const STEPS_REASON = ({ motion: 'steps_reason_ios', android: 'steps_reason_android', browser: 'steps_reason_web' } as const)[stepSource];
+/** False where steps can never be read (Android, browsers), so step settings are hidden there. */
+export const canReadSteps = stepSource === 'motion';
 
 export function useSteps(date: string, weightKg: number) {
   const [steps, setSteps] = useState<number | null>(null);

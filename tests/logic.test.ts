@@ -1466,3 +1466,26 @@ test('barcode flow: only set params are passed on', () => {
   assert.deepEqual(flowParams({ meal: 'lunch', date: '', pick: undefined, barcode: '853640759131' }), { meal: 'lunch', barcode: '853640759131' });
   assert.deepEqual(flowParams({}), {});
 });
+
+/* ---------- Same features on iPhone, Android and the web ---------- */
+
+test('every *.web.ts(x) file exports the same values as its native twin', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  // Values only: a type may live in one twin and be imported by the other.
+  const exportsOf = (file: string) =>
+    [...fs.readFileSync(path.join(root, file), 'utf8').matchAll(/^export (?:async )?(?:function|const|let|class) (\w+)/gm)].map((m) => m[1]).sort();
+  const twins: string[] = [];
+  for (const dir of ['src/lib', 'src/components']) {
+    for (const f of fs.readdirSync(path.join(root, dir))) {
+      const m = /^(.*)\.web\.(tsx?)$/.exec(f);
+      if (m) twins.push(`${dir}/${m[1]}.${m[2]}`);
+    }
+  }
+  assert.ok(twins.length >= 4, `found ${twins.join(', ')}`);
+  for (const native of twins) {
+    const web = native.replace(/\.(tsx?)$/, '.web.$1');
+    assert.deepEqual(exportsOf(web), exportsOf(native), `${web} and ${native} export different names`);
+  }
+});

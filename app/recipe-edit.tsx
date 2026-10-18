@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { Image, Platform, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { Button, Chip, Card, Divider, Field, IconButton, NumField, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { pickMealPhoto } from '../src/lib/device';
@@ -92,7 +92,7 @@ export default function RecipeEditScreen() {
         <Txt v="h3">{t('photo')}</Txt>
         {photo ? <Image source={{ uri: photo }} style={{ width: '100%', aspectRatio: 16 / 10, borderRadius: 18, backgroundColor: c.cardAlt }} /> : null}
         <Row gap={8} style={{ flexWrap: 'wrap' }}>
-          {Platform.OS !== 'web' ? <Button small kind="secondary" icon="camera-outline" title={t('take_photo')} onPress={() => choosePhoto('camera')} /> : null}
+          <Button small kind="secondary" icon="camera-outline" title={t('take_photo')} onPress={() => choosePhoto('camera')} />
           <Button small kind="secondary" icon="image-outline" title={photo ? t('choose_photo') : t('add_photo')} onPress={() => choosePhoto('library')} />
           {photo ? <Button small kind="ghost" icon="trash-outline" title={t('remove_photo')} onPress={() => setPhoto(undefined)} /> : null}
         </Row>

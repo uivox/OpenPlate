@@ -5,7 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
-import { Share } from 'react-native';
+import { Platform, Share } from 'react-native';
+import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
 
 /* ---------- Photos ---------- */
@@ -41,9 +42,6 @@ export async function pickMealPhoto(source: 'camera' | 'library', maxWidth = 102
 /** Backups can be imported on every platform (needed to move to a new install). */
 export const canPickFiles = true;
 
-/** Largest file accepted for import; real backups with photos stay far below this. */
-const MAX_IMPORT_BYTES = 30 * 1024 * 1024;
-
 /** Reads a text file the user picks (used for importing a backup). Null when cancelled. */
 export async function pickTextFile(): Promise<string | null> {
   const picked = await DocumentPicker.getDocumentAsync({
@@ -56,7 +54,7 @@ export async function pickTextFile(): Promise<string | null> {
   const asset = picked.assets[0];
   const file = new File(asset.uri);
   try {
-    if ((asset.size ?? file.size ?? 0) > MAX_IMPORT_BYTES) throw new Error('FILE_TOO_LARGE');
+    if ((asset.size ?? file.size ?? 0) > MAX_BACKUP_BYTES) throw new Error('FILE_TOO_LARGE');
     return await file.text();
   } finally {
     // The picked copy holds personal data; don't leave it in the cache.
@@ -95,6 +93,9 @@ export async function shareExport(json: string, filename: string): Promise<boole
 }
 
 /* ---------- Notifications ---------- */
+
+/** Scheduled notifications arrive even when the app is closed (not so in the browser, see device.web.ts). */
+export const notifiesWhenClosed = true;
 
 let handlerSet = false;
 export function setupNotifications() {
@@ -136,7 +137,15 @@ export async function cancelNotification(id?: string) {
 
 /* ---------- Steps (iPhone motion coprocessor; keeps about 7 days) ---------- */
 
+/**
+ * Where daily steps come from. The iPhone's motion sensor keeps a history apps can read; Android
+ * only offers that through Health Connect, which OpenPlate doesn't support yet.
+ */
+export const stepSource: 'motion' | 'android' | 'browser' = Platform.OS === 'ios' ? 'motion' : 'android';
+
 export async function stepsForDay(dateKey: string): Promise<number | null> {
+  // Android can't return a day's steps here, so don't ask for the activity permission for nothing.
+  if (stepSource !== 'motion') return null;
   try {
     if (!(await Pedometer.isAvailableAsync())) return null;
     const perm = await Pedometer.getPermissionsAsync();

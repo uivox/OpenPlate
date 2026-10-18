@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { showAlert } from '../lib/alert';
-import { parseBackupReport, type BackupReport } from '../lib/backup';
+import { MAX_BACKUP_BYTES, parseBackupReport, type BackupReport } from '../lib/backup';
 import { cancelNotification, pickTextFile } from '../lib/device';
 import { useStore } from '../lib/store';
 import type { TFn } from '../lib/useT';
@@ -13,8 +13,8 @@ export async function importBackupFlow(t: TFn): Promise<void> {
   let text: string | null;
   try {
     text = await pickTextFile();
-  } catch {
-    showAlert(t('import_invalid'));
+  } catch (e) {
+    showAlert((e as Error)?.message === 'FILE_TOO_LARGE' ? t('import_too_large', { mb: MAX_BACKUP_BYTES / 1024 / 1024 }) : t('import_invalid'));
     return;
   }
   if (!text) return;

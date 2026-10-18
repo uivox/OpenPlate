@@ -9,7 +9,7 @@ import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Chip, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { showAlert } from '../../src/lib/alert';
 import { dayKey, formatDuration, formatShortDate, formatTime, locale } from '../../src/lib/dates';
-import { cancelNotification, scheduleAt } from '../../src/lib/device';
+import { cancelNotification, notifiesWhenClosed, scheduleAt } from '../../src/lib/device';
 import { activeFastingDays, completedFasts, FASTING_PLANS, isFastingDay, longestFastHours, planById, sessionHours, stageFor } from '../../src/lib/fasting';
 import { useNow } from '../../src/lib/hooks';
 import { fastingDayKcal, isAdult } from '../../src/lib/nutrition';
@@ -178,6 +178,11 @@ export default function FastingScreen() {
               <Txt v="sub" color={c.nightText}>
                 {t('ends_at', { time: formatTime(active.start + active.targetHours * 3600000, lang) })}
               </Txt>
+              {notifiesWhenClosed ? null : (
+                <Txt v="small" color={c.nightText} center>
+                  {t('notif_open_only')}
+                </Txt>
+              )}
               <Button title={t('end_fast')} icon="sunny" kind="night" onPress={stop} style={{ alignSelf: 'stretch' }} />
             </>
           ) : (
