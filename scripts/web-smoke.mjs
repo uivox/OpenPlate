@@ -258,7 +258,11 @@ async function run(scheme) {
     const noInsights = (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ count: 0, insights: [], status: 'no_insights' }) });
     const manualField = () => page.locator('input[inputmode="numeric"]').filter({ visible: true }).first();
     const offRequests = [];
-    page.on('request', (r) => r.url().includes('openfoodfacts.org') && offRequests.push(r.url()));
+    const isOFF = (u) => {
+      const host = new URL(u).hostname;
+      return host === 'openfoodfacts.org' || host.endsWith('.openfoodfacts.org');
+    };
+    page.on('request', (r) => isOFF(r.url()) && offRequests.push(r.url()));
     await step('scan: unknown barcode leads to the choice screen', async () => {
       await page.route('https://world.openfoodfacts.org/api/v2/product/**', notFound);
       await page.route('https://robotoff.openfoodfacts.org/**', noInsights);
