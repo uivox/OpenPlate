@@ -1,6 +1,6 @@
 # OpenPlate: notes for working on the code
 
-OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md describes the features and the project layout; DESIGN.md the palette, type and motion.
+OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md is for people using the app (features, install, platform differences, safety, privacy); docs/CONTRIBUTING.md has the dev setup, project layout, releases and web hosting; docs/DESIGN.md the palette, type and motion; docs/RECIPES.md the community recipe format; .github/SECURITY.md the security policy. Keep the README about using the app: anything only people working on the code need goes into docs/CONTRIBUTING.md.
 
 ## How to work on this project
 
@@ -13,7 +13,7 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 ## Rules for changes
 
 - **Texts:** every text the user sees lives in `src/lib/i18n.ts`, in English and German. `de` is typed as `Record<TKey, string>`, so a missing German text fails the type check. Use typographic quotes and apostrophes as the existing texts do (’ “ ” in English, „ “ in German).
-- **Colours:** screens never hard-code colours; they read `useColors()` (theme tokens, see DESIGN.md). The only exception is white text and frames drawn over the camera picture.
+- **Colours:** screens never hard-code colours; they read `useColors()` (theme tokens, see docs/DESIGN.md). The only exception is white text and frames drawn over the camera picture.
 - **Logic:** anything that can be decided without React Native goes into a module in `src/lib/` without React Native imports, with tests in `tests/logic.test.ts` (node:test, run by `npm test`). Network code takes a `fetchImpl` parameter so tests can fake the server.
 - **Outside data** (Open Food Facts, Robotoff, AI answers, label photos, backups) goes through the plausibility checks in `labelScan.ts` / `openFoodFacts.ts` and is shown to the user before it is saved.
 - **Open Food Facts fair use:** search only when the user submits, at most 8 searches a minute, no second search endpoint after a 4xx answer. A 429 pauses searches and barcode lookups for at least a minute (`notePause`). A 404 for an unknown product is a normal answer ("not found"), never a failure and never a reason to pause.

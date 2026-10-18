@@ -2,7 +2,7 @@ import type { Appearance, MealType, ThemeId } from './types';
 
 /**
  * Colour themes. Pure (no React Native) so it can be tested.
- * "garden" is the original veggie-patch palette (see DESIGN.md); the others swap the ground, ink and
+ * "garden" is the original veggie-patch palette (see docs/DESIGN.md); the others swap the ground, ink and
  * action colour. Users can also pick their own accent and macro colours; text on top of any colour
  * is chosen by contrast so it stays readable.
  */

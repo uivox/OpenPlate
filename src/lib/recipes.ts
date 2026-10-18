@@ -12,7 +12,7 @@ import type { Food, Nutrients, Recipe, RecipeTag, SavedMealItem } from './types'
  */
 
 /** Contribution guide for community recipes. */
-export const RECIPES_GUIDE_URL = 'https://github.com/uivox/OpenPlate/blob/main/RECIPES.md';
+export const RECIPES_GUIDE_URL = 'https://github.com/uivox/OpenPlate/blob/main/docs/RECIPES.md';
 
 export const RECIPE_TAGS: RecipeTag[] = ['breakfast', 'main', 'snack', 'vegetarian', 'vegan', 'high_protein', 'quick'];
 

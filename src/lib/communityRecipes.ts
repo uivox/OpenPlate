@@ -1,7 +1,7 @@
 import type { CommunityRecipe } from './recipes';
 
 /**
- * Community recipes. Added through pull requests, see RECIPES.md: amounts in grams for the whole
+ * Community recipes. Added through pull requests, see docs/RECIPES.md: amounts in grams for the whole
  * dish, ingredients referenced from the built-in foods or the BLS, German and English text, and
  * only openly licensed photos. A recipe counts as community-tested once someone other than the
  * author has cooked it and is listed in `testedBy`.
