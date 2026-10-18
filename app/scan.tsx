@@ -5,21 +5,23 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { BarcodeScanner } from '../src/components/BarcodeScanner';
 import { Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
-import { dayKey } from '../src/lib/dates';
+import { checkBarcode } from '../src/lib/barcode';
+import { flowParams, resolveBarcode } from '../src/lib/barcodeFlow';
 import { putFood, setFoodDraft } from '../src/lib/foodCache';
-import { fetchRobotoffNutrition, lookupBarcodeDetailed } from '../src/lib/openFoodFacts';
+import { lookupFailure } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useT } from '../src/lib/useT';
 
 export default function ScanScreen() {
   const params = useLocalSearchParams<{ meal?: string; date?: string; pick?: string }>();
-  const meal = params.meal ?? 'snack';
-  const date = params.date ?? dayKey();
-  const pick = params.pick ? { pick: params.pick } : {};
+  // Passed on as they came: the next screens fill in the meal and date they default to.
+  const passOn = flowParams({ meal: params.meal, date: params.date, pick: params.pick });
   const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const locked = useRef(false);
   const customFoods = useStore((s) => s.customFoods);
+  const unlock = () => (locked.current = false);
 
   const onScan = async (data: string) => {
     if (locked.current) return;
@@ -27,50 +29,59 @@ export default function ScanScreen() {
     setBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     try {
-      const own = customFoods.find((f) => f.barcode === data);
-      const found = own ? { food: own } : await lookupBarcodeDetailed(data, lang);
-      if (found.food) {
-        putFood(found.food);
-        router.replace({ pathname: '/food', params: { fid: found.food.id, meal, date, ...pick } });
+      const out = await resolveBarcode(data, lang, customFoods);
+      if (out.kind === 'found') {
+        putFood(out.food);
+        router.replace({ pathname: '/food', params: { ...passOn, fid: out.food.id } });
         return;
       }
-      // Not in Open Food Facts, or there without nutrition: Open Food Facts' photo AI may have read the
-      // values off a package photo already. That's only a suggestion; the user checks it in the form.
-      const partial = 'partial' in found ? found.partial : undefined;
-      const base = {
-        barcode: data,
-        name: partial?.name,
-        brand: partial?.brand,
-        unit: partial?.unit ?? ('g' as const),
-        servings: partial?.servings ?? [],
-        issues: [],
-      };
-      const suggestion = await fetchRobotoffNutrition(data);
-      const params = { meal, date, barcode: data, ...pick };
-      if (suggestion) {
-        setFoodDraft({ ...base, per100: suggestion.per100, issues: suggestion.issues, dataFrom: 'robotoff', imageUri: suggestion.imageUrl });
-        router.replace({ pathname: '/custom-food', params: { ...params, draft: '1' } });
+      const next = { ...passOn, barcode: out.code };
+      setFoodDraft(out.draft);
+      if (out.kind === 'suggestion') {
+        router.replace({ pathname: '/custom-food', params: { ...next, draft: '1' } });
         return;
       }
-      setFoodDraft({ ...base, imageUri: partial?.imageUrl });
+      const { partial } = out;
       showAlert(
         partial ? t('incomplete_title') : t('not_found'),
-        partial ? t('incomplete_text', { name: partial.name ?? data }) : t('not_found_text', { code: data }),
+        partial ? t('incomplete_text', { name: partial.name ?? out.code }) : t('not_found_text', { code: out.code }),
         [
-          { text: t('scan_label'), onPress: () => router.replace({ pathname: '/label', params }) },
-          { text: t('create_food'), onPress: () => router.replace({ pathname: '/custom-food', params: { ...params, draft: '1' } }) },
-          { text: t('scan_again'), style: 'cancel', onPress: () => (locked.current = false) },
+          { text: t('scan_label'), onPress: () => router.replace({ pathname: '/label', params: next }) },
+          { text: t('type_in'), onPress: () => router.replace({ pathname: '/custom-food', params: { ...next, draft: '1' } }) },
+          { text: t('scan_again'), style: 'cancel', onPress: unlock },
         ],
       );
-    } catch {
-      showAlert(t('network_error'), t('network_error_text'), [{ text: t('ok'), onPress: () => (locked.current = false) }]);
+    } catch (e) {
+      const failure = lookupFailure(e);
+      const shown = data.trim().slice(0, 32);
+      if (failure === 'invalid') {
+        showAlert(t('barcode_invalid'), t('barcode_invalid_text', { code: shown }), [
+          { text: t('barcode_correct'), onPress: () => (setManualCode(shown), unlock()) },
+          { text: t('scan_again'), style: 'cancel', onPress: unlock },
+        ]);
+        return;
+      }
+      // Typing the values in works without Open Food Facts; the barcode is kept with the food.
+      const checked = checkBarcode(data);
+      const barcode = checked.ok ? checked.code : undefined;
+      const typeIn = () => {
+        setFoodDraft({ barcode, unit: 'g', servings: [], issues: [] });
+        router.replace({ pathname: '/custom-food', params: { ...flowParams({ ...passOn, barcode }), draft: '1' } });
+      };
+      const [title, text] =
+        failure === 'rate_limited' ? [t('barcode_rate_limited'), t('barcode_rate_limited_text')] : failure === 'server' ? [t('server_error'), t('server_error_text')] : [t('network_error'), t('network_error_text')];
+      showAlert(title, text, [
+        { text: t('type_in'), onPress: typeIn },
+        ...(failure === 'rate_limited' ? [] : [{ text: t('try_again'), onPress: () => (unlock(), onScan(data)) }]),
+        { text: t('scan_again'), style: 'cancel' as const, onPress: unlock },
+      ]);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <BarcodeScanner onScan={onScan} paused={busy}>
+    <BarcodeScanner onScan={onScan} paused={busy} manualCode={manualCode} onManualCodeChange={setManualCode}>
       <View style={styles.overlay} pointerEvents="none">
         <View style={styles.frame} />
         <Txt color="#fff" center style={{ marginTop: 20 }}>

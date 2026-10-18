@@ -1,4 +1,5 @@
 import { MAX_KCAL_PER_100G } from './ai';
+import { checkBarcode, type BarcodeProblem } from './barcode';
 import { nutrientsFromRobotoff, type NutrientIssue } from './labelScan';
 import type { Food, Nutrients, Serving } from './types';
 
@@ -108,36 +109,86 @@ function missingMacros(n: Json | undefined): boolean {
 }
 
 export class HttpError extends Error {
-  constructor(public status: number) {
+  constructor(
+    public status: number,
+    /** Seconds from a Retry-After header, when the server sent one. */
+    public retryAfterS?: number,
+  ) {
     super(`HTTP ${status}`);
   }
 }
 
-/** Thrown before a search would exceed Open Food Facts' rate limit. */
+/** Thrown before a request would exceed Open Food Facts' rate limit, or while it asked us to wait. */
 export class RateLimitedError extends Error {
   constructor() {
     super('RATE_LIMITED');
   }
 }
 
+/** Thrown for a barcode that can't be right (wrong length, letters, wrong check digit). Nothing is sent. */
+export class InvalidBarcodeError extends Error {
+  constructor(public problem: BarcodeProblem) {
+    super('INVALID_BARCODE');
+  }
+}
+
+/**
+ * Why a barcode lookup or search failed, for the message the user sees:
+ * - `invalid`: the number itself is wrong; the user can correct it
+ * - `rate_limited`: too many requests; wait a minute
+ * - `server`: Open Food Facts answered with an error (5xx, 403 …)
+ * - `offline`: no answer at all (no internet, DNS, timeout, a blocked request)
+ */
+export type LookupFailure = 'invalid' | 'rate_limited' | 'server' | 'offline';
+
+export function lookupFailure(e: unknown): LookupFailure {
+  if (e instanceof InvalidBarcodeError) return 'invalid';
+  if (e instanceof RateLimitedError || (e instanceof HttpError && e.status === 429)) return 'rate_limited';
+  if (e instanceof HttpError) return 'server';
+  return 'offline';
+}
+
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-async function getJson(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 12000): Promise<Json> {
+async function getJson(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 12000, notFoundOk = false): Promise<Json> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     // Browsers don't let pages set User-Agent (or turn it into a CORS preflight), so the web version sends only Accept.
     const headers: Record<string, string> = typeof document === 'undefined' ? { 'User-Agent': USER_AGENT, Accept: 'application/json' } : { Accept: 'application/json' };
     const res = await fetchImpl(url, { headers, signal: ctrl.signal });
-    if (!res.ok) throw new HttpError(res.status);
+    // The product API answers an unknown barcode with 404 and {"status":0} (with CORS headers, so the
+    // browser can read it too). That is a normal answer, not a failure.
+    if (notFoundOk && res.status === 404) return ((await res.json().catch(() => null)) as Json | null) ?? { status: 0 };
+    if (!res.ok) {
+      const retry = Number(res.headers?.get?.('retry-after'));
+      throw new HttpError(res.status, Number.isFinite(retry) && retry > 0 ? retry : undefined);
+    }
     return (await res.json()) as Json;
   } finally {
     clearTimeout(timer);
   }
 }
 
-/** EAN-8, UPC-A, EAN-13 or GTIN-14 typed into the search box. */
-export const isBarcode = (q: string) => /^\d{8}$|^\d{12,14}$/.test(q.trim());
+/*
+ * Open Food Facts' fair-use rules: when it answers 429 (too many requests), wait before asking again.
+ * The pause covers search and barcode lookups alike and lasts at least a minute (longer when the
+ * server says so in Retry-After, at most ten). Other answers, such as 404 for an unknown product,
+ * never cause a pause.
+ */
+const MIN_PAUSE_MS = 60_000;
+const MAX_PAUSE_MS = 10 * 60_000;
+let pausedUntil = 0;
+
+function checkPause(now: number) {
+  if (now < pausedUntil) throw new RateLimitedError();
+}
+
+function notePause(e: unknown, now: number) {
+  if (e instanceof HttpError && e.status === 429) {
+    pausedUntil = now + Math.min(MAX_PAUSE_MS, Math.max(MIN_PAUSE_MS, (e.retryAfterS ?? 0) * 1000));
+  }
+}
 
 /**
  * What Open Food Facts knows about a product that has no usable nutrition: its name, brand, size and
@@ -153,25 +204,41 @@ export interface PartialProduct {
 }
 
 export interface BarcodeResult {
+  /** The checked barcode that was looked up (UPC-E written out as UPC-A). */
+  code: string;
   food: Food | null;
   /** Set when the product exists in Open Food Facts but its nutrition is missing or unusable. */
   partial?: PartialProduct;
 }
 
-/** Looks up a barcode and also returns what is known about products without usable nutrition. */
-export async function lookupBarcodeDetailed(code: string, lang: 'de' | 'en', fetchImpl: FetchLike = fetch): Promise<BarcodeResult> {
-  const clean = code.replace(/\D/g, '');
-  if (clean.length < 8 || clean.length > 14) return { food: null };
-  const data = await getJson(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=${FIELDS}`, fetchImpl);
-  if (data.status !== 1 || !data.product) return { food: null };
+/**
+ * Looks up a barcode and also returns what is known about products without usable nutrition.
+ * `food: null` without `partial` means Open Food Facts doesn't know the product.
+ * Throws InvalidBarcodeError (nothing sent), RateLimitedError, HttpError, or the fetch error when
+ * there is no connection; `lookupFailure` sorts them.
+ */
+export async function lookupBarcodeDetailed(code: string, lang: 'de' | 'en', fetchImpl: FetchLike = fetch, now = Date.now()): Promise<BarcodeResult> {
+  const check = checkBarcode(code);
+  if (!check.ok) throw new InvalidBarcodeError(check.problem);
+  const clean = check.code;
+  checkPause(now);
+  let data: Json;
+  try {
+    data = await getJson(`https://world.openfoodfacts.org/api/v2/product/${clean}.json?fields=${FIELDS}`, fetchImpl, 12000, true);
+  } catch (e) {
+    notePause(e, now);
+    throw e;
+  }
+  if (data.status !== 1 || !data.product) return { code: clean, food: null };
   const p: Json = { code: clean, ...(data.product as Json) };
   const food = foodFromOFF(p, lang);
-  if (food) return { food };
+  if (food) return { code: clean, food };
   const quantity = str(p.quantity, lang) ?? '';
   const unit: 'g' | 'ml' = /\b\d+([.,]\d+)?\s*(ml|cl|l)\b/i.test(quantity) ? 'ml' : 'g';
   const servingG = num(p.serving_quantity);
   const image = str(p.image_front_small_url, lang);
   return {
+    code: clean,
     food: null,
     partial: {
       code: clean,
@@ -182,10 +249,6 @@ export async function lookupBarcodeDetailed(code: string, lang: 'de' | 'en', fet
       imageUrl: image && OFF_IMAGE.test(image) ? image : undefined,
     },
   };
-}
-
-export async function lookupBarcode(code: string, lang: 'de' | 'en', fetchImpl: FetchLike = fetch): Promise<Food | null> {
-  return (await lookupBarcodeDetailed(code, lang, fetchImpl)).food;
 }
 
 /* ---------- Robotoff: values Open Food Facts' AI read off product photos ---------- */
@@ -206,8 +269,9 @@ const ROBOTOFF_IMAGE_PATH = /^\/[\d/]+\/\d+\.jpg$/;
  * since this is only a bonus on top of the normal lookup.
  */
 export async function fetchRobotoffNutrition(code: string, fetchImpl: FetchLike = fetch): Promise<RobotoffSuggestion | null> {
-  const clean = code.replace(/\D/g, '');
-  if (clean.length < 8 || clean.length > 14) return null;
+  const check = checkBarcode(code);
+  if (!check.ok) return null;
+  const clean = check.code;
   let data: Json;
   try {
     data = await getJson(`https://robotoff.openfoodfacts.org/api/v1/insights?barcode=${clean}&insight_types=nutrient_extraction&count=5`, fetchImpl, 8000);
@@ -349,11 +413,13 @@ function takeSearchSlot(now: number) {
 export function _resetSearchState() {
   recentSearches.length = 0;
   searchCache.clear();
+  pausedUntil = 0;
 }
 
 /**
  * Full-text search: tries the newer search service, and the classic endpoint only when the first
  * one could not be reached (never after a rate-limit or other 4xx answer, which would just double the load).
+ * A 429 also pauses all requests for a while (see `notePause`).
  */
 export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 40, fetchImpl: FetchLike = fetch, now = Date.now()): Promise<Food[]> {
   const { retailer, rest } = parseRetailer(query);
@@ -364,19 +430,26 @@ export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 40,
   const cached = searchCache.get(cacheKey);
   if (cached && now - cached.at < CACHE_TTL_MS) return cached.foods;
 
+  checkPause(now);
   takeSearchSlot(now);
   let hits: Json[] = [];
   try {
     const data = await getJson(`https://search.openfoodfacts.org/search?q=${q}&page_size=${pageSize}&langs=${lang},en&fields=${FIELDS}`, fetchImpl);
     hits = Array.isArray(data.hits) ? (data.hits as Json[]) : [];
   } catch (e) {
+    notePause(e, now);
     if (e instanceof HttpError && e.status < 500) throw e;
     takeSearchSlot(now);
-    const data = await getJson(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=${pageSize}&fields=${FIELDS}`,
-      fetchImpl,
-    );
-    hits = Array.isArray(data.products) ? (data.products as Json[]) : [];
+    try {
+      const data = await getJson(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=${pageSize}&fields=${FIELDS}`,
+        fetchImpl,
+      );
+      hits = Array.isArray(data.products) ? (data.products as Json[]) : [];
+    } catch (e2) {
+      notePause(e2, now);
+      throw e2;
+    }
   }
   const seen = new Set<string>();
   const out: Food[] = [];

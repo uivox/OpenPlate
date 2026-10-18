@@ -252,6 +252,71 @@ async function run(scheme) {
       await text('Smoke nougat cream', { exact: true }).waitFor();
       await page.unrouteAll({ behavior: 'ignoreErrors' });
     });
+    // Open Food Facts answers an unknown barcode with HTTP 404 and {"status":0}, with CORS headers.
+    const cors = { 'access-control-allow-origin': '*' };
+    const notFound = (r) => r.fulfill({ status: 404, contentType: 'application/json', headers: cors, body: JSON.stringify({ code: '0853640759131', status: 0, status_verbose: 'product not found' }) });
+    const noInsights = (r) => r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ count: 0, insights: [], status: 'no_insights' }) });
+    const manualField = () => page.locator('input[inputmode="numeric"]').filter({ visible: true }).first();
+    const offRequests = [];
+    const isOFF = (u) => {
+      const host = new URL(u).hostname;
+      return host === 'openfoodfacts.org' || host.endsWith('.openfoodfacts.org');
+    };
+    page.on('request', (r) => isOFF(r.url()) && offRequests.push(r.url()));
+    await step('scan: unknown barcode leads to the choice screen', async () => {
+      await page.route('https://world.openfoodfacts.org/api/v2/product/**', notFound);
+      await page.route('https://robotoff.openfoodfacts.org/**', noInsights);
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').click();
+      await btn('Scan').click();
+      await manualField().fill('853640759131');
+      await btn('Look up').click();
+      await text('Product not found', { exact: true }).waitFor();
+      await btn('Read nutrition label').waitFor();
+      await btn('Type in').waitFor();
+      if (await text('No connection', { exact: true }).count()) throw new Error('unknown barcode shown as a network error');
+      await btn('Scan again').click();
+    });
+    await step('scan: wrong check digit is called invalid and can be corrected', async () => {
+      const before = offRequests.length;
+      await manualField().fill('853640759134');
+      await btn('Look up').click();
+      await text('This isn’t a valid barcode', { exact: true }).waitFor();
+      await btn('Correct the number').click();
+      if ((await manualField().inputValue()) !== '853640759134') throw new Error('the number is not in the field to correct');
+      if (offRequests.length !== before) throw new Error(`an invalid barcode was sent: ${offRequests.slice(before).join(', ')}`);
+    });
+    await step('scan: no connection offers typing the values in', async () => {
+      await page.unroute('https://world.openfoodfacts.org/api/v2/product/**');
+      await page.route('https://world.openfoodfacts.org/api/v2/product/**', (r) => r.abort('internetdisconnected'));
+      await manualField().fill('853640759131');
+      await btn('Look up').click();
+      await text('No connection', { exact: true }).waitFor();
+      await btn('Try again').waitFor();
+      await btn('Type in').click();
+      await text('Barcode: 853640759131', { exact: true }).waitFor();
+      await page.goBack();
+      await page.goBack();
+      await btn('Add food: Snacks').waitFor();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
+    await step('search: a barcode typed into the search field finds the product', async () => {
+      await page.route('https://world.openfoodfacts.org/api/v2/product/**', (r) =>
+        r.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: cors,
+          body: JSON.stringify({ status: 1, product: { product_name: 'Smoke skyr', brands: 'Smoke Dairy', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 } } }),
+        }),
+      );
+      await btn('Add food: Lunch').click();
+      await field('Search foods and products').fill('3017620422003');
+      await btn('Look up barcode 3017620422003').click();
+      await text('Smoke skyr', { exact: true }).click();
+      await btn('Add').click();
+      await text('Smoke skyr', { exact: true }).waitFor();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
     await step('reload keeps data (diary stored per month)', async () => {
       await page.reload();
       await page.getByRole('tab', { name: 'Diary' }).click();
