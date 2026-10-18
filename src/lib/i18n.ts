@@ -301,8 +301,9 @@ const en = {
   remove_today_weight: 'Remove today’s weight',
   last_7_days: 'Last 7 days',
   avg_kcal: 'Ø {kcal} kcal',
-  avg_water: 'Ø {l} l per day',
-  chart_goal_line: 'Dashed line: today’s calorie goal.',
+  avg_water: 'Ø {l} l per day with water logged',
+  no_water_week: 'No water logged this week',
+  chart_goal_line: 'Dashed marks: each day’s own calorie goal (lower on fasting days).',
 
   // Profile & onboarding
   edit_profile: 'Edit profile',
@@ -875,8 +876,9 @@ const de: Record<TKey, string> = {
   remove_today_weight: 'Heutiges Gewicht entfernen',
   last_7_days: 'Letzte 7 Tage',
   avg_kcal: 'Ø {kcal} kcal',
-  avg_water: 'Ø {l} l pro Tag',
-  chart_goal_line: 'Gestrichelte Linie: heutiges Kalorienziel.',
+  avg_water: 'Ø {l} l pro Tag mit Wasser',
+  no_water_week: 'Diese Woche kein Wasser eingetragen',
+  chart_goal_line: 'Gestrichelte Striche: das Kalorienziel des jeweiligen Tages (an Fastentagen niedriger).',
 
   edit_profile: 'Profil bearbeiten',
   edit_profile_sub: 'Ziel, Körper, Ernährung, Wasser',

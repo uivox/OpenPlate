@@ -186,6 +186,21 @@ async function run(scheme) {
       await btn('Save').click();
       await text('2300', { exact: true }).waitFor();
     });
+    await step('exact goal: thousands separator in a whole-number field', async () => {
+      await text('kcal per day').click();
+      await page.getByLabel('Daily goal').filter({ visible: true }).first().fill('2.250');
+      await btn('Save').click();
+      await text('2250', { exact: true }).waitFor();
+    });
+    await step('progress: decimal comma in the weight, each day’s own goal', async () => {
+      await page.getByRole('tab', { name: 'Progress' }).click();
+      await text(/each day’s own calorie goal/).waitFor();
+      await page.locator('input').filter({ visible: true }).first().fill('68,4');
+      await btn('Save').click();
+      await text('68.4 kg', { exact: true }).waitFor();
+      await text('Update today’s weight').waitFor();
+      await page.getByRole('tab', { name: 'Profile' }).click();
+    });
     await step('appearance: neon theme', async () => {
       await text('Appearance', { exact: true }).click();
       await btn('Neon').click();

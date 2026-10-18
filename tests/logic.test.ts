@@ -13,6 +13,8 @@ import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
 import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleItems, searchRecipes, validateCommunity } from '../src/lib/recipes';
 import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
+import { formatNumberInput, parseNumber } from '../src/lib/numbers';
+import { averageOfLogged, weekSummary } from '../src/lib/weekly';
 import { activeFastingDays, isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
 import { ALL_KEYS, _dicts, translate } from '../src/lib/i18n';
@@ -390,6 +392,45 @@ test('day goal uses weight on that day and fasting days', () => {
   assert.equal(monday.fastDay, true);
   assert.equal(monday.kcal, 500);
   assert.equal(dayGoal(profile, weights, '2026-10-13', now).kcal, 1460);
+});
+
+test('number fields: decimal comma or point, thousands separators, whole numbers', () => {
+  assert.equal(parseNumber('72,5'), 72.5);
+  assert.equal(parseNumber('72.5'), 72.5);
+  assert.equal(parseNumber('72,'), 72);
+  assert.equal(parseNumber(',5'), 0.5);
+  assert.equal(parseNumber(' 1 234,5 '), 1234.5);
+  assert.equal(parseNumber('1.234,5'), 1234.5);
+  assert.equal(parseNumber('1,234.5'), 1234.5);
+  assert.equal(parseNumber('2.000.000'), 2000000);
+  assert.equal(parseNumber('1,500'), 1.5, 'one mark in a decimal field is the decimal mark');
+  assert.equal(parseNumber('1.500', true), 1500, 'in a whole-number field it groups thousands');
+  assert.equal(parseNumber('1,500', true), 1500);
+  assert.equal(parseNumber('2,5', true), 3);
+  assert.equal(parseNumber('2500', true), 2500);
+  for (const bad of ['', ',', '.', 'abc', '72kg', '1,2,3', '1.2.3,4.5', '12,34.5', '1e5']) assert.equal(parseNumber(bad), null, bad);
+  assert.equal(formatNumberInput(72.5, 'de'), '72,5');
+  assert.equal(formatNumberInput(72.5, 'en'), '72.5');
+  assert.equal(formatNumberInput(0.1 + 0.2, 'en'), '0.3');
+  assert.equal(formatNumberInput(null, 'de'), '');
+  for (const lang of ['de', 'en']) for (const v of [0, 1, 72.5, 1234.25, 0.05]) assert.equal(parseNumber(formatNumberInput(v, lang)), v);
+});
+
+test('last 7 days: each day keeps its own goal, averages skip empty days', () => {
+  const days = ['2026-10-12', '2026-10-13', '2026-10-14'];
+  const kcal = new Map([['2026-10-12', 1900.4], ['2026-10-14', 2100]]);
+  const goals: Record<string, number> = { '2026-10-12': 2000, '2026-10-13': 500, '2026-10-14': 1950.6 };
+  const w = weekSummary(days, kcal, { '2026-10-12': 1500, '2026-10-13': 0 }, (d) => goals[d]);
+  assert.deepEqual(w.bars, [
+    { date: '2026-10-12', kcal: 1900, goal: 2000 },
+    { date: '2026-10-13', kcal: 0, goal: 500 },
+    { date: '2026-10-14', kcal: 2100, goal: 1951 },
+  ]);
+  assert.equal(w.avgKcal, 2000);
+  assert.equal(w.avgWater, 1500, 'water average counts only days with water');
+  assert.equal(w.waterDays, 1);
+  assert.equal(averageOfLogged([]), 0);
+  assert.equal(averageOfLogged([0, 0, NaN]), 0);
 });
 
 const apple: Food = { id: 'generic:apple', source: 'generic', name: 'Apfel', per100: { kcal: 52, protein: 0.3, carbs: 14, fat: 0.2 }, servings: [] };
