@@ -94,6 +94,6 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   frame: { width: 270, height: 160, borderRadius: 18, borderWidth: 3, borderColor: '#fff' },
 });

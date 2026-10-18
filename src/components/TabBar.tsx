@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import type { BottomTabBarProps } from 'expo-router/tabs';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,14 +32,8 @@ export function mealForNow(d = new Date()): MealType {
   return 'snack';
 }
 
-interface TabBarProps {
-  state: { index: number; routes: { key: string; name: string }[] };
-  descriptors: Record<string, { options: { title?: string } }>;
-  navigation: { emit: (e: { type: 'tabPress'; target: string; canPreventDefault: true }) => { defaultPrevented: boolean }; navigate: (name: string) => void };
-}
-
 /** Floating tab bar. Tab order, hidden tabs and the add button's side come from the layout settings. */
-export function TabBar({ state, descriptors, navigation }: TabBarProps) {
+export function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useT();
@@ -61,10 +56,10 @@ export function TabBar({ state, descriptors, navigation }: TabBarProps) {
         accessibilityLabel={label}
         scaleTo={0.9}
         onPress={() => {
-          const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          const e = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !e.defaultPrevented) {
             Haptics.selectionAsync().catch(() => {});
-            navigation.navigate(route.name);
+            navigateToTab(route.key);
           }
         }}
         style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 8 }}
