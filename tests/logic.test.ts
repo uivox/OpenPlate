@@ -33,6 +33,20 @@ import {
   sumEntries,
   defaultWaterGoal,
 } from '../src/lib/nutrition';
+import {
+  HC_SDK_AVAILABLE,
+  HC_SDK_PROVIDER_UPDATE_REQUIRED,
+  HC_SDK_UNAVAILABLE,
+  HEALTH_CONNECT_STORE_URLS,
+  hasStepsPermission,
+  healthConnectProblem,
+  stepRange,
+  stepsActionKey,
+  stepsFromAggregate,
+  stepsReasonKey,
+  type StepSource,
+  type StepStatus,
+} from '../src/lib/steps';
 import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
 import {
@@ -1488,4 +1502,87 @@ test('every *.web.ts(x) file exports the same values as its native twin', () => 
     const web = native.replace(/\.(tsx?)$/, '.web.$1');
     assert.deepEqual(exportsOf(web), exportsOf(native), `${web} and ${native} export different names`);
   }
+});
+
+/* ---------- Steps (Health Connect on Android, motion sensor on the iPhone) ---------- */
+
+test('steps: Health Connect status decides whether steps can be read', () => {
+  assert.equal(healthConnectProblem(HC_SDK_AVAILABLE), null);
+  assert.equal(healthConnectProblem(HC_SDK_PROVIDER_UPDATE_REQUIRED), 'not_installed');
+  assert.equal(healthConnectProblem(HC_SDK_UNAVAILABLE), 'unsupported');
+  assert.equal(healthConnectProblem(0), 'unsupported');
+  // The Play Store link opens the store app first and falls back to the web page.
+  assert.ok(HEALTH_CONNECT_STORE_URLS[0].startsWith('market://details?id=com.google.android.apps.healthdata'));
+  assert.ok(HEALTH_CONNECT_STORE_URLS[1].startsWith('https://play.google.com/'));
+});
+
+test('steps: only the read-steps permission counts as granted', () => {
+  assert.equal(hasStepsPermission([{ accessType: 'read', recordType: 'Steps' }]), true);
+  assert.equal(hasStepsPermission([{ accessType: 'write', recordType: 'Steps' }, { accessType: 'read', recordType: 'Distance' }]), false);
+  assert.equal(hasStepsPermission([]), false);
+  assert.equal(hasStepsPermission(null), false);
+  assert.equal(hasStepsPermission(undefined), false);
+});
+
+test('steps: the Health Connect day total is checked before it is shown', () => {
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: 8432, dataOrigins: ['com.google.android.apps.fitness'] }), 8432);
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: 0, dataOrigins: [] }), 0); // no records that day
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: 12.6 }), 13);
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: -5 }), null);
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: Number.NaN }), null);
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: '900' }), null);
+  assert.equal(stepsFromAggregate({ COUNT_TOTAL: 5_000_000 }), null);
+  assert.equal(stepsFromAggregate({}), null);
+  assert.equal(stepsFromAggregate(null), null);
+});
+
+test('steps: a day is read from midnight to midnight, or to now while it runs', () => {
+  const start = new Date(2026, 9, 18);
+  const end = new Date(2026, 9, 18, 23, 59, 59, 999);
+  assert.deepEqual(stepRange(start, end, new Date(2026, 9, 20)), { startTime: start.toISOString(), endTime: end.toISOString() });
+  const now = new Date(2026, 9, 18, 14, 30);
+  assert.deepEqual(stepRange(start, end, now), { startTime: start.toISOString(), endTime: now.toISOString() });
+  assert.equal(stepRange(start, end, new Date(2026, 9, 17, 12)), null); // future day
+  assert.equal(stepRange(start, end, start), null);
+});
+
+test('steps: every missing-steps case has a reason and the right button', () => {
+  const statuses: StepStatus[] = ['ok', 'denied', 'not_installed', 'unsupported', 'error'];
+  const sources: StepSource[] = ['motion', 'health_connect', 'browser'];
+  const en = _dicts.en as Record<string, string>;
+  const de = _dicts.de as Record<string, string>;
+  for (const source of sources) {
+    for (const status of statuses) {
+      const reason = stepsReasonKey(source, status);
+      assert.ok(en[reason] && de[reason], `${source}/${status}: ${reason}`);
+      const action = stepsActionKey(source, status);
+      if (action) assert.ok(en[action] && de[action], `${source}/${status}: ${action}`);
+    }
+  }
+  assert.equal(stepsReasonKey('health_connect', 'denied'), 'steps_reason_hc_denied');
+  assert.equal(stepsActionKey('health_connect', 'denied'), 'steps_open_health_connect');
+  assert.equal(stepsReasonKey('health_connect', 'not_installed'), 'steps_reason_hc_missing');
+  assert.equal(stepsActionKey('health_connect', 'not_installed'), 'steps_get_health_connect');
+  assert.equal(stepsReasonKey('health_connect', 'unsupported'), 'steps_reason_hc_unsupported');
+  assert.equal(stepsActionKey('health_connect', 'unsupported'), null);
+  assert.equal(stepsReasonKey('motion', 'denied'), 'steps_reason_ios');
+  assert.equal(stepsActionKey('motion', 'denied'), 'steps_open_settings');
+  assert.equal(stepsReasonKey('health_connect', 'error'), 'steps_reason_error');
+  assert.equal(stepsActionKey('health_connect', 'error'), null);
+  // Browsers never get a button: there is nothing to open.
+  for (const status of statuses) {
+    assert.equal(stepsReasonKey('browser', status), 'steps_reason_web');
+    assert.equal(stepsActionKey('browser', status), null);
+  }
+});
+
+test('steps: Android asks Health Connect for steps and keeps the permission sheet working', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const app = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'app.json'), 'utf8')).expo;
+  assert.ok(app.android.permissions.includes('android.permission.health.READ_STEPS'));
+  // The library's config plugin adds the permission-rationale activity Health Connect requires.
+  assert.ok(app.plugins.includes('react-native-health-connect'));
+  const props = app.plugins.find((p: unknown) => Array.isArray(p) && p[0] === 'expo-build-properties')[1];
+  assert.ok(props.android.minSdkVersion >= 26, 'Health Connect needs Android 8 (API 26)');
 });

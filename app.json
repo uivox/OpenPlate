@@ -28,6 +28,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#EEF2E5"
       },
+      "permissions": ["android.permission.health.READ_STEPS"],
       "versionCode": 1
     },
     "plugins": [
@@ -53,13 +54,15 @@
         }
       ],
       "expo-notifications",
+      "react-native-health-connect",
       "./plugins/withReleaseSigning",
       "./plugins/withAndroidStorageSize",
       [
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "minSdkVersion": 26
           },
           "ios": {
             "deploymentTarget": "16.4"
