@@ -8,7 +8,7 @@ name: Web app
 # one browser storage. Any other Pages site there could read the diary and the AI keys. The site
 # repository's owner must never host another Pages site.
 #
-# One-time setup: see "Web version hosting" in README.md (site repository, deploy key, environment).
+# One-time setup: see "Web version hosting" in docs/CONTRIBUTING.md (site repository, deploy key, environment).
 on:
   push:
     branches: [main]
@@ -38,7 +38,7 @@ jobs:
           DEPLOY_KEY: ${{ secrets.WEB_DEPLOY_KEY }}
         run: |
           if [ -z "$SITE_REPO" ] || [ -z "$DEPLOY_KEY" ]; then
-            echo "::error title=Web hosting not set up::Set the WEB_SITE_REPO variable and the WEB_DEPLOY_KEY secret in the 'web' environment (README: Web version hosting)."
+            echo "::error title=Web hosting not set up::Set the WEB_SITE_REPO variable and the WEB_DEPLOY_KEY secret in the 'web' environment (docs/CONTRIBUTING.md: Web version hosting)."
             exit 1
           fi
       - uses: actions/checkout@v5

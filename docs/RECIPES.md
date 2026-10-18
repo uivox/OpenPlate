@@ -1,6 +1,6 @@
 # Community recipes
 
-OpenPlate's recipe tab shows your own recipes and a shared set of community recipes. Community recipes live in [`src/lib/communityRecipes.ts`](src/lib/communityRecipes.ts) and are added through pull requests, so every recipe is visible, reviewable and free to use.
+OpenPlate's recipe tab shows your own recipes and a shared set of community recipes. Community recipes live in [`src/lib/communityRecipes.ts`](../src/lib/communityRecipes.ts) and are added through pull requests, so every recipe is visible, reviewable and free to use.
 
 ## What makes a good recipe
 
@@ -28,7 +28,7 @@ OpenPlate's recipe tab shows your own recipes and a shared set of community reci
    | `testedBy` | leave empty `[]` |
 
 3. **Ingredient references** point at foods in the app:
-   - `generic:<id>` for the built-in basics in [`src/lib/genericFoods.ts`](src/lib/genericFoods.ts) (`generic:oats`, `generic:chicken_breast_raw`, …). These have portion sizes and are the easiest choice.
+   - `generic:<id>` for the built-in basics in [`src/lib/genericFoods.ts`](../src/lib/genericFoods.ts) (`generic:oats`, `generic:chicken_breast_raw`, …). These have portion sizes and are the easiest choice.
    - `bls:<code>` for anything in the German nutrient database BLS 4.0 (`bls:C133000` is oat flakes). Search the code in [`src/lib/blsData.ts`](src/lib/blsData.ts) or on <https://blsdb.de>.
    - Use the state you weigh it in: raw chicken if you weigh it raw, cooked rice if you weigh it cooked.
 4. Run `npm test`. A test checks every recipe: valid ids, both languages, known ingredients, grams above zero, plausible calories per serving.
