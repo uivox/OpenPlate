@@ -119,9 +119,9 @@ npx expo install --fix
 npx expo start
 ```
 
-Scan the QR code with the phone camera. `npm run web` opens the web version on the PC; `npm run build:web` writes the installable build to `dist/`, for the root of a site (set `WEB_BASE_URL=/folder` only when it is served from a sub-folder). The project uses Expo **SDK 54**; Expo Go on the phone must support the same SDK (shown in Expo Go → Settings).
+Scan the QR code with the phone camera. `npm run web` opens the web version on the PC; `npm run build:web` writes the installable build to `dist/`, for the root of a site (set `WEB_BASE_URL=/folder` only when it is served from a sub-folder). The project uses Expo **SDK 58** (React Native 0.88); Expo Go on the phone must support the same SDK (shown in Expo Go → Settings). If the Expo Go in the store doesn't support SDK 58 yet, work in the web version or install the apps that CI builds.
 
-Dependencies are locked in `package-lock.json` (CI installs with `npm ci`). Add packages with `npx expo install <package>` so the version fits the SDK, and commit the updated lockfile. `overrides` in `package.json` force fixed versions of two build-time packages with security advisories (postcss, and uuid for the iOS project generator); keep them until an Expo upgrade makes them unnecessary.
+Dependencies are locked in `package-lock.json` (CI installs with `npm ci`). Add packages with `npx expo install <package>` so the version fits the SDK, and commit the updated lockfile. `overrides` in `package.json` forces a fixed version of one build-time package with a security advisory (uuid, used by the iOS project generator); keep it until an Expo upgrade makes it unnecessary.
 
 ## Set up the AI photo feature
 
@@ -169,7 +169,7 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 - **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys are stored in that site's browser storage on your device.
 - **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
 - Anyone who can unlock your phone can open the app; there is no separate app lock.
-- **The project itself:** `main` only changes through pull requests that pass the checks; GitHub scans the code (CodeQL), secrets and dependencies (Dependabot). The dependency alerts still open are in build tools that never reach your device or have no fixed version yet, apart from one URL-parsing library in the app's router that is fixed by the next Expo upgrade.
+- **The project itself:** `main` only changes through pull requests that pass the checks; GitHub scans the code (CodeQL), secrets and dependencies (Dependabot). Any dependency alerts still open are in build tools that never reach your device and have no fixed version yet.
 - Found a security problem? Please report it privately, see [SECURITY.md](SECURITY.md).
 
 ## Project layout
@@ -233,7 +233,6 @@ On the list for later:
 - App Store / Play Store listings.
 - **Offline product pack for Germany**: products sold in Germany from the Open Food Facts export, downloaded once (signed, built in its own workflow), so barcodes and product search work without a connection.
 - **Uploading products to Open Food Facts from the app.** Today the app links to their website; direct uploads need a login (OAuth) that Open Food Facts first has to set up for OpenPlate.
-- **Upgrade to a newer Expo SDK.** It also clears the remaining dependency alerts that have a fix (decode-uri-component, image-size).
 
 
 ## Credits and licence
