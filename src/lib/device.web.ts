@@ -1,5 +1,7 @@
 /* Browser versions of the device helpers in device.ts. */
 
+import { MAX_BACKUP_BYTES } from './backup';
+
 /* ---------- Photos ---------- */
 
 export interface PreparedPhoto {
@@ -66,7 +68,9 @@ export const canPickFiles = true;
 /** Reads a text file the user picks (used for importing a backup). Null when cancelled. */
 export async function pickTextFile(): Promise<string | null> {
   const file = await chooseFile('application/json,text/plain,.json,.txt', false);
-  return file ? file.text() : null;
+  if (!file) return null;
+  if (file.size > MAX_BACKUP_BYTES) throw new Error('FILE_TOO_LARGE');
+  return file.text();
 }
 
 /** Share sheet with the file where supported (iPhone: "Save to Files"), otherwise a download. */
@@ -99,6 +103,9 @@ export async function shareExport(json: string, filename: string): Promise<boole
  * through the service worker (works in iPhone home-screen apps from iOS 16.4). If the app is
  * closed when the time comes, no notification appears.
  */
+
+/** Same export as device.ts: in the browser a notification only comes while the app is open. */
+export const notifiesWhenClosed = false;
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const MAX_DELAY = 2 ** 31 - 1;
@@ -151,6 +158,9 @@ export async function cancelNotification(id?: string) {
 }
 
 /* ---------- Steps ---------- */
+
+/** Same export as device.ts: browsers have no step counter. */
+export const stepSource: 'motion' | 'android' | 'browser' = 'browser';
 
 /** Browsers can't read the step counter, so the step UI shows its "not available" state. */
 export async function stepsForDay(_dateKey: string): Promise<number | null> {

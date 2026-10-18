@@ -37,6 +37,9 @@ const HOSTILE_BACKUP = {
   layout: { hiddenTabs: 5 },
 };
 
+// 1×1 PNG, as a photo from the camera would arrive through the file input.
+const PHOTO_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+
 const browser = await chromium.launch();
 let failed = false;
 
@@ -161,6 +164,20 @@ async function run(scheme) {
       await text('current streak').waitFor();
       await page.goBack();
     });
+    await step('parity: the steps card says why there are no steps', async () => {
+      await text('Browsers can’t read the step counter. The iPhone app shows your steps.').waitFor();
+    });
+    await step('parity: fasting says the notification needs the app open', async () => {
+      await page.getByRole('tab', { name: 'Fasting' }).click();
+      await btn('Start fasting').click();
+      await text(/notification only comes while OpenPlate is open/).waitFor();
+      await btn('End fast').click();
+      await text('End your fast early?').waitFor();
+      // the dialog's button, not the one on the timer card behind it
+      await page.getByRole('button', { name: /End fast$/ }).filter({ visible: true }).last().click();
+      await btn('Start fasting').waitFor();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+    });
     await step('exact goal', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('kcal per day').click();
@@ -197,6 +214,13 @@ async function run(scheme) {
       await page.getByRole('tab', { name: 'Recipes' }).click();
       await btn('New recipe').click();
       await field('e.g. Grandma’s lentil soup').fill('Test bowl');
+      // "Take photo" works in the browser too: it opens the camera through the file input
+      const chooser = page.waitForEvent('filechooser');
+      await btn('Take photo').click();
+      const picker = await chooser;
+      if ((await picker.element().getAttribute('capture')) !== 'environment') throw new Error('Take photo does not ask for the camera');
+      await picker.setFiles({ name: 'dish.png', mimeType: 'image/png', buffer: PHOTO_PNG });
+      await btn('Remove photo').waitFor();
       await btn('Add ingredient').click();
       await field('Search foods and products').fill('banana');
       await text('Banana', { exact: true }).click();
@@ -269,6 +293,9 @@ async function run(scheme) {
       await page.getByRole('tab', { name: 'Diary' }).click();
       await btn('Add food: Snacks').click();
       await btn('Scan').click();
+      // no camera in the headless browser: asking again keeps the type-in field working
+      await btn('Try camera again').click();
+      await text('Camera access needed', { exact: true }).waitFor();
       await manualField().fill('853640759131');
       await btn('Look up').click();
       await text('Product not found', { exact: true }).waitFor();

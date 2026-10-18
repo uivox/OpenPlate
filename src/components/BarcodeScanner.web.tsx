@@ -6,6 +6,7 @@ import { scannedBarcode } from '../lib/barcode';
 import { useT } from '../lib/useT';
 import type { BarcodeScannerProps } from './BarcodeScanner';
 import { CameraOff, ManualBarcodeEntry } from './ScannerParts';
+import { Button } from './ui';
 
 /**
  * Browser barcode scanner: camera via getUserMedia, decoding with ZXing (Safari has no
@@ -16,6 +17,8 @@ export function BarcodeScanner({ onScan, paused, manualCode, onManualCodeChange,
   const { t } = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [camera, setCamera] = useState<'starting' | 'on' | 'off'>('starting');
+  /** Bumped by "Try camera again" to ask the browser once more. */
+  const [attempt, setAttempt] = useState(0);
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   const onScanRef = useRef(onScan);
@@ -51,7 +54,12 @@ export function BarcodeScanner({ onScan, paused, manualCode, onManualCodeChange,
       cancelled = true;
       controls?.stop();
     };
-  }, []);
+  }, [attempt]);
+
+  const retry = () => {
+    setCamera('starting');
+    setAttempt((n) => n + 1);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -62,7 +70,14 @@ export function BarcodeScanner({ onScan, paused, manualCode, onManualCodeChange,
         autoPlay
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: camera === 'off' ? 'none' : 'block' }}
       />
-      {camera === 'off' ? <CameraOff text={t('camera_needed_web')} /> : children}
+      {camera === 'off' ? (
+        <CameraOff text={t('camera_needed_web')}>
+          {/* Like "Allow camera" in the phone apps; a browser that remembers "block" only changes in its settings. */}
+          <Button kind="secondary" icon="camera-outline" title={t('camera_try_again')} onPress={retry} />
+        </CameraOff>
+      ) : (
+        children
+      )}
       <ManualBarcodeEntry value={manualCode} onChange={onManualCodeChange} onSubmit={() => onScan(manualCode)} disabled={paused} />
     </View>
   );

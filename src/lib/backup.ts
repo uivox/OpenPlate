@@ -84,6 +84,13 @@ export function buildBackup(data: BackupData, now = new Date()) {
  * when they are small embedded JPEG/PNG data (a link could be used to track who opens the app).
  */
 
+/**
+ * Largest backup file accepted for import, the same on iPhone, Android and the web. Real backups
+ * stay far below it (years of diary entries plus recipe photos are a few MB); the cap only keeps a
+ * wrongly picked file (a video, a disk image) from being read into memory and freezing the app.
+ */
+export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
+
 /** Limits for imported values. */
 export const BACKUP_LIMITS = {
   text: 200,

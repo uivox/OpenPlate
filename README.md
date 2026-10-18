@@ -21,13 +21,29 @@ German and English, light and dark mode, all data stays on your device.
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
-- **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only; Android doesn't offer daily step history to apps without Health Connect)
+- **Steps** from the iPhone motion sensor, optionally added to the calorie budget (iPhone only, see [Differences between platforms](#differences-between-platforms))
 - **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too). Your data only lives on your device, so the diary reminds you to save a copy two weeks after you start and then once a month ("Later" hides it for a week).
 - **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 Design notes (palette, type, the plate and the sprout): see [DESIGN.md](DESIGN.md).
 
 ---
+
+## Differences between platforms
+
+The iPhone app, the Android app and the web version have the same features. Where one lacks something, it is because the platform doesn't allow it, and the app says so where it matters:
+
+| | iPhone | Android | Web version |
+|---|---|---|---|
+| Steps | from the motion sensor (*Motion & Fitness* must be allowed) | not available: Android only shares a day's steps through Health Connect, which OpenPlate doesn't support yet | not available: browsers can't read the step counter |
+| Fasting notification | also when the app is closed | also when the app is closed | only while the app is open (browsers can't schedule notifications without a push server; on the iPhone it needs the home-screen app, iOS 16.4+) |
+| API keys | iOS Keychain | Android Keystore | this browser's storage for this site |
+| Local AI server (Ollama / LM Studio) | `http` in your own network | `http` in your own network | must be `https`: browsers block plain `http` from an `https` page |
+| Camera permission after saying no | *Allow camera* opens the settings | *Allow camera* opens the settings | only in the browser's site settings; *Try camera again* asks once more |
+| Haptic feedback | yes | yes | no (Safari has no vibration support) |
+| Apple Health / Health Connect | not available: HealthKit needs a paid Apple developer account, SideStore installs with a free Apple ID | not yet (see *Not included yet*) | not available |
+
+Everything else works the same everywhere: barcode scanner (camera or typed number), label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout.
 
 ## Install on your phone
 
@@ -43,7 +59,7 @@ The web version runs in Safari and can be added to the home screen, where it ope
 
 Your data is stored only in that home-screen app on this phone (IndexedDB). It does not sync and is separate from Safari tabs and from the SideStore app. Use *Profile → Export data* now and then as a backup; *Import data* restores an export, including one from the native app.
 
-Differences to the native app: no step counter (browsers can't read it); the fasting notification only fires while the app is open; a local AI server (Ollama / LM Studio) must be reachable over https, because browsers block plain http from an https page. Claude, OpenAI and Gemini work as in the app. API keys are kept in this browser instead of the Keychain.
+The web version has the same features as the apps, apart from the few things browsers can't do; see [Differences between platforms](#differences-between-platforms).
 
 Every push to `main` also rebuilds the web version (Actions tab → *Web app*, a few minutes) and publishes it to its own site; see *Web version hosting* below for the one-time setup.
 
@@ -200,6 +216,7 @@ src/lib/
   *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
 src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows, ScannerParts.tsx for both scanners)
 public/icons/           home-screen icons for the web version
+plugins/                Expo config plugins: release signing, storage size on Android
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
 tests/logic.test.ts     tests for the logic modules (npm test)
@@ -211,7 +228,7 @@ Checks: `npm run check` (TypeScript) and `npm test` (logic tests). Pull requests
 
 On the list for later:
 
-- **Apple Health / Health Connect sync.** Steps already come from the phone's motion sensor.
+- **Apple Health / Health Connect sync.** Steps already come from the iPhone's motion sensor; Health Connect would bring them to Android.
 - Meal plans, watch apps, cloud sync / accounts.
 - App Store / Play Store listings.
 - **Offline product pack for Germany**: products sold in Germany from the Open Food Facts export, downloaded once (signed, built in its own workflow), so barcodes and product search work without a connection.

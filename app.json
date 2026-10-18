@@ -54,6 +54,7 @@
       ],
       "expo-notifications",
       "./plugins/withReleaseSigning",
+      "./plugins/withAndroidStorageSize",
       [
         "expo-build-properties",
         {
