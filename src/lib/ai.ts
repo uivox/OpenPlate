@@ -5,6 +5,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
   primary: null,
   fallback: null,
   minConfidence: 0.5,
+  logAnswers: false,
   providers: {
     anthropic: { model: 'claude-sonnet-5-5' },
     openai: { model: 'gpt-6-luna', baseUrl: 'https://api.openai.com/v1' },

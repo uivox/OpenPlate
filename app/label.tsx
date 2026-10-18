@@ -4,9 +4,12 @@ import { ActivityIndicator, Image, View } from 'react-native';
 import { Sprout } from '../src/components/Sprout';
 import { Banner, Button, Card, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
-import { analyzeLabel, CANCELLED, PROVIDER_NAMES, providerOrder } from '../src/lib/ai';
+import { logEnabled, writeLog } from '../src/components/aiLogging';
+import { analyzeLabel, callProvider, CANCELLED, PROVIDER_NAMES, providerOrder } from '../src/lib/ai';
+import { markParseFailures, newLabelRecord, recordingCall, type AILogAttempt } from '../src/lib/aiLog';
 import { pickMealPhoto, type PreparedPhoto } from '../src/lib/device';
 import { getFoodDraft, setFoodDraft } from '../src/lib/foodCache';
+import { newId } from '../src/lib/id';
 import { getApiKey } from '../src/lib/secure';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -60,11 +63,25 @@ export default function LabelScreen() {
     abort.current?.abort();
     const ctrl = new AbortController();
     abort.current = ctrl;
+    const images = front ? [table.base64, front.base64] : [table.base64];
+    // AI answer log (when switched on): the record is completed by the custom-food form on saving.
+    const attempts: AILogAttempt[] = [];
+    const rec = logEnabled() ? newLabelRecord({ id: newId(), createdAt: Date.now(), lang, photoCount: images.length, known }) : null;
+    const call = rec ? recordingCall((r) => callProvider(r), attempts) : undefined;
     try {
-      const images = front ? [table.base64, front.base64] : [table.base64];
-      const out = await analyzeLabel(images, ai, getApiKey, lang, undefined, ctrl.signal);
+      const out = await analyzeLabel(images, ai, getApiKey, lang, call, ctrl.signal);
       if (ctrl.signal.aborted) return;
       const r = out.result;
+      const logged = rec
+        ? {
+            ...rec,
+            attempts: markParseFailures(attempts, out.attempts),
+            answeredBy: { provider: out.provider, model: out.model, usedFallback: out.usedFallback },
+            ai: r,
+            ...(r.per100 ? {} : { status: 'failed' as const, error: 'no nutrition table found' }),
+          }
+        : undefined;
+      if (logged) void writeLog(logged, images);
       if (!r.per100) {
         setError(t('label_not_found'));
         setPhase('error');
@@ -81,6 +98,7 @@ export default function LabelScreen() {
         readBy: PROVIDER_NAMES[out.provider],
         issues: r.issues,
         imageUri: table.uri,
+        ...(logged ? { log: logged } : {}),
       });
       router.replace({
         pathname: '/custom-food',
@@ -88,6 +106,7 @@ export default function LabelScreen() {
       });
     } catch (e) {
       if ((e as Error).message === CANCELLED || ctrl.signal.aborted) return;
+      if (rec) void writeLog({ ...rec, attempts, status: 'failed', error: String((e as Error).message).slice(0, 1000) }, images);
       setError((e as Error).message);
       setPhase('error');
     }

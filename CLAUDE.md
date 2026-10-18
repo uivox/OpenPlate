@@ -22,7 +22,7 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 ### Web version
 
 - **Same features everywhere.** iPhone, Android and the web app have the same features and behaviour. A platform may only lack a feature when the platform makes it impossible (no step counter in browsers, notifications only while the web app is open, no HealthKit with a free Apple ID). Every such gap is listed in README → *Differences between platforms* and explained in the app where the user meets it.
-- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`) are exported from both `device` files instead of checking `Platform.OS` in screens.
+- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`) are exported from both `device` files instead of checking `Platform.OS` in screens.
 - The Content Security Policy is written by `scripts/web-pwa.mjs`; a new server the app talks to has to be added there.
 - `scripts/web-smoke.mjs` clicks through the built web app in CI. Extend it when a flow changes that the browser can run; fake outside servers with `page.route`.
 
@@ -64,3 +64,9 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - Uses: `resolveBarcode(…, offline)` asks the pack after the user's own foods and before Open Food Facts; `add-food.tsx` searches it while typing (250 ms pause); `app/offline-data.tsx` downloads, updates, deletes. *Delete all data* deletes it too.
 - `.github/workflows/offline-pack.yml` + `scripts/build-offline-pack.mjs`: weekly build from the Open Food Facts export, signed, force-pushed to the `offline-pack` branch. Setup and key handling: docs/CONTRIBUTING.md → *Offline product pack*. Never put the private key anywhere but the `offline-pack` environment secret.
 
+## Where things are (AI answer log)
+
+- `src/lib/aiLog.ts`: the pure part: record types, `PROMPT_VERSION` (bump it with every change to `buildMealPrompt` or `buildLabelPrompt`), `recordingCall` (wraps the provider call to record every attempt), the size limit and the export format. Tests in `tests/logic.test.ts`.
+- `src/lib/aiLogStore.ts` (a folder per record in the documents directory) and `aiLogStore.web.ts` (its own IndexedDB database): never part of the store or a backup.
+- `src/components/aiLogging.ts` (writes never block or break logging food; export is prepare, then share from a tap for Safari), `AIRatingCard.tsx`; used by `app/photo.tsx`, `app/label.tsx` → `app/custom-food.tsx` (the record travels in the food draft) and `app/ai-settings.tsx`. Off by default (`ai.logAnswers`), per device. *Delete all data* deletes it too.
+- `scripts/ai-log-unpack.mjs` and `.claude/skills/ai-eval/SKILL.md`: the evaluation, with data in the git-ignored `eval/`.

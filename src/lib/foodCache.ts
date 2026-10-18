@@ -70,6 +70,8 @@ export interface FoodDraft {
   issues: NutrientIssue[];
   /** Photo to compare against: the label photo, or the Open Food Facts image the values came from. */
   imageUri?: string;
+  /** The AI answer log record of this label reading, when logging is on (completed when the form is saved). */
+  log?: import('./aiLog').LabelLogRecord;
 }
 let foodDraft: FoodDraft | null = null;
 export function setFoodDraft(d: FoodDraft | null) {

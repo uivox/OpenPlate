@@ -10,3 +10,6 @@ android/
 .DS_Store
 .test-build/
 smoke-shots/
+
+# AI answer log exports and evaluations: personal meal photos (see .claude/skills/ai-eval)
+/eval/

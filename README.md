@@ -117,6 +117,8 @@ The same AI also reads nutrition labels (**Scan → Read nutrition label**, or *
 
 API keys are stored in the phone's secure storage (expo-secure-store: iOS Keychain, Android Keystore) and only ever sent to the provider they belong to. Backups never contain keys, and importing a backup never changes AI server addresses or providers.
 
+**AI answer log (optional, off by default):** in *AI settings → AI answer log* you can let the app keep every AI answer, the photo it saw and what you saved, so you can check later whether the AI or its instructions can do better. Meal photos and label readings get an optional *Rate this answer* card (quick tags, a note, and “I weighed it” for meals). The log stays on your device, is never part of a backup, keeps at most 300 answers or 100 MB (the oldest go first) and only leaves the device when you export it. *Delete log* removes it.
+
 ## Safety
 
 OpenPlate counts calories, which can do harm to people who are still growing or who struggle with eating. So:
@@ -130,7 +132,7 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 
 ## Privacy and security
 
-- **No accounts, no OpenPlate server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them.
+- **No accounts, no OpenPlate server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them. The same goes for the optional AI answer log (with its meal and label photos), which is kept apart from backups.
 - **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. When you download the offline product data, GitHub (which hosts it, and the web version) sees that request; searches in that data and barcodes found in it stay on your device. These services and GitHub see your IP address. Nothing is sent to the OpenPlate project.
 - **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys are stored in that site's browser storage on your device.
 - **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
