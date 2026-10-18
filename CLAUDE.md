@@ -39,3 +39,10 @@ OpenPlate is a calorie tracker built with Expo (React Native, SDK 54) that runs 
 - `src/lib/barcode.ts`: the pure check (EAN-8, UPC-E, UPC-A, EAN-13, GTIN-14, check digit, spaces ignored).
 - `src/lib/barcodeFlow.ts`: `resolveBarcode` (own foods → Open Food Facts → Robotoff), `flowParams`.
 - `src/lib/openFoodFacts.ts`: barcode lookup, search, Robotoff, fair-use limits, and `lookupFailure`, which sorts errors into invalid / rate limited / server / offline.
+
+## Where things are (steps)
+
+- `src/lib/device.ts`: `stepsForDay` reads the iPhone motion sensor (expo-sensors) or Health Connect on Android (`react-native-health-connect`) and returns the steps or a status. Health Connect's permission sheet is shown once; after that the button under the steps card opens Health Connect. `device.web.ts` always answers "not available".
+- `src/lib/steps.ts`: the pure part: Health Connect's SDK status, the permission check, the day's range and total, and which text and button go with each status (open the settings, open Health Connect, get it from the Play Store).
+- `src/lib/hooks.ts`: `useSteps` (reloads on focus, when the app comes back to the front and every minute for today), `canReadSteps`.
+- `app.json`: `android.permission.health.READ_STEPS`, the `react-native-health-connect` config plugin (adds the permission-rationale activity Health Connect requires) and `minSdkVersion` 26. `check.yml` greps the generated manifest for them.

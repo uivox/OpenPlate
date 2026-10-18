@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { COMMUNITY_RECIPES } from './communityRecipes';
 import { dayKey } from './dates';
-import { stepSource, stepsForDay } from './device';
+import { openStepSettings, stepSource, stepsForDay } from './device';
 import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
 import { resolveCommunity } from './recipes';
+import { stepsActionKey, stepsReasonKey, type StepReading } from './steps';
 import { useStore } from './store';
 import type { Profile, Recipe, WeightEntry } from './types';
 import { useT } from './useT';
@@ -55,27 +56,48 @@ export function useNow(ms = 1000): number {
   return now;
 }
 
-/** Why there is no step count on this device, for the diary card and the settings. */
-export const STEPS_REASON = ({ motion: 'steps_reason_ios', android: 'steps_reason_android', browser: 'steps_reason_web' } as const)[stepSource];
-/** False where steps can never be read (Android, browsers), so step settings are hidden there. */
-export const canReadSteps = stepSource === 'motion';
+/** False only in browsers, which can't read steps; there the step settings are hidden. */
+export const canReadSteps = stepSource !== 'browser';
+/** Why steps can never be read here (browsers), for the settings. */
+export const STEPS_REASON = stepsReasonKey(stepSource, 'unsupported');
 
+/**
+ * The day's steps (null when they can't be read), the calories they burn, and why they're missing:
+ * `reason` is the text to show and `action` the button that fixes it (see steps.ts).
+ */
 export function useSteps(date: string, weightKg: number) {
-  const [steps, setSteps] = useState<number | null>(null);
+  // Null until the first answer, so the card doesn't flash "not available" while it loads.
+  const [reading, setReading] = useState<StepReading | null>(null);
   const load = useCallback(() => {
     let alive = true;
-    stepsForDay(date).then((s) => alive && setSteps(s));
+    stepsForDay(date).then((r) => alive && setReading(r));
     return () => {
       alive = false;
     };
   }, [date]);
   useFocusEffect(load);
   useEffect(() => {
-    if (date !== dayKey()) return;
+    // Back from the settings or Health Connect: the person may have just allowed steps.
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') load();
+    });
+    if (date !== dayKey()) return () => sub.remove();
     const id = setInterval(load, 60000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
   }, [date, load]);
-  return { steps, kcal: steps === null ? 0 : stepsKcal(steps, weightKg) };
+  const steps = reading?.steps ?? null;
+  const status = reading?.status ?? 'ok';
+  const fix = stepsActionKey(stepSource, status);
+  return {
+    steps,
+    loading: reading === null,
+    kcal: steps === null ? 0 : stepsKcal(steps, weightKg),
+    reason: reading && steps === null ? stepsReasonKey(stepSource, status) : null,
+    action: fix ? { label: fix, run: () => void openStepSettings(status) } : null,
+  };
 }
 
 /** Own recipes plus the community ones in the current language. Community ids start with "community:". */

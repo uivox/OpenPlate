@@ -14,7 +14,7 @@ import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
-import { goalsFor, STEPS_REASON, useNow, useSteps, useToday } from '../../src/lib/hooks';
+import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
 import { visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
@@ -63,7 +63,7 @@ export default function DiaryScreen() {
   );
   const goals = goalsFor(profile, weights, date);
   const totals = sumEntries(entries);
-  const { steps, kcal: stepKcal } = useSteps(date, goals.weight);
+  const { steps, loading: stepsLoading, kcal: stepKcal, reason: stepsReason, action: stepsAction } = useSteps(date, goals.weight);
   const burned = profile.addActivityCalories ? stepKcal : 0;
   const budget = goals.kcal + burned;
   const remaining = Math.round(budget - totals.kcal);
@@ -203,7 +203,11 @@ export default function DiaryScreen() {
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt v="h3">{t('steps')}</Txt>
                 <Txt v="sub">
-                  {steps === null ? t('steps_unavailable') : `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`}
+                  {steps !== null
+                    ? `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`
+                    : stepsLoading
+                      ? '…'
+                      : t('steps_unavailable')}
                 </Txt>
               </View>
             </Row>
@@ -217,9 +221,21 @@ export default function DiaryScreen() {
                   {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
                 </Txt>
               </>
-            ) : (
-              <Txt v="small">{t(STEPS_REASON)}</Txt>
-            )}
+            ) : stepsReason ? (
+              <>
+                <Txt v="small">{t(stepsReason)}</Txt>
+                {stepsAction ? (
+                  <Button
+                    small
+                    kind="ghost"
+                    icon="open-outline"
+                    title={t(stepsAction.label)}
+                    style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
+                    onPress={stepsAction.run}
+                  />
+                ) : null}
+              </>
+            ) : null}
           </Card>
         );
       })}

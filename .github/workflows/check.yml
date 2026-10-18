@@ -27,12 +27,17 @@ jobs:
       - run: bash scripts/install-deps.sh
       - run: bash scripts/ci-run.sh npx tsc --noEmit
       - run: bash scripts/ci-run.sh npm test
-      - name: Android project gets the release-signing config and the storage size (prebuild only, nothing is built or published)
+      - name: Android project gets the release-signing config, the storage size and Health Connect (prebuild only, nothing is built or published)
         run: |
           bash scripts/ci-run.sh npx expo prebuild --platform android --no-install --clean
           grep -q "openplate-release-signing" android/app/build.gradle
           grep -q "signingConfig System.getenv('OPENPLATE_KEYSTORE_PATH') ? signingConfigs.release : signingConfigs.debug" android/app/build.gradle
           grep -q "^AsyncStorage_db_size_in_MB=1024$" android/gradle.properties
+          # Steps: the read permission, the rationale screens Health Connect requires, and its minimum Android version.
+          grep -q 'android:name="android.permission.health.READ_STEPS"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:name="android.intent.action.VIEW_PERMISSION_USAGE"' android/app/src/main/AndroidManifest.xml
+          grep -q "^android.minSdkVersion=26$" android/gradle.properties
           rm -rf android
       - name: Web build (catches bundling errors the type check misses)
         run: bash scripts/ci-run.sh npm run build:web

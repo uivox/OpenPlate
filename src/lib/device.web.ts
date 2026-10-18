@@ -1,6 +1,7 @@
 /* Browser versions of the device helpers in device.ts. */
 
 import { MAX_BACKUP_BYTES } from './backup';
+import type { StepReading, StepSource, StepStatus } from './steps';
 
 /* ---------- Photos ---------- */
 
@@ -160,9 +161,12 @@ export async function cancelNotification(id?: string) {
 /* ---------- Steps ---------- */
 
 /** Same export as device.ts: browsers have no step counter. */
-export const stepSource: 'motion' | 'android' | 'browser' = 'browser';
+export const stepSource: StepSource = 'browser';
 
 /** Browsers can't read the step counter, so the step UI shows its "not available" state. */
-export async function stepsForDay(_dateKey: string): Promise<number | null> {
-  return null;
+export async function stepsForDay(_dateKey: string): Promise<StepReading> {
+  return { steps: null, status: 'unsupported' };
 }
+
+/** Same export as device.ts; there is no setting a browser could open. */
+export async function openStepSettings(_status: StepStatus): Promise<void> {}

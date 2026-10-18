@@ -165,7 +165,7 @@ async function run(scheme) {
       await page.goBack();
     });
     await step('parity: the steps card says why there are no steps', async () => {
-      await text('Browsers can’t read the step counter. The iPhone app shows your steps.').waitFor();
+      await text('Browsers can’t read the step counter. The iPhone and Android apps show your steps.').waitFor();
     });
     await step('parity: fasting says the notification needs the app open', async () => {
       await page.getByRole('tab', { name: 'Fasting' }).click();

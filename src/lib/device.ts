@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -5,9 +6,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
-import { Platform, Share } from 'react-native';
+import { Linking, Platform, Share } from 'react-native';
+import * as HealthConnect from 'react-native-health-connect';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
+import { HEALTH_CONNECT_STORE_URLS, hasStepsPermission, healthConnectProblem, stepRange, stepsFromAggregate, type StepReading, type StepSource, type StepStatus } from './steps';
 
 /* ---------- Photos ---------- */
 
@@ -135,29 +138,98 @@ export async function cancelNotification(id?: string) {
   }
 }
 
-/* ---------- Steps (iPhone motion coprocessor; keeps about 7 days) ---------- */
+/* ---------- Steps (iPhone motion coprocessor, keeps about 7 days; Health Connect on Android) ---------- */
 
 /**
  * Where daily steps come from. The iPhone's motion sensor keeps a history apps can read; Android
- * only offers that through Health Connect, which OpenPlate doesn't support yet.
+ * shares it through Health Connect (built in from Android 14, an app from the Play Store before).
  */
-export const stepSource: 'motion' | 'android' | 'browser' = Platform.OS === 'ios' ? 'motion' : 'android';
+export const stepSource: StepSource = Platform.OS === 'ios' ? 'motion' : 'health_connect';
 
-export async function stepsForDay(dateKey: string): Promise<number | null> {
-  // Android can't return a day's steps here, so don't ask for the activity permission for nothing.
-  if (stepSource !== 'motion') return null;
+/** One day's steps, or null plus the reason (see steps.ts). */
+export async function stepsForDay(dateKey: string): Promise<StepReading> {
+  return stepSource === 'motion' ? motionSteps(dateKey) : healthConnectSteps(dateKey);
+}
+
+/** Where the person can fix what `status` says: the iPhone settings, Health Connect or its Play Store page. */
+export async function openStepSettings(status: StepStatus): Promise<void> {
   try {
-    if (!(await Pedometer.isAvailableAsync())) return null;
+    if (stepSource === 'motion') return await Linking.openSettings();
+    if (status === 'not_installed') {
+      for (const url of HEALTH_CONNECT_STORE_URLS) {
+        try {
+          return await Linking.openURL(url);
+        } catch {
+          /* no Play Store app: try the web page */
+        }
+      }
+      return;
+    }
+    HealthConnect.openHealthConnectSettings();
+  } catch {
+    /* nothing to open */
+  }
+}
+
+async function motionSteps(dateKey: string): Promise<StepReading> {
+  try {
+    if (!(await Pedometer.isAvailableAsync())) return { steps: null, status: 'unsupported' };
     const perm = await Pedometer.getPermissionsAsync();
     if (!perm.granted) {
       const req = await Pedometer.requestPermissionsAsync();
-      if (!req.granted) return null;
+      if (!req.granted) return { steps: null, status: 'denied' };
     }
     const end = endOfDay(dateKey);
     const now = new Date();
     const res = await Pedometer.getStepCountAsync(startOfDay(dateKey), end > now ? now : end);
-    return res.steps;
+    return { steps: res.steps, status: 'ok' };
   } catch {
-    return null;
+    return { steps: null, status: 'error' };
+  }
+}
+
+const STEPS_PERMISSION = [{ accessType: 'read', recordType: 'Steps' }] as const;
+/** Set once the Health Connect permission sheet was shown, so it isn't shown again on every visit. */
+const HC_ASKED_KEY = 'openplate-health-connect-asked';
+let hcReady: Promise<boolean> | null = null;
+let hcAsking: Promise<boolean> | null = null;
+
+async function healthConnectAllowed(): Promise<boolean> {
+  if (hasStepsPermission(await HealthConnect.getGrantedPermissions())) return true;
+  if (hcAsking) return hcAsking; // the sheet is open (diary focus and the minute timer can meet)
+  // Ask once. Afterwards the person allows it in Health Connect (the button under the steps card).
+  if ((await AsyncStorage.getItem(HC_ASKED_KEY)) === '1') return false;
+  hcAsking ??= (async () => {
+    try {
+      await AsyncStorage.setItem(HC_ASKED_KEY, '1');
+      return hasStepsPermission(await HealthConnect.requestPermission([...STEPS_PERMISSION]));
+    } finally {
+      hcAsking = null;
+    }
+  })();
+  return hcAsking;
+}
+
+async function healthConnectSteps(dateKey: string): Promise<StepReading> {
+  try {
+    const problem = healthConnectProblem(await HealthConnect.getSdkStatus());
+    if (problem) {
+      hcReady = null; // installed later: initialize then
+      return { steps: null, status: problem };
+    }
+    hcReady ??= HealthConnect.initialize();
+    if (!(await hcReady)) {
+      hcReady = null;
+      return { steps: null, status: 'error' };
+    }
+    if (!(await healthConnectAllowed())) return { steps: null, status: 'denied' };
+    const range = stepRange(startOfDay(dateKey), endOfDay(dateKey), new Date());
+    if (!range) return { steps: 0, status: 'ok' };
+    const result = await HealthConnect.aggregateRecord({ recordType: 'Steps', timeRangeFilter: { operator: 'between', ...range } });
+    const steps = stepsFromAggregate(result);
+    return steps === null ? { steps: null, status: 'error' } : { steps, status: 'ok' };
+  } catch {
+    hcReady = null;
+    return { steps: null, status: 'error' };
   }
 }
