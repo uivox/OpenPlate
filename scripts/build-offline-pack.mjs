@@ -16,7 +16,6 @@
 import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 
 const out = process.argv[2] ?? 'out';
@@ -55,8 +54,8 @@ let total = 0;
 let germany = 0;
 let skippedBroken = 0;
 
-const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const raw of rl) {
+/** One line of the export. Returns false to stop (format changed). */
+function handleLine(raw) {
   if (!header) {
     header = raw.split('\t');
     for (const c of COLUMNS) idx[c] = header.indexOf(c);
@@ -66,25 +65,59 @@ for await (const raw of rl) {
         process.exit(1);
       }
     }
-    continue;
+    return;
   }
   total++;
+  // Cheap pre-check before splitting ~200 columns: most products aren't sold in Germany.
+  if (!raw.includes('en:germany')) return;
   const f = raw.split('\t');
   if (f.length !== header.length) {
     skippedBroken++;
-    continue;
+    return;
   }
-  if (!f[idx.countries_tags].split(',').includes('en:germany')) continue;
+  if (!f[idx.countries_tags].split(',').includes('en:germany')) return;
   germany++;
   const rec = {};
   for (const c of COLUMNS) if (idx[c] !== -1) rec[c] = f[idx[c]];
   const row = packRow(rec);
-  if (!row) continue;
-  const prev = best.get(row.code);
-  if (!prev || row.scans > prev.scans) best.set(row.code, { line: row.line, scans: row.scans });
+  if (!row) return;
+  // Keyed by number: `row.code` is a slice of the 64 KB chunk it came from, and keeping it would keep
+  // that whole chunk in memory (V8 sliced strings), so the export would pile up. Barcodes have at most
+  // 14 digits, well within exact integers. `row.line` is a fresh string (joined).
+  const key = Number(row.code);
+  const prev = best.get(key);
+  if (!prev || row.scans > prev.scans) best.set(key, { line: row.line, scans: row.scans });
 }
 
-const rows = [...best.entries()].sort((a, b) => b[1].scans - a[1].scans || (a[0] < b[0] ? -1 : 1));
+// The unpacked export is about 10 GB. Reading stdin chunk by chunk with `for await` keeps the pipe's
+// backpressure: the next chunk is only read once this one is processed, so memory stays flat.
+// (readline's async iterator buffers lines without limit when the input is faster than the loop; that
+// ran out of memory in CI.) A line is never kept beyond MAX_LINE characters.
+const MAX_LINE = 4 * 1024 * 1024;
+const decoder = new TextDecoder('utf-8');
+let rest = '';
+let tooLong = false;
+for await (const chunk of process.stdin) {
+  const text = rest + decoder.decode(chunk, { stream: true });
+  let start = 0;
+  for (let nl = text.indexOf('\n', start); nl !== -1; nl = text.indexOf('\n', start)) {
+    const line = text.charCodeAt(nl - 1) === 13 ? text.slice(start, nl - 1) : text.slice(start, nl);
+    if (tooLong) {
+      tooLong = false;
+      skippedBroken++;
+    } else handleLine(line);
+    start = nl + 1;
+  }
+  rest = text.slice(start);
+  if (rest.length > MAX_LINE) {
+    rest = '';
+    tooLong = true;
+  }
+}
+rest += decoder.decode();
+if (rest && !tooLong) handleLine(rest);
+
+const rows = [...best.entries()].sort((a, b) => b[1].scans - a[1].scans || a[0] - b[0]);
 const lines = [];
 let bytes = 0;
 for (const [, r] of rows) {
