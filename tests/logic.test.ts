@@ -1727,6 +1727,11 @@ test('offline pack: rows are built and read with the app’s checks', () => {
   assert.equal(food.per100.salt, 0.1, 'salt from sodium');
   assert.deepEqual(food.servings, [{ label: '15 g', grams: 15 }]);
   assert.equal(row.line.split('\t')[15], 'nuss nougat creme milbona lidl lidl');
+  // the export's brand columns today: brands_en, else brands_tags
+  const { brands: _b, ...noBrands } = offRow();
+  assert.equal(foodFromPackLine(packRow({ ...noBrands, brands_en: 'Nutella,Ferrero' })!.line)!.brand, 'Nutella');
+  assert.equal(foodFromPackLine(packRow({ ...noBrands, brands_tags: 'xx:milbona,xx:lidl' })!.line)!.brand, 'milbona');
+  assert.equal(foodFromPackLine(packRow(noBrands)!.line)!.brand, undefined);
   // left out: wrong check digit, no name, missing macros, kJ in the kcal field, values that don't fit
   assert.equal(packRow(offRow({ code: '4006446005477' })), null);
   assert.equal(packRow(offRow({ product_name: '' })), null);

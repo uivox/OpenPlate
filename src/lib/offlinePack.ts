@@ -101,6 +101,18 @@ const numField = (v: string | undefined): number | undefined => {
 const fmt = (n: number | undefined) => (n === undefined ? '' : String(Math.round(n * 100) / 100));
 
 /**
+ * Brand names from `brands_tags` ("xx:nutella,xx:Ferrero" → "nutella, Ferrero"). The export has no
+ * `brands` column any more (since 2026; `brands_en` holds the names), so the tags are the last fallback.
+ */
+function brandsFromTags(tags: string | undefined): string {
+  return (tags ?? '')
+    .split(',')
+    .map((t) => t.replace(/^[a-z]{2}:/, '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
  * One line of the pack from a row of Open Food Facts' CSV export (columns by name), or null when
  * the product is left out: invalid barcode, no name, missing calories/protein/carbs/fat, or values
  * that don't fit together. Returns the product's scan count too, for ordering.
@@ -136,7 +148,7 @@ export function packRow(rec: Record<string, string | undefined>): { code: string
   const unit = /\b\d+([.,]\d+)?\s*(ml|cl|l)\b/i.test(quantity) ? 'ml' : 'g';
   const servingG = numField(rec.serving_quantity);
   const serving = servingG !== undefined && servingG > 0 && servingG <= 2000 ? servingG : undefined;
-  const brands = cleanField(rec.brands, 80);
+  const brands = cleanField(rec.brands || rec.brands_en || brandsFromTags(rec.brands_tags), 80);
   const stores = cleanField(rec.stores, 60);
   const fields = [
     check.code,
