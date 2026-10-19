@@ -41,7 +41,7 @@ if (publicKey !== PACK_PUBLIC_KEY) {
 }
 
 const COLUMNS = [
-  'code', 'product_name', 'product_name_de', 'generic_name', 'generic_name_de', 'brands', 'stores', 'quantity',
+  'code', 'product_name', 'product_name_de', 'generic_name', 'generic_name_de', 'brands', 'brands_en', 'brands_tags', 'stores', 'quantity',
   'serving_size', 'serving_quantity', 'countries_tags', 'unique_scans_n',
   'energy-kcal_100g', 'energy-kj_100g', 'energy_100g', 'proteins_100g', 'carbohydrates_100g', 'fat_100g',
   'sugars_100g', 'fiber_100g', 'saturated-fat_100g', 'salt_100g', 'sodium_100g',
@@ -181,9 +181,18 @@ writeFileSync(
   ].join('\n'),
 );
 
+// The export's columns change now and then (`brands` became `brands_en`); say so when a field goes empty.
+const share = (col) => lines.filter((l) => l.split('\t')[col] !== '').length / lines.length;
+const brandShare = share(2);
+const storeShare = share(3);
+for (const [name, v] of [['brand', brandShare], ['store', storeShare]]) {
+  if (v < 0.05) console.log(`::warning title=Offline pack::Only ${(v * 100).toFixed(1)} % of products have a ${name}; the export's columns may have changed.`);
+}
+
 const summary = [
   `Offline pack: ${lines.length.toLocaleString('en')} products, ${(body.length / 1024 / 1024).toFixed(1)} MB`,
   `(export rows ${total.toLocaleString('en')}, sold in Germany ${germany.toLocaleString('en')}, passed the checks ${best.size.toLocaleString('en')}, broken lines ${skippedBroken})`,
+  `With brand ${(brandShare * 100).toFixed(0)} %, with store ${(storeShare * 100).toFixed(0)} %`,
   `File ${file}`,
 ].join('\n');
 console.log(summary);
