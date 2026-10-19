@@ -56,6 +56,7 @@ app/                    screens (expo-router, file-based)
   offline-data.tsx      download, update and delete the offline product pack
 src/lib/
   ai.ts                 providers, prompt, JSON parsing, fallback logic
+  aiLog.ts              AI answer log: records, prompt versions, size limit, export format (aiLogStore(.web).ts keeps it)
   nutrition.ts          BMR/TDEE, goals, macros
   goals.ts              the goal for a given day (weight on that day, fasting days)
   streaks.ts            streaks, goal-hit days, calendar grid
@@ -78,16 +79,24 @@ src/lib/
   store.ts              persisted state (zustand + AsyncStorage; IndexedDB on the web)
   backup.ts             export / import format
   backupReminder.ts     when the diary reminds you to save a copy
-  *.web.ts(x)           browser versions of device, storage, secure, BarcodeScanner
+  *.web.ts(x)           browser versions of device, storage, secure, aiLogStore, BarcodeScanner
 src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows, ScannerParts.tsx for both scanners)
 public/icons/           home-screen icons for the web version
 plugins/                Expo config plugins: release signing, storage size on Android
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
 scripts/build-offline-pack.mjs, pack-key.mjs  build and sign the offline product pack; create its key
+scripts/ai-log-unpack.mjs  unpacks AI answer log exports into eval/ (git-ignored) with a summary
+.claude/skills/ai-eval/ how Claude evaluates the AI answer log and proposes prompt or model changes
 tests/logic.test.ts     tests for the logic modules (npm test)
 docs/                   this page, design notes, recipe format
 ```
+
+## Evaluating the AI answers
+
+With *AI settings → AI answer log* switched on, every meal photo and label reading is logged with the photos, each provider call (raw reply, time, errors, fallback), what was saved and the user's optional rating. *Export log* writes `openplate-ai-log-YYYY-MM-DD.json`. Put exports into `eval/inbox/` and run `node scripts/ai-log-unpack.mjs`: it merges them into `eval/data/` (one folder per answer, `cases.jsonl`, `summary.md`). `eval/` is git-ignored because it holds personal meal photos. A Claude session in this folder can then run the evaluation with the `ai-eval` skill (`.claude/skills/ai-eval/SKILL.md`).
+
+When you change `buildMealPrompt` (ai.ts) or `buildLabelPrompt` (labelScan.ts), bump the matching `PROMPT_VERSION` in `aiLog.ts`, so answers before and after the change can be compared.
 
 ## German nutrient database (BLS 4.0)
 

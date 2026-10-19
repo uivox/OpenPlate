@@ -61,7 +61,8 @@ interface State {
   setProfile: (p: Profile) => void;
   updateProfile: (patch: Partial<Profile>) => void;
   setLanguage: (l: LanguagePref) => void;
-  addEntry: (e: Omit<DiaryEntry, 'id' | 'createdAt'>) => void;
+  /** Returns the new entry's id. */
+  addEntry: (e: Omit<DiaryEntry, 'id' | 'createdAt'>) => string;
   updateEntry: (id: string, patch: Partial<Pick<DiaryEntry, 'grams' | 'meal' | 'date'>>) => void;
   removeEntry: (id: string) => void;
   copyMeal: (fromDate: string, toDate: string, meal: MealType) => number;
@@ -140,16 +141,19 @@ export const useStore = create<State>()(
       updateProfile: (patch) => set((s) => (s.profile ? { profile: { ...s.profile, ...patch } } : {})),
       setLanguage: (language) => set({ language }),
 
-      addEntry: (e) =>
+      addEntry: (e) => {
+        const id = newId();
         set((s) => {
           // Nothing is logged ahead of today (a future day would also count for streaks too early).
-          const entry: DiaryEntry = { ...e, date: notFuture(e.date), id: newId(), createdAt: Date.now() };
+          const entry: DiaryEntry = { ...e, date: notFuture(e.date), id, createdAt: Date.now() };
           const recent =
             e.food.source === 'quick'
               ? s.recentFoods
               : [e.food, ...s.recentFoods.filter((f) => f.id !== e.food.id)].slice(0, MAX_RECENT);
           return { entries: [...s.entries, entry], recentFoods: recent };
-        }),
+        });
+        return id;
+      },
       updateEntry: (id, patch) => set((s) => ({ entries: s.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) })),
       removeEntry: (id) => set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
       copyMeal: (fromDate, toDate, meal) => {

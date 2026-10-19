@@ -367,6 +367,59 @@ async function run(scheme) {
       await text('Smoke skyr', { exact: true }).waitFor();
       await page.unrouteAll({ behavior: 'ignoreErrors' });
     });
+    await step('ai log: a rated meal photo answer is logged and exported', async () => {
+      // The AI answer is faked; the browser calls the Claude API straight from the page.
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+      const answer = { items: [{ name: 'Smoke pasta', grams: 300, kcal: 450, protein: 15, carbs: 80, fat: 8, confidence: 0.9 }], confidence: 0.9 };
+      await page.route('https://api.anthropic.com/**', (r) =>
+        r.request().method() === 'OPTIONS'
+          ? r.fulfill({ status: 204, headers: cors })
+          : r.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(answer) }] }) }),
+      );
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('AI settings', { exact: true }).click();
+      await text('Claude (Anthropic)', { exact: true }).click(); // primary
+      await field('Paste key').fill('sk-ant-smoke-test');
+      await btn('Save key').click();
+      const logSwitch = page.getByRole('switch', { name: 'Keep a log of AI answers' }).filter({ visible: true }).first();
+      if (await logSwitch.isChecked()) throw new Error('the AI log is on by default');
+      await logSwitch.click();
+      await text('No answers logged yet.').waitFor();
+      await page.goBack();
+
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Lunch').click();
+      await text('AI photo', { exact: true }).click();
+      const chooser = page.waitForEvent('filechooser');
+      await btn('Choose from library').click();
+      await (await chooser).setFiles({ name: 'meal.png', mimeType: 'image/png', buffer: PHOTO_PNG });
+      await text('1 items found').waitFor();
+      await text('Rate this answer (optional)').click();
+      await btn('Portion off').click();
+      await field('e.g. it was two slices, not one').fill('smoke note');
+      await btn('Add to diary').click();
+      await text('Smoke pasta', { exact: true }).waitFor();
+
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('AI settings', { exact: true }).click();
+      await text(/^1 answers · /).waitFor();
+      await btn('Export log').click();
+      const download = page.waitForEvent('download');
+      await page.getByRole('button', { name: /Share export \(/ }).filter({ visible: true }).first().click();
+      const file = await download;
+      if (!/^openplate-ai-log-\d{4}-\d\d-\d\d\.json$/.test(file.suggestedFilename())) throw new Error(`file name ${file.suggestedFilename()}`);
+      const data = JSON.parse(readFileSync(await file.path(), 'utf8'));
+      const rec = data.records?.[0];
+      if (data.kind !== 'ai-log' || data.records.length !== 1) throw new Error(`export has ${data.records?.length} records`);
+      if (rec.status !== 'saved' || rec.kind !== 'meal') throw new Error(`record status ${rec.status}`);
+      if (!rec.rating?.tags?.includes('portion_off') || rec.rating.note !== 'smoke note') throw new Error(`rating ${JSON.stringify(rec.rating)}`);
+      if (rec.photos?.length !== 1 || !rec.attempts?.[0]?.raw?.includes('Smoke pasta')) throw new Error('photo or raw reply missing');
+      if (rec.answeredBy?.provider !== 'anthropic' || !rec.promptVersion) throw new Error(`answeredBy ${JSON.stringify(rec.answeredBy)}`);
+      if (!rec.diaryNow?.[0]?.exists || rec.diaryNow[0].grams !== 300) throw new Error(`diaryNow ${JSON.stringify(rec.diaryNow)}`);
+      if (JSON.stringify(data).includes('sk-ant-smoke-test')) throw new Error('the API key is in the export');
+      await page.goBack();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
     await step('reload keeps data (diary stored per month)', async () => {
       await page.reload();
       await page.getByRole('tab', { name: 'Diary' }).click();
@@ -383,6 +436,7 @@ async function run(scheme) {
       const data = JSON.parse(readFileSync(await file.path(), 'utf8'));
       if (!Array.isArray(data.entries) || !data.entries.length) throw new Error('export has no entries');
       if ('lastBackupAt' in data) throw new Error('device-only reminder state leaked into the export');
+      if ('records' in data || JSON.stringify(data).includes('smoke note')) throw new Error('the AI answer log leaked into the backup');
       await text(/Last export: today/).waitFor();
     });
     await step('hostile backup is neutralised', async () => {

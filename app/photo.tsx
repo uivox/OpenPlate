@@ -3,10 +3,13 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, TextInput, View } from 'react-native';
+import { AIRatingCard } from '../src/components/AIRatingCard';
+import { logEnabled, writeLog } from '../src/components/aiLogging';
 import { Sprout } from '../src/components/Sprout';
 import { Banner, Button, Card, ChipGroup, Divider, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
-import { analyzeMeal, CANCELLED, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
+import { analyzeMeal, callProvider, CANCELLED, PROVIDER_NAMES, providerOrder, type AnalyzeOutcome } from '../src/lib/ai';
+import { cleanRating, markParseFailures, newMealRecord, recordingCall, type AILogAttempt, type AIRating, type MealLogRecord } from '../src/lib/aiLog';
 import { dayKey } from '../src/lib/dates';
 import { pickMealPhoto, type PreparedPhoto } from '../src/lib/device';
 import { newId } from '../src/lib/id';
@@ -48,23 +51,61 @@ export default function PhotoScreen() {
 
   // Leaving the screen cancels a running analysis, so the photo isn't sent on after the user changed their mind.
   const abort = useRef<AbortController | null>(null);
-  useEffect(() => () => abort.current?.abort(), []);
+
+  // AI answer log (only when switched on in the AI settings): one record per run, completed when the
+  // meal is added. A rating given without adding is kept when the user retries or leaves.
+  const log = useRef<MealLogRecord | null>(null);
+  const [rating, setRating] = useState<AIRating>({ tags: [] });
+  const ratingRef = useRef(rating);
+  ratingRef.current = rating;
+  const flushRating = () => {
+    const rec = log.current;
+    const r = cleanRating(ratingRef.current, 'meal');
+    if (rec && rec.status !== 'saved' && r) void writeLog({ ...rec, rating: r });
+    log.current = null;
+  };
+
+  useEffect(
+    () => () => {
+      abort.current?.abort();
+      flushRating();
+    },
+    [],
+  );
 
   const run = async (p: PreparedPhoto) => {
     setPhase('analyzing');
     setError('');
     abort.current?.abort();
+    flushRating();
+    setRating({ tags: [] });
     const ctrl = new AbortController();
     abort.current = ctrl;
+    const attempts: AILogAttempt[] = [];
+    const rec = logEnabled() ? newMealRecord({ id: newId(), createdAt: Date.now(), lang, hint, photoCount: 1 }) : null;
+    const call = rec ? recordingCall((r) => callProvider(r), attempts) : undefined;
     try {
-      const res = await analyzeMeal(p.base64, ai, getApiKey, lang, hint, undefined, ctrl.signal);
+      const res = await analyzeMeal(p.base64, ai, getApiKey, lang, hint, call, ctrl.signal);
       if (ctrl.signal.aborted) return;
+      if (rec) {
+        const r = res.result;
+        const done: MealLogRecord = {
+          ...rec,
+          attempts: markParseFailures(attempts, res.attempts),
+          answeredBy: { provider: r.provider, model: r.model, usedFallback: res.usedFallback },
+          ai: { items: r.items, confidence: r.confidence, ...(r.notes ? { notes: r.notes } : {}) },
+          ...(r.items.length ? {} : { status: 'failed' as const, error: r.notes ?? 'no food found' }),
+        };
+        log.current = done;
+        void writeLog(done, [p.base64]);
+      }
       setOutcome(res);
       setItems(res.result.items.map((it) => ({ key: newId(), base: it, name: it.name, grams: it.grams, include: true })));
       setPhase(res.result.items.length ? 'review' : 'error');
       if (!res.result.items.length) setError(res.result.notes ?? t('ai_no_food'));
     } catch (e) {
       if ((e as Error).message === CANCELLED || ctrl.signal.aborted) return;
+      if (rec) void writeLog({ ...rec, attempts, status: 'failed', error: String((e as Error).message).slice(0, 1000) }, [p.base64]);
       setError((e as Error).message);
       setPhase('error');
     }
@@ -82,6 +123,12 @@ export default function PhotoScreen() {
     }
   };
 
+  const newPhoto = () => {
+    flushRating();
+    setRating({ tags: [] });
+    setPhase('pick');
+  };
+
   const scaled = (it: EditableItem) => {
     const f = it.base.grams > 0 && it.grams ? it.grams / it.base.grams : 0;
     return { kcal: it.base.kcal * f, protein: it.base.protein * f, carbs: it.base.carbs * f, fat: it.base.fat * f };
@@ -91,6 +138,7 @@ export default function PhotoScreen() {
   const addAll = () => {
     const chosen = items.filter((i) => i.include && i.grams && i.grams > 0 && i.name.trim());
     if (!chosen.length) return;
+    const entryIds = new Map<string, string>();
     for (const it of chosen) {
       const food: Food = {
         id: `ai:${newId()}`,
@@ -100,7 +148,25 @@ export default function PhotoScreen() {
         servings: [],
         unit: 'g',
       };
-      addEntry({ date, meal, food, grams: it.grams! });
+      entryIds.set(it.key, addEntry({ date, meal, food, grams: it.grams! }));
+    }
+    const rec = log.current;
+    if (rec) {
+      const r = cleanRating(rating, 'meal');
+      void writeLog({
+        ...rec,
+        status: 'saved',
+        outcome: {
+          meal,
+          date,
+          items: items.map((it) => {
+            const entryId = entryIds.get(it.key);
+            return { name: it.name.trim(), grams: it.grams ?? 0, kept: !!entryId, ...(entryId ? { entryId } : {}) };
+          }),
+        },
+        ...(r ? { rating: r } : {}),
+      });
+      log.current = null;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     leaveToDiary();
@@ -159,7 +225,7 @@ export default function PhotoScreen() {
         <>
           <Banner icon="alert-circle" tone="warn" text={error || t('error')} />
           <Button title={t('try_again')} icon="refresh" onPress={() => photo && run(photo)} disabled={!photo} />
-          <Button kind="secondary" title={t('new_photo')} icon="camera" onPress={() => setPhase('pick')} />
+          <Button kind="secondary" title={t('new_photo')} icon="camera" onPress={newPhoto} />
           <Button kind="ghost" title={t('ai_settings')} icon="settings-outline" onPress={() => router.push('/ai-settings')} />
         </>
       ) : null}
@@ -221,8 +287,9 @@ export default function PhotoScreen() {
 
           <Txt v="h3">{t('meal')}</Txt>
           <ChipGroup options={MEALS.map((m) => ({ value: m, label: t(`meal_${m}`) }))} value={meal} onChange={setMeal} />
+          {log.current ? <AIRatingCard value={rating} onChange={setRating} showWeighed /> : null}
           <Button title={t('add_to_diary')} icon="add" onPress={addAll} disabled={!items.some((i) => i.include)} />
-          <Button kind="ghost" title={t('new_photo')} icon="camera" onPress={() => setPhase('pick')} />
+          <Button kind="ghost" title={t('new_photo')} icon="camera" onPress={newPhoto} />
           <Txt v="small">{t('ai_estimate_note')}</Txt>
         </>
       ) : null}

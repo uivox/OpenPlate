@@ -3,6 +3,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { analyzeLabel, analyzeMeal, buildMealPrompt, callProvider, CANCELLED, isPrivateHost, parseMealJson, providerOrder, sanitizeImportedAI, serverUrlProblem, DEFAULT_AI_SETTINGS } from '../src/lib/ai';
+import {
+  AI_LOG_LIMITS,
+  aiLogFileName,
+  base64Bytes,
+  buildAILogExport,
+  cleanRating,
+  diaryNowFor,
+  markParseFailures,
+  newLabelRecord,
+  newMealRecord,
+  parseStoredRecord,
+  PROMPT_VERSION,
+  recordingCall,
+  recordsToPrune,
+  safeLogId,
+  type AILogAttempt,
+  type MealLogRecord,
+} from '../src/lib/aiLog';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
 import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
 import { checkBarcode, expandUpcE, gtinCheckDigit, isValidBarcode, looksLikeBarcode, scannedBarcode } from '../src/lib/barcode';
@@ -1862,4 +1880,157 @@ test('barcode flow: the offline pack answers before Open Food Facts', async () =
   const missing = await resolveBarcode('853640759131', 'de', [], offFake({}, seen), index);
   assert.equal(missing.kind, 'missing');
   assert.ok(seen.length > 0);
+});
+
+/* ---------- AI answer log ---------- */
+
+test('ai log: every call is recorded with its raw reply, time and errors, including the fallback', async () => {
+  const attempts: AILogAttempt[] = [];
+  let t = 1000;
+  const now = () => (t += 250);
+  const call = recordingCall(
+    async (r) => {
+      if (r.provider === 'local') return 'no json here';
+      if (r.provider === 'openai') throw new Error('HTTP 500');
+      return reply(0.9);
+    },
+    attempts,
+    now,
+  );
+  const out = await analyzeMeal('b64', settings('local', 'anthropic'), async () => 'k', 'en', undefined, call);
+  assert.equal(out.result.provider, 'anthropic');
+  assert.equal(attempts.length, 2);
+  assert.deepEqual(
+    attempts.map((a) => [a.provider, a.ok, a.ms]),
+    [
+      ['local', true, 250],
+      ['anthropic', true, 250],
+    ],
+  );
+  assert.equal(attempts[0].raw, 'no json here');
+  assert.equal(attempts[0].model, DEFAULT_AI_SETTINGS.providers.local.model);
+  // The reply arrived but could not be parsed: the analyzer's error is copied onto the recorded call.
+  const merged = markParseFailures(attempts, out.attempts);
+  assert.equal(merged[0].ok, false);
+  assert.match(merged[0].error ?? '', /JSON/);
+  assert.equal(merged[1].ok, true);
+  assert.equal(attempts[0].ok, true, 'markParseFailures does not change its input');
+
+  const failed: AILogAttempt[] = [];
+  await assert.rejects(
+    recordingCall(async () => {
+      throw new Error('HTTP 500');
+    }, failed)({ provider: 'openai', config: { model: 'm' }, apiKey: 'k', prompt: 'p' }),
+  );
+  assert.equal(failed[0].ok, false);
+  assert.equal(failed[0].error, 'HTTP 500');
+  // Long replies are shortened.
+  const long: AILogAttempt[] = [];
+  await recordingCall(async () => 'x'.repeat(20000), long)({ provider: 'gemini', config: { model: 'm' }, apiKey: 'k', prompt: 'p' });
+  assert.equal(long[0].raw?.length, 8000);
+});
+
+test('ai log: new records carry the prompt version and start as not saved', () => {
+  const m = newMealRecord({ id: 'a-1', createdAt: 5, lang: 'de', hint: '  mit Öl ', photoCount: 1 });
+  assert.equal(m.kind, 'meal');
+  assert.equal(m.promptVersion, PROMPT_VERSION.meal);
+  assert.equal(m.status, 'not_saved');
+  assert.equal(m.hint, 'mit Öl');
+  assert.equal(newMealRecord({ id: 'a-2', createdAt: 5, lang: 'en', hint: '  ', photoCount: 1 }).hint, undefined);
+  const l = newLabelRecord({ id: 'b-1', createdAt: 6, lang: 'en', photoCount: 2, known: { name: 'Müsli' } });
+  assert.equal(l.promptVersion, PROMPT_VERSION.label);
+  assert.deepEqual(l.known, { name: 'Müsli', brand: undefined });
+  assert.equal(newLabelRecord({ id: 'b-2', createdAt: 6, lang: 'en', photoCount: 1, known: {} }).known, undefined);
+});
+
+test('ai log: ratings keep only known tags, a trimmed note, and "weighed" only for meals', () => {
+  assert.equal(cleanRating(null, 'meal'), undefined);
+  assert.equal(cleanRating({ tags: [], note: '  ' }, 'meal'), undefined);
+  assert.deepEqual(cleanRating({ tags: ['portion_off', 'nope' as never, 'spot_on'], note: ' zu wenig ', weighed: true }, 'meal'), {
+    tags: ['spot_on', 'portion_off'],
+    note: 'zu wenig',
+    weighed: true,
+  });
+  assert.deepEqual(cleanRating({ tags: ['values_off'], weighed: true }, 'label'), { tags: ['values_off'] });
+  assert.equal(cleanRating({ tags: [], weighed: true }, 'label'), undefined);
+});
+
+test('ai log: the size limit drops the oldest records first', () => {
+  const rows = [
+    { id: 'old', createdAt: 1, bytes: 40 },
+    { id: 'mid', createdAt: 2, bytes: 40 },
+    { id: 'new', createdAt: 3, bytes: 40 },
+  ];
+  assert.deepEqual(recordsToPrune(rows, { records: 10, bytes: 1000 }), []);
+  assert.deepEqual(recordsToPrune(rows, { records: 2, bytes: 1000 }), ['old']);
+  assert.deepEqual(recordsToPrune(rows, { records: 10, bytes: 90 }), ['old']);
+  assert.deepEqual(recordsToPrune(rows, { records: 10, bytes: 30 }).sort(), ['mid', 'new', 'old']);
+  assert.equal(AI_LOG_LIMITS.records, 300);
+  assert.equal(base64Bytes('QUJD'), 3);
+  assert.equal(base64Bytes('QUI='), 2);
+  assert.equal(base64Bytes('QQ=='), 1);
+});
+
+test('ai log: the export joins photos and what the diary says now', () => {
+  const rec: MealLogRecord = {
+    ...newMealRecord({ id: 'r-1', createdAt: 10, lang: 'en', photoCount: 1 }),
+    status: 'saved',
+    outcome: {
+      meal: 'lunch',
+      date: '2026-10-18',
+      items: [
+        { name: 'Pasta', grams: 300, kept: true, entryId: 'e1' },
+        { name: 'Salad', grams: 80, kept: true, entryId: 'e2' },
+        { name: 'Bread', grams: 50, kept: false },
+      ],
+    },
+  };
+  const older = { ...newLabelRecord({ id: 'r-0', createdAt: 5, lang: 'en', photoCount: 1 }) };
+  const food = { id: 'ai:x', source: 'ai', name: 'Pasta', per100: { kcal: 150, carbs: 30, protein: 5, fat: 1 }, servings: [] } as Food;
+  const entries: DiaryEntry[] = [{ id: 'e1', date: '2026-10-18', meal: 'lunch', food, grams: 350, createdAt: 11 }];
+  assert.deepEqual(diaryNowFor(rec, entries), [
+    { entryId: 'e1', exists: true, grams: 350, meal: 'lunch', date: '2026-10-18' },
+    { entryId: 'e2', exists: false },
+  ]);
+  assert.equal(diaryNowFor(older, entries), undefined);
+  const out = buildAILogExport([rec, older], (id) => (id === 'r-1' ? ['AAAA'] : []), entries, new Date('2026-10-18T12:00:00Z'));
+  assert.equal(out.kind, 'ai-log');
+  assert.equal(out.exportedAt, '2026-10-18T12:00:00.000Z');
+  assert.deepEqual(
+    out.records.map((r) => r.id),
+    ['r-0', 'r-1'],
+  );
+  assert.deepEqual(out.records[1].photos, ['AAAA']);
+  assert.equal(out.records[1].diaryNow?.[0].grams, 350);
+  assert.equal('diaryNow' in out.records[0], false);
+  assert.equal(aiLogFileName('2026-10-18'), 'openplate-ai-log-2026-10-18.json');
+});
+
+test('ai log: stored records are read back only when they look right; ids are safe file names', () => {
+  const rec = newMealRecord({ id: 'mfx-ab12', createdAt: 1, lang: 'en', photoCount: 1 });
+  assert.deepEqual(parseStoredRecord(JSON.stringify(rec)), rec);
+  assert.equal(parseStoredRecord('{'), null);
+  assert.equal(parseStoredRecord(JSON.stringify({ ...rec, v: 2 })), null);
+  assert.equal(parseStoredRecord(JSON.stringify({ ...rec, kind: 'other' })), null);
+  assert.equal(safeLogId('mfx3k2-ab12cd34'), true);
+  assert.equal(safeLogId('../x'), false);
+  assert.equal(safeLogId(''), false);
+});
+
+test('ai log: a backup import never switches the log on or off', () => {
+  const current: AISettings = { ...DEFAULT_AI_SETTINGS, logAnswers: true };
+  assert.equal(sanitizeImportedAI({ logAnswers: false }, current).logAnswers, true);
+  assert.equal(sanitizeImportedAI({ logAnswers: true }, DEFAULT_AI_SETTINGS).logAnswers, false);
+});
+
+test('ai log: a prompt change comes with a new PROMPT_VERSION', () => {
+  const { createHash } = require('node:crypto') as typeof import('node:crypto');
+  const h = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+  const current = {
+    [PROMPT_VERSION.meal]: h(buildMealPrompt('en') + buildMealPrompt('de', 'x')),
+    [PROMPT_VERSION.label]: h(buildLabelPrompt('en') + buildLabelPrompt('de', true)),
+  };
+  // When this fails because a prompt text changed: bump PROMPT_VERSION in src/lib/aiLog.ts and put
+  // the new version and hash here, so logged answers from before and after can be told apart.
+  assert.deepEqual(current, { 'meal-1': '67db22dc6c52d6f8', 'label-1': 'e49a4e8cfed1cdd0' });
 });

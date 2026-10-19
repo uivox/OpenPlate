@@ -156,6 +156,11 @@ export interface AISettings {
   providers: Record<AIProviderId, AIProviderConfig>;
   /** Below this confidence the fallback provider is asked as well. */
   minConfidence: number;
+  /**
+   * Keep a log of AI answers and what the user saved (aiLog.ts), to evaluate prompts and models.
+   * Per device: a backup import keeps this device's value (sanitizeImportedAI).
+   */
+  logAnswers?: boolean;
 }
 
 export interface AIItem {

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { deleteAILog } from '../../src/components/aiLogging';
 import { exportBackupFlow } from '../../src/components/exportBackup';
 import { importBackupFlow } from '../../src/components/importBackup';
 import { Sprout } from '../../src/components/Sprout';
@@ -53,6 +54,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           await clearAllKeys();
           await removePack().catch(() => {});
+          await deleteAILog().catch(() => {});
           // A running fast's reminder must not fire after its data is gone.
           await cancelNotification(useStore.getState().fastingActive?.notificationId).catch(() => {});
           useStore.getState().resetAll();

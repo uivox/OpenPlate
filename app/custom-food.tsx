@@ -1,8 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
+import { AIRatingCard } from '../src/components/AIRatingCard';
+import { writeLog } from '../src/components/aiLogging';
 import { Banner, Button, Card, ChipGroup, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
+import { cleanRating, type AIRating } from '../src/lib/aiLog';
 import { dayKey } from '../src/lib/dates';
 import { getFoodDraft, putFood, setFoodDraft, type FoodDraft } from '../src/lib/foodCache';
 import { newId } from '../src/lib/id';
@@ -46,8 +49,22 @@ export default function CustomFoodScreen() {
   const [servingLabel, setServingLabel] = useState(draft?.servings[0]?.label ?? '');
   const [servingGrams, setServingGrams] = useState<number | null>(draft?.servings[0]?.grams ?? null);
 
+  // AI answer log: this label reading's record, completed on saving. A rating given without saving
+  // is still kept when the user leaves the form.
+  const [rating, setRating] = useState<AIRating>({ tags: [] });
+  const ratingRef = useRef(rating);
+  ratingRef.current = rating;
+  const logDone = useRef(false);
+
   // The draft is used once; leaving the form without saving must not prefill a later one.
-  useEffect(() => () => setFoodDraft(null), []);
+  useEffect(
+    () => () => {
+      setFoodDraft(null);
+      const r = cleanRating(ratingRef.current, 'label');
+      if (draft?.log && !logDone.current && r) void writeLog({ ...draft.log, rating: r });
+    },
+    [],
+  );
 
   const valid = kcal !== null && kcal >= 0 && (quick || name.trim().length > 0);
 
@@ -89,6 +106,16 @@ export default function CustomFoodScreen() {
     };
     saveCustomFood(food);
     putFood(food);
+    if (draft?.log) {
+      const r = cleanRating(rating, 'label');
+      logDone.current = true;
+      void writeLog({
+        ...draft.log,
+        status: 'saved',
+        outcome: { name: food.name, ...(food.brand ? { brand: food.brand } : {}), unit, per100: food.per100, servings: food.servings },
+        ...(r ? { rating: r } : {}),
+      });
+    }
     router.replace({ pathname: '/food', params: { fid: food.id, meal, date, ...(params.pick ? { pick: params.pick } : {}) } });
   };
 
@@ -161,6 +188,7 @@ export default function CustomFoodScreen() {
         </Card>
       ) : null}
 
+      {draft?.log && !quick ? <AIRatingCard value={rating} onChange={setRating} /> : null}
       <Button title={quick ? t('add') : t('save_and_continue')} icon="checkmark" onPress={submit} disabled={!valid} />
       {draft?.dataFrom === 'robotoff' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
     </Screen>

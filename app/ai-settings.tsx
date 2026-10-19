@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Linking, Platform } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Linking, Platform, Switch } from 'react-native';
+import { aiLogStats, deleteAILog, prepareAILogExport, shareAILog, type PreparedAILogExport } from '../src/components/aiLogging';
 import { Banner, Button, Card, ChipGroup, Field, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { DEFAULT_AI_SETTINGS, KEY_OPTIONAL, PROVIDER_NAMES, serverUrlProblem, testProvider } from '../src/lib/ai';
+import { logSizeLabel } from '../src/lib/aiLog';
+import { showAlert } from '../src/lib/alert';
 import { getApiKey, setApiKey } from '../src/lib/secure';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -48,7 +52,92 @@ export default function AISettingsScreen() {
       {AI_PROVIDERS.map((p) => (
         <ProviderCard key={p} provider={p} t={t} />
       ))}
+
+      <AILogCard />
     </Screen>
+  );
+}
+
+/** The opt-in AI answer log: switch, size, export (prepare, then share from a tap) and delete. */
+function AILogCard() {
+  const { t, lang } = useT();
+  const c = useColors();
+  const on = useStore((s) => s.ai.logAnswers === true);
+  const setAI = useStore((s) => s.setAI);
+  const [stats, setStats] = useState<{ count: number; bytes: number } | null>(null);
+  const [prepared, setPrepared] = useState<PreparedAILogExport | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(() => {
+    aiLogStats()
+      .then(setStats)
+      .catch(() => setStats({ count: 0, bytes: 0 }));
+  }, []);
+  useFocusEffect(refresh);
+
+  const prepare = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      setPrepared(await prepareAILogExport());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Called straight from the tap, nothing awaited first (Safari's share sheet needs that).
+  const share = (p: PreparedAILogExport) => {
+    shareAILog(p).catch((e) => setError((e as Error).message));
+  };
+
+  const remove = () =>
+    showAlert(t('ailog_delete_q'), t('ailog_delete_text'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: () => {
+          setPrepared(null);
+          deleteAILog()
+            .catch((e) => setError((e as Error).message))
+            .finally(refresh);
+        },
+      },
+    ]);
+
+  const count = stats?.count ?? 0;
+  return (
+    <>
+      <SectionTitle>{t('ailog_title')}</SectionTitle>
+      <Card style={{ gap: 12 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Txt v="h3" style={{ flex: 1 }}>
+            {t('ailog_switch')}
+          </Txt>
+          <Switch value={on} onValueChange={(logAnswers) => setAI({ logAnswers })} trackColor={{ true: c.accent }} accessibilityLabel={t('ailog_switch')} />
+        </Row>
+        <Txt v="small">{t('ailog_text')}</Txt>
+        {stats ? (
+          <Txt v="sub">{count ? t('ailog_count', { n: count, size: logSizeLabel(stats.bytes, lang) }) : t('ailog_empty')}</Txt>
+        ) : null}
+        {count ? (
+          prepared ? (
+            <Button small icon="share-outline" title={t('ailog_share', { size: logSizeLabel(prepared.json.length, lang) })} onPress={() => share(prepared)} />
+          ) : (
+            <Button small kind="secondary" icon="download-outline" title={busy ? t('ailog_preparing') : t('ailog_prepare')} onPress={prepare} loading={busy} />
+          )
+        ) : null}
+        {count ? <Button small kind="ghost" icon="trash-outline" title={t('ailog_delete')} onPress={remove} /> : null}
+        {error ? (
+          <Txt v="small" color={c.danger}>
+            {error}
+          </Txt>
+        ) : null}
+      </Card>
+    </>
   );
 }
 
