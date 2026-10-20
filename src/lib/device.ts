@@ -8,6 +8,7 @@ import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
 import { Linking, Platform, Share } from 'react-native';
 import * as HealthConnect from 'react-native-health-connect';
+import { iconIdFromNative, nativeIconName, type AppIconId, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
 import { HEALTH_CONNECT_STORE_URLS, hasStepsPermission, healthConnectProblem, stepRange, stepsFromAggregate, type StepReading, type StepSource, type StepStatus } from './steps';
@@ -231,5 +232,47 @@ async function healthConnectSteps(dateKey: string): Promise<StepReading> {
   } catch {
     hcReady = null;
     return { steps: null, status: 'error' };
+  }
+}
+
+/* ---------- App icon ---------- */
+
+type IconModule = typeof import('expo-alternate-app-icons');
+let iconModule: IconModule | null | undefined;
+/** Loaded on first use: an older build without the native module just can't change the icon. */
+function icons(): IconModule | null {
+  if (iconModule === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      iconModule = require('expo-alternate-app-icons') as IconModule;
+    } catch {
+      iconModule = null;
+    }
+  }
+  return iconModule;
+}
+
+/** The home-screen icon can be changed (both phones; not in browsers, see device.web.ts). */
+export const canChangeAppIcon = true;
+/** Text shown under the icon choice: what happens when it changes on this platform. */
+export const appIconNote: AppIconNote = Platform.OS === 'android' ? 'app_icon_note_android' : 'app_icon_note_ios';
+
+export function getAppIcon(): AppIconId {
+  try {
+    return iconIdFromNative(icons()?.getAppIconName());
+  } catch {
+    return 'default';
+  }
+}
+
+/** Switches the home-screen icon; false when this device can't (or the switch failed). */
+export async function setAppIcon(id: AppIconId): Promise<boolean> {
+  const m = icons();
+  if (!m || !m.supportsAlternateIcons) return false;
+  try {
+    await m.setAlternateAppIcon(nativeIconName(id));
+    return true;
+  } catch {
+    return false;
   }
 }

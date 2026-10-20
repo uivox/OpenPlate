@@ -22,7 +22,7 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 ### Web version
 
 - **Same features everywhere.** iPhone, Android and the web app have the same features and behaviour. A platform may only lack a feature when the platform makes it impossible (no step counter in browsers, notifications only while the web app is open, no HealthKit with a free Apple ID). Every such gap is listed in README → *Differences between platforms* and explained in the app where the user meets it.
-- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`) are exported from both `device` files instead of checking `Platform.OS` in screens.
+- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`, `canChangeAppIcon`, `appIconNote`) are exported from both `device` files instead of checking `Platform.OS` in screens.
 - The Content Security Policy is written by `scripts/web-pwa.mjs`; a new server the app talks to has to be added there.
 - `scripts/web-smoke.mjs` clicks through the built web app in CI. Extend it when a flow changes that the browser can run; fake outside servers with `page.route`.
 

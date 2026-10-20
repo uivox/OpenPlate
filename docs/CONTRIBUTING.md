@@ -82,9 +82,10 @@ src/lib/
   *.web.ts(x)           browser versions of device, storage, secure, aiLogStore, BarcodeScanner
 src/components/         shared UI (ui.tsx primitives, plate ring, charts, tab bar, export/import flows, ScannerParts.tsx for both scanners)
 public/icons/           home-screen icons for the web version
-plugins/                Expo config plugins: release signing, storage size on Android
+plugins/                Expo config plugins: release signing, storage size on Android, Health Connect and links on the app-icon aliases
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
+scripts/make-app-icons.py  makes the app icon colours in assets/app-icons/ from assets/icon.png (Pillow); colours as in src/lib/appIcon.ts
 scripts/build-offline-pack.mjs, pack-key.mjs  build and sign the offline product pack; create its key
 scripts/ai-log-unpack.mjs  unpacks AI answer log exports into eval/ (git-ignored) with a summary
 .claude/skills/ai-eval/ how Claude evaluates the AI answer log and proposes prompt or model changes

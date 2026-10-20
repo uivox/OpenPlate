@@ -652,6 +652,17 @@ const en = {
   my_foods_empty: 'You haven’t created any foods yet.',
   my_meals_empty: 'You haven’t saved any meals yet.',
   my_foods_hint: 'Tap an item to edit it. Your diary always keeps the values you logged.',
+  app_icon: 'App icon',
+  app_icon_default: 'Berry',
+  app_icon_ocean: 'Ocean',
+  app_icon_plum: 'Plum',
+  app_icon_sunset: 'Sunset',
+  app_icon_mono: 'Mono',
+  app_icon_night: 'Night',
+  app_icon_note_ios: 'Changes the icon on your home screen; the colours inside the app stay as set above. iOS confirms the change with a short message.',
+  app_icon_note_android: 'Changes the icon on your home screen; the colours inside the app stay as set above. On some phones the app closes once while the icon is switched; just open it again.',
+  app_icon_note_web: 'Browsers don’t let a web app change its icon after it was added to the home screen, so this only works in the iPhone and Android apps.',
+  app_icon_failed: 'The icon couldn’t be changed on this device.',
 };
 
 export type TKey = keyof typeof en;
@@ -1298,6 +1309,17 @@ const de: Record<TKey, string> = {
   my_foods_empty: 'Du hast noch keine Lebensmittel angelegt.',
   my_meals_empty: 'Du hast noch keine Mahlzeiten gespeichert.',
   my_foods_hint: 'Tippe auf einen Eintrag, um ihn zu bearbeiten. Dein Tagebuch behält immer die Werte, die du eingetragen hast.',
+  app_icon: 'App-Symbol',
+  app_icon_default: 'Beere',
+  app_icon_ocean: 'Ozean',
+  app_icon_plum: 'Pflaume',
+  app_icon_sunset: 'Abendrot',
+  app_icon_mono: 'Mono',
+  app_icon_night: 'Nacht',
+  app_icon_note_ios: 'Ändert das Symbol auf deinem Home-Bildschirm; die Farben in der App bleiben wie oben eingestellt. iOS bestätigt den Wechsel mit einer kurzen Meldung.',
+  app_icon_note_android: 'Ändert das Symbol auf deinem Home-Bildschirm; die Farben in der App bleiben wie oben eingestellt. Auf manchen Handys schließt sich die App beim Wechsel einmal; öffne sie einfach wieder.',
+  app_icon_note_web: 'Browser erlauben einer Web-App nicht, ihr Symbol zu ändern, nachdem sie zum Home-Bildschirm hinzugefügt wurde. Das geht deshalb nur in der iPhone- und Android-App.',
+  app_icon_failed: 'Das Symbol konnte auf diesem Gerät nicht geändert werden.',
 };
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, de };

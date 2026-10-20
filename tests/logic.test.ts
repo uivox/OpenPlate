@@ -103,6 +103,7 @@ import {
   type DownloadedPack,
 } from '../src/lib/offlinePack';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
+import { APP_ICONS, iconIdFromNative, nativeIconName } from '../src/lib/appIcon';
 import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
@@ -2098,4 +2099,28 @@ test('own foods: editing and deleting reach saved meals, never the diary', () =>
   assert.deepEqual(after.map((m) => m.name), ['Bowl', 'Obst']); // "Nur Müsli" is empty now and goes
   assert.deepEqual(after[0].items.map((i) => i.food.id), [apple.id]);
   assert.equal(after[1], other);
+});
+
+test('app icon: colours, native names and the plugin config agree', () => {
+  assert.equal(nativeIconName('default'), null);
+  assert.equal(nativeIconName('ocean'), 'Ocean');
+  assert.equal(iconIdFromNative('Night'), 'night');
+  assert.equal(iconIdFromNative(null), 'default');
+  assert.equal(iconIdFromNative('Gone'), 'default');
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const app = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo;
+  const plugins: unknown[] = app.plugins;
+  const icons = (plugins.find((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons') as [string, { name: string; ios: string; android: { foregroundImage: string; backgroundColor: string } }[]])[1];
+  // every colour but the normal icon has its images, with the same background as the settings preview
+  assert.deepEqual(icons.map((i) => i.name), APP_ICONS.filter((i) => i.id !== 'default').map((i) => nativeIconName(i.id)));
+  for (const i of icons) {
+    assert.ok(fs.existsSync(path.join(root, i.ios)), i.ios);
+    assert.ok(fs.existsSync(path.join(root, i.android.foregroundImage)), i.android.foregroundImage);
+    assert.equal(i.android.backgroundColor, APP_ICONS.find((a) => nativeIconName(a.id) === i.name)!.bg);
+  }
+  // the alias fix must run after the icon plugin, so it is listed before it
+  assert.ok(plugins.indexOf('./plugins/withAlternateIconAliases') < plugins.findIndex((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons'));
+  assert.equal(APP_ICONS.find((i) => i.id === 'default')!.bg, app.android.adaptiveIcon.backgroundColor);
 });

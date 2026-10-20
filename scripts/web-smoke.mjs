@@ -159,6 +159,42 @@ async function run(scheme) {
       await btn('Add: Breakfast').click();
       await page.waitForFunction(() => document.body.innerText.split('Apple').length - 1 >= 2);
     });
+    await step('diary: fold a meal down to its header and open it again', async () => {
+      const apples = () => page.getByText('Apple', { exact: true }).filter({ visible: true }).count();
+      if ((await apples()) < 1) throw new Error('no Apple entry to fold');
+      await page.getByTestId('meal-toggle-breakfast').filter({ visible: true }).first().click();
+      await page.waitForFunction(() => ![...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && e.textContent === 'Apple' && e.offsetParent));
+      await text(/2 foods|1 food/).waitFor(); // the folded header says how many foods it holds
+      await btn('Add food: Breakfast').waitFor(); // adding still works while folded
+      await page.reload();
+      await text('Breakfast', { exact: true }).waitFor();
+      if ((await apples()) !== 0) throw new Error('folded meal opened again after a reload');
+      await page.getByTestId('meal-toggle-breakfast').filter({ visible: true }).first().click();
+      await text('Apple', { exact: true }).waitFor();
+    });
+    await step('diary: drag sideways to tomorrow and back to yesterday', async () => {
+      const drag = async (fromX, toX) => {
+        const y = 420;
+        await page.mouse.move(fromX, y);
+        await page.mouse.down();
+        for (let i = 1; i <= 12; i++) await page.mouse.move(fromX + ((toX - fromX) * i) / 12, y + i % 2);
+        await page.mouse.up();
+        await page.waitForTimeout(450);
+      };
+      await drag(340, 40); // to the left: next day, which can be planned now
+      await text('Tomorrow', { exact: true }).waitFor();
+      await drag(40, 340);
+      await text('Today', { exact: true }).waitFor();
+      await text('Apple', { exact: true }).waitFor();
+      await drag(40, 340); // to the right: previous day
+      await text('Yesterday', { exact: true }).waitFor();
+      if (await page.getByText('Apple', { exact: true }).filter({ visible: true }).count()) throw new Error('today’s food shown on yesterday');
+      // a short drag springs back without changing the day
+      await drag(200, 240);
+      await text('Yesterday', { exact: true }).waitFor();
+      await btn('Next day').click();
+      await text('Today', { exact: true }).waitFor();
+    });
     await step('streak', async () => {
       await page.getByRole('button', { name: /^Streak:/ }).filter({ visible: true }).first().click();
       await text('current streak').waitFor();
@@ -349,6 +385,31 @@ async function run(scheme) {
       await page.goBack();
       await btn('Add food: Snacks').waitFor();
       await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
+    await step('own foods: edit a food from My foods & meals', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('My foods & meals', { exact: true }).click();
+      await text('Smoke nougat cream', { exact: true }).click();
+      await text(/Your diary keeps the values it has/).waitFor();
+      const kcal = page.locator('input').filter({ visible: true }).and(page.locator('input[value="556"]')).first();
+      await kcal.fill('560');
+      await btn('Save').click();
+      await text('560 kcal / 100 g', { exact: false }).waitFor();
+      await btn('My meals (1)').click();
+      await text('Breakfast', { exact: true }).waitFor();
+      await text(/2 foods/).waitFor();
+      await page.goBack();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').waitFor();
+    });
+    await step('appearance: the app icon choice explains why the browser can’t change it', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Appearance', { exact: true }).click();
+      await text(/Browsers don’t let a web app change its icon/).waitFor();
+      if (!(await page.getByTestId('app-icon-ocean').filter({ visible: true }).first().isDisabled())) throw new Error('icon choice is not disabled in the browser');
+      await page.goBack();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').waitFor();
     });
     await step('search: a barcode typed into the search field finds the product', async () => {
       await page.route('https://world.openfoodfacts.org/api/v2/product/**', (r) =>
