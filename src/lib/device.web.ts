@@ -1,5 +1,6 @@
 /* Browser versions of the device helpers in device.ts. */
 
+import type { AppIconId, AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import type { StepReading, StepSource, StepStatus } from './steps';
 
@@ -170,3 +171,17 @@ export async function stepsForDay(_dateKey: string): Promise<StepReading> {
 
 /** Same export as device.ts; there is no setting a browser could open. */
 export async function openStepSettings(_status: StepStatus): Promise<void> {}
+
+/* ---------- App icon ---------- */
+
+/** Browsers don't let a web app change its home-screen icon after it was installed. */
+export const canChangeAppIcon = false;
+export const appIconNote: AppIconNote = 'app_icon_note_web';
+
+export function getAppIcon(): AppIconId {
+  return 'default';
+}
+
+export async function setAppIcon(_id: AppIconId): Promise<boolean> {
+  return false;
+}

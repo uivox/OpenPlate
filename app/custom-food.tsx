@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image } from 'react-native';
 import { AIRatingCard } from '../src/components/AIRatingCard';
 import { writeLog } from '../src/components/aiLogging';
+import { confirmDeleteFood } from '../src/components/foodActions';
 import { Banner, Button, Card, ChipGroup, Field, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { cleanRating, type AIRating } from '../src/lib/aiLog';
 import { dayKey } from '../src/lib/dates';
@@ -19,25 +20,31 @@ import { useT } from '../src/lib/useT';
 const tidy = (v: number | undefined) => (v === undefined ? null : Math.round(v * 10) / 10);
 
 export default function CustomFoodScreen() {
-  const params = useLocalSearchParams<{ meal?: string; date?: string; mode?: string; barcode?: string; pick?: string; draft?: string }>();
-  const quick = params.mode === 'quick';
+  const params = useLocalSearchParams<{ meal?: string; date?: string; mode?: string; barcode?: string; pick?: string; draft?: string; edit?: string }>();
+  // Editing one of the user's own foods (from "My foods & meals" or the food's screen).
+  const [original] = useState<Food | undefined>(() =>
+    params.edit ? useStore.getState().customFoods.find((f) => f.id === params.edit) : undefined,
+  );
+  const quick = params.mode === 'quick' && !original;
   const meal: MealType = MEALS.includes(params.meal as MealType) ? (params.meal as MealType) : 'snack';
   const date = params.date ?? dayKey();
   const { t } = useT();
   const c = useColors();
   const addEntry = useStore((s) => s.addEntry);
   const saveCustomFood = useStore((s) => s.saveCustomFood);
+  const updateCustomFood = useStore((s) => s.updateCustomFood);
 
   // Values from a Robotoff suggestion or a label photo, for the user to check (only for this barcode).
   const [draft] = useState<FoodDraft | null>(() => {
-    const d = params.draft === '1' && !quick ? getFoodDraft() : null;
+    const d = params.draft === '1' && !quick && !original ? getFoodDraft() : null;
     return d && (!params.barcode || d.barcode === params.barcode) ? d : null;
   });
-  const n = draft?.per100;
+  const n = original?.per100 ?? draft?.per100;
+  const firstServing = original ? original.servings[0] : draft?.servings[0];
 
-  const [name, setName] = useState(draft?.name ?? '');
-  const [brand, setBrand] = useState(draft?.brand ?? '');
-  const [unit, setUnit] = useState<'g' | 'ml'>(draft?.unit ?? 'g');
+  const [name, setName] = useState(original?.name ?? draft?.name ?? '');
+  const [brand, setBrand] = useState(original?.brand ?? draft?.brand ?? '');
+  const [unit, setUnit] = useState<'g' | 'ml'>(original?.unit ?? draft?.unit ?? 'g');
   const [kcal, setKcal] = useState<number | null>(n ? Math.round(n.kcal) : null);
   const [carbs, setCarbs] = useState<number | null>(tidy(n?.carbs));
   const [protein, setProtein] = useState<number | null>(tidy(n?.protein));
@@ -46,8 +53,8 @@ export default function CustomFoodScreen() {
   const [fiber, setFiber] = useState<number | null>(tidy(n?.fiber));
   const [satFat, setSatFat] = useState<number | null>(tidy(n?.satFat));
   const [salt, setSalt] = useState<number | null>(n?.salt === undefined ? null : Math.round(n.salt * 100) / 100);
-  const [servingLabel, setServingLabel] = useState(draft?.servings[0]?.label ?? '');
-  const [servingGrams, setServingGrams] = useState<number | null>(draft?.servings[0]?.grams ?? null);
+  const [servingLabel, setServingLabel] = useState(firstServing?.label ?? '');
+  const [servingGrams, setServingGrams] = useState<number | null>(firstServing?.grams ?? null);
 
   // AI answer log: this label reading's record, completed on saving. A rating given without saving
   // is still kept when the user leaves the form.
@@ -82,6 +89,26 @@ export default function CustomFoodScreen() {
       addEntry({ date, meal, food, grams: 100 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       leaveToDiary();
+      return;
+    }
+    const per100 = {
+      kcal: kcal!,
+      carbs: carbs ?? 0,
+      protein: protein ?? 0,
+      fat: fat ?? 0,
+      sugar: sugar ?? undefined,
+      fiber: fiber ?? undefined,
+      satFat: satFat ?? undefined,
+      salt: salt ?? undefined,
+    };
+    const serving = servingGrams && servingGrams > 0 ? [{ label: servingLabel.trim() || t('portion'), grams: servingGrams }] : [];
+    if (original) {
+      // Same id, so saved meals pick up the change; further servings (e.g. from Open Food Facts) stay.
+      const edited: Food = { ...original, name: name.trim(), brand: brand.trim() || undefined, unit, per100, servings: [...serving, ...original.servings.slice(1)] };
+      updateCustomFood(edited);
+      putFood(edited);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.back();
       return;
     }
     const food: Food = {
@@ -121,9 +148,11 @@ export default function CustomFoodScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: quick ? t('quick_add') : draft?.per100 ? t('check_food') : t('create_food') }} />
+      <Stack.Screen options={{ title: original ? t('edit_food') : quick ? t('quick_add') : draft?.per100 ? t('check_food') : t('create_food') }} />
+      {original ? <Banner icon="information-circle" text={t('edit_food_note')} /> : null}
+      {params.edit && !original ? <Txt v="sub">{t('food_missing')}</Txt> : null}
       {quick ? <Txt v="sub">{t('quick_add_text')}</Txt> : null}
-      {params.barcode ? <Txt v="sub">{t('barcode_value', { code: params.barcode })}</Txt> : null}
+      {(original?.barcode ?? params.barcode) ? <Txt v="sub">{t('barcode_value', { code: original?.barcode ?? params.barcode ?? '' })}</Txt> : null}
 
       {draft?.dataFrom === 'robotoff' ? <Banner icon="sparkles-outline" text={t('robotoff_banner')} /> : null}
       {draft?.dataFrom === 'label' ? <Banner icon="sparkles-outline" text={t('label_banner', { provider: draft.readBy ?? 'AI' })} /> : null}
@@ -189,7 +218,10 @@ export default function CustomFoodScreen() {
       ) : null}
 
       {draft?.log && !quick ? <AIRatingCard value={rating} onChange={setRating} /> : null}
-      <Button title={quick ? t('add') : t('save_and_continue')} icon="checkmark" onPress={submit} disabled={!valid} />
+      <Button title={original ? t('save') : quick ? t('add') : t('save_and_continue')} icon="checkmark" onPress={submit} disabled={!valid} />
+      {original ? (
+        <Button kind="ghost" icon="trash-outline" title={t('delete_food')} onPress={() => confirmDeleteFood(original, t, () => router.back())} />
+      ) : null}
       {draft?.dataFrom === 'robotoff' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
     </Screen>
   );

@@ -4,6 +4,9 @@ import { AccessibilityInfo, View } from 'react-native';
 import { Tap } from '../src/components/motion';
 import { PlateRing } from '../src/components/PlateRing';
 import { Button, Card, ChipGroup, Field, MacroBar, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
+import { showAlert } from '../src/lib/alert';
+import { APP_ICONS, type AppIconId } from '../src/lib/appIcon';
+import { appIconNote, canChangeAppIcon, getAppIcon, setAppIcon } from '../src/lib/device';
 import { useStore } from '../src/lib/store';
 import { useColors, useScheme } from '../src/lib/theme';
 import { buildColors, contrast, normalizeHex, SWATCHES, THEMES } from '../src/lib/themes';
@@ -161,7 +164,76 @@ export default function AppearanceScreen() {
         <Txt v="small">{t(`motion_${appearance.motion}_desc`)}</Txt>
         {reduce ? <Txt v="small">{t('reduce_motion_note')}</Txt> : null}
       </Card>
+
+      <AppIconCard />
     </Screen>
+  );
+}
+
+/**
+ * Home-screen icon colour, separate from the in-app look. Browsers can't change an installed web
+ * app's icon, so there the choice is shown greyed out with the reason (README → platform differences).
+ */
+function AppIconCard() {
+  const { t } = useT();
+  const c = useColors();
+  const [icon, setIcon] = useState<AppIconId>(getAppIcon);
+  const [busy, setBusy] = useState(false);
+
+  const choose = async (id: AppIconId) => {
+    if (!canChangeAppIcon || busy || id === icon) return;
+    setBusy(true);
+    const ok = await setAppIcon(id);
+    setBusy(false);
+    if (ok) setIcon(id);
+    else showAlert(t('app_icon_failed'));
+  };
+
+  return (
+    <Card style={{ gap: 10 }}>
+      <Txt v="h3">{t('app_icon')}</Txt>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, opacity: canChangeAppIcon ? 1 : 0.45 }}>
+        {APP_ICONS.map((ic) => {
+          const selected = canChangeAppIcon && icon === ic.id;
+          return (
+            <Tap
+              key={ic.id}
+              onPress={() => void choose(ic.id)}
+              disabled={!canChangeAppIcon || busy}
+              accessibilityRole="button"
+              accessibilityState={{ selected, disabled: !canChangeAppIcon }}
+              accessibilityLabel={t(`app_icon_${ic.id}`)}
+              scaleTo={0.92}
+              haptic
+              testID={`app-icon-${ic.id}`}
+              style={{ alignItems: 'center', gap: 4, width: 64 }}
+            >
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 14,
+                  backgroundColor: ic.bg,
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  paddingBottom: 10,
+                  borderWidth: 2,
+                  borderColor: selected ? c.accent : c.line,
+                }}
+              >
+                {/* the icon's plate: a bowl with a rim */}
+                <View style={{ width: 34, height: 5, borderRadius: 3, backgroundColor: ic.plate }} />
+                <View style={{ width: 30, height: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: ic.plate }} />
+              </View>
+              <Txt v="small" numberOfLines={1} color={selected ? c.text : c.sub}>
+                {t(`app_icon_${ic.id}`)}
+              </Txt>
+            </Tap>
+          );
+        })}
+      </View>
+      <Txt v="small">{t(appIconNote)}</Txt>
+    </Card>
   );
 }
 

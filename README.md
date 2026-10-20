@@ -12,12 +12,13 @@ German and English, light and dark mode, all data stays on your device.
   - **photograph the nutrition table** and your own AI copies the printed values (it doesn't estimate);
   - or type the values in. Every value is checked for plausibility and shown next to the photo before you save it, and a link takes you to Open Food Facts to add the product there for everyone.
 - **AI photo logging** with *your own* AI: Claude, OpenAI, Google Gemini (free tier), or a model running on your own PC via Ollama / LM Studio. Primary + fallback provider; the fallback is asked when the first fails or is unsure, and the more confident answer wins. Every item and portion can be corrected before saving.
-- **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**
+- **Quick add**, **custom foods**, **recent foods**, **copy a meal from yesterday**. Your own foods can be edited later; saved meals with them pick up the change, while the diary keeps what you logged. Profile → *My foods & meals* lists your foods, meals and recipes in one place.
+- **Diary**: swipe sideways to the previous or next day (also with the mouse in the web version), plan days ahead, and fold meals down to one line
 - **My meals**: save the foods you always eat together (e.g. your breakfast) and log them with one tap, at any portion size. Build them from search, recent foods and the barcode scanner, or save a meal straight from the diary.
 - **Personal plan** from a short onboarding (Mifflin-St Jeor + activity level + weekly pace). Or set it exactly: your own daily kcal, any weekly pace (e.g. +0.4 kg), your own activity factor or maintenance calories, macros as presets, custom percentages or grams.
 - **Recipes tab**: your own recipes (photo, servings, steps, ingredients from the food search; nutrition calculated from the ingredients) and community recipes added through pull requests and marked as tested once someone else has cooked them ([how to add one](docs/RECIPES.md)). Scale the ingredients to any number of servings and log a serving with one tap.
 - **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and whether you hit your goal (±5 %, with 10 % room in the goal's direction; eating far less than the goal never counts as a hit)
-- **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order
+- **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order, and six colours for the app icon on the home screen (in the apps)
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically
 - **Water tracker** with tappable glasses
 - **Weight log** with chart (30/90/365 days), BMI, progress towards the target
@@ -40,9 +41,10 @@ The iPhone app, the Android app and the web version have the same features. Wher
 | Local AI server (Ollama / LM Studio) | `http` in your own network | `http` in your own network | must be `https`: browsers block plain `http` from an `https` page |
 | Camera permission after saying no | *Allow camera* opens the settings | *Allow camera* opens the settings | only in the browser's site settings; *Try camera again* asks once more |
 | Haptic feedback | yes | yes | no (Safari has no vibration support) |
+| App icon colour | yes; iOS confirms the switch with a short message | yes; on some phones the app closes once while switching | not available: browsers can't change an installed web app's icon |
 | Apple Health / Health Connect | not available: HealthKit needs a paid Apple developer account, SideStore installs with a free Apple ID | reads steps only; nothing is written back (see *Not included yet*) | not available |
 
-Everything else works the same everywhere: barcode scanner (camera or typed number), offline product data, label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout.
+Everything else works the same everywhere: barcode scanner (camera or typed number), offline product data, label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout, swiping between days.
 
 ## Install on your phone
 

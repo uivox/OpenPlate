@@ -46,3 +46,28 @@ export function searchMeals(meals: SavedMeal[], q: string): SavedMeal[] {
   if (!ql) return sorted;
   return sorted.filter((m) => fold(m.name).includes(ql) || m.items.some((it) => fold(it.food.name).includes(ql)));
 }
+
+/* ---------- Own foods inside saved meals ---------- */
+
+/** Saved meals that contain the food with this id. */
+export function mealsUsingFood(meals: SavedMeal[], foodId: string): SavedMeal[] {
+  return meals.filter((m) => m.items.some((it) => it.food.id === foodId));
+}
+
+/**
+ * After the user edited one of their own foods: every saved meal that contains it gets the new
+ * values (amounts stay). Diary entries are not touched; they keep what was logged.
+ * Meals without the food are returned as the same objects.
+ */
+export function replaceFoodInMeals(meals: SavedMeal[], food: Food): SavedMeal[] {
+  return meals.map((m) =>
+    m.items.some((it) => it.food.id === food.id) ? { ...m, items: m.items.map((it) => (it.food.id === food.id ? { ...it, food } : it)) } : m,
+  );
+}
+
+/** After deleting one of the user's own foods: it leaves every saved meal; a meal left empty is deleted. */
+export function removeFoodFromMeals(meals: SavedMeal[], foodId: string): SavedMeal[] {
+  return meals
+    .map((m) => (m.items.some((it) => it.food.id === foodId) ? { ...m, items: m.items.filter((it) => it.food.id !== foodId) } : m))
+    .filter((m) => m.items.length > 0);
+}

@@ -56,6 +56,52 @@
       "react-native-health-connect",
       "./plugins/withReleaseSigning",
       "./plugins/withAndroidStorageSize",
+      "./plugins/withAlternateIconAliases",
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "Ocean",
+            "ios": "./assets/app-icons/ocean.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/ocean-foreground.png",
+              "backgroundColor": "#E8F2F4"
+            }
+          },
+          {
+            "name": "Plum",
+            "ios": "./assets/app-icons/plum.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/plum-foreground.png",
+              "backgroundColor": "#F4EEF7"
+            }
+          },
+          {
+            "name": "Sunset",
+            "ios": "./assets/app-icons/sunset.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/sunset-foreground.png",
+              "backgroundColor": "#FAF0E6"
+            }
+          },
+          {
+            "name": "Mono",
+            "ios": "./assets/app-icons/mono.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/mono-foreground.png",
+              "backgroundColor": "#F1F1EF"
+            }
+          },
+          {
+            "name": "Night",
+            "ios": "./assets/app-icons/night.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/night-foreground.png",
+              "backgroundColor": "#1B1220"
+            }
+          }
+        ]
+      ],
       [
         "expo-build-properties",
         {

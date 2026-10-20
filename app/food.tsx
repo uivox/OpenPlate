@@ -29,7 +29,9 @@ export default function FoodScreen() {
   const saveCustomFood = useStore((s) => s.saveCustomFood);
   const isSaved = useStore((s) => (entry || params.fid ? s.customFoods.some((f) => f.id === (entry?.food.id ?? params.fid)) : false));
 
-  const food = entry?.food ?? getFood(params.fid);
+  // An own food is read from the store, so this screen shows the new values after editing it.
+  const saved = useStore((s) => (params.fid ? s.customFoods.find((f) => f.id === params.fid) : undefined));
+  const food = entry?.food ?? saved ?? getFood(params.fid);
   const editing = !!entry;
   const unit = food?.unit ?? 'g';
 
@@ -189,6 +191,9 @@ export default function FoodScreen() {
         <Txt v="h3">{t('per_100', { unit })}</Txt>
         <NutrientTable n={food.per100} />
       </Card>
+      {isSaved && !pick && !editing ? (
+        <Button kind="ghost" icon="create-outline" title={t('edit_food')} onPress={() => router.push({ pathname: '/custom-food', params: { edit: food.id } })} />
+      ) : null}
       {food.source === 'custom' && food.barcode && !pick ? (
         <Button kind="ghost" icon="globe-outline" title={t('contribute_off')} onPress={contribute} />
       ) : null}

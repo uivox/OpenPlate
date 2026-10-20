@@ -4,10 +4,9 @@ import { persist } from 'zustand/middleware';
 import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import { snoozeEnd } from './backupReminder';
 import type { BackupData } from './backup';
-import { dayKey } from './dates';
 import { newId } from './id';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
-import { entriesForMeal } from './meals';
+import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
 import { migrateState, STORE_VERSION } from './migrations';
 import { createShardedStorage } from './persistStorage';
 import { kvStore } from './storage';
@@ -30,12 +29,6 @@ import type {
 } from './types';
 
 const MAX_RECENT = 40;
-
-/** Today for any day key in the future. */
-const notFuture = (date: string) => {
-  const today = dayKey();
-  return date > today ? today : date;
-};
 
 interface State {
   profile: Profile | null;
@@ -67,6 +60,9 @@ interface State {
   removeEntry: (id: string) => void;
   copyMeal: (fromDate: string, toDate: string, meal: MealType) => number;
   saveCustomFood: (f: Food) => void;
+  /** Saves an edited own food and updates its copies in saved meals and the recent list (not the diary). */
+  updateCustomFood: (f: Food) => void;
+  /** Deletes an own food; it also leaves every saved meal (a meal left empty goes too). The diary keeps it. */
   removeCustomFood: (id: string) => void;
   saveMeal: (m: SavedMeal) => void;
   removeMeal: (id: string) => void;
@@ -144,8 +140,8 @@ export const useStore = create<State>()(
       addEntry: (e) => {
         const id = newId();
         set((s) => {
-          // Nothing is logged ahead of today (a future day would also count for streaks too early).
-          const entry: DiaryEntry = { ...e, date: notFuture(e.date), id, createdAt: Date.now() };
+          // Future days can be planned ahead; streaks and statistics only count days up to today.
+          const entry: DiaryEntry = { ...e, id, createdAt: Date.now() };
           const recent =
             e.food.source === 'quick'
               ? s.recentFoods
@@ -165,7 +161,18 @@ export const useStore = create<State>()(
       },
 
       saveCustomFood: (f) => set((s) => ({ customFoods: [f, ...s.customFoods.filter((x) => x.id !== f.id)] })),
-      removeCustomFood: (id) => set((s) => ({ customFoods: s.customFoods.filter((f) => f.id !== id) })),
+      updateCustomFood: (f) =>
+        set((s) => ({
+          customFoods: s.customFoods.map((x) => (x.id === f.id ? f : x)),
+          meals: replaceFoodInMeals(s.meals, f),
+          recentFoods: s.recentFoods.map((x) => (x.id === f.id ? f : x)),
+        })),
+      removeCustomFood: (id) =>
+        set((s) => ({
+          customFoods: s.customFoods.filter((f) => f.id !== id),
+          meals: removeFoodFromMeals(s.meals, id),
+          recentFoods: s.recentFoods.filter((f) => f.id !== id),
+        })),
 
       saveMeal: (m) => set((s) => ({ meals: [m, ...s.meals.filter((x) => x.id !== m.id)] })),
       removeMeal: (id) => set((s) => ({ meals: s.meals.filter((m) => m.id !== id) })),
@@ -175,7 +182,7 @@ export const useStore = create<State>()(
         const m = get().meals.find((x) => x.id === id);
         if (!m) return 0;
         const now = Date.now();
-        const added = entriesForMeal(m, notFuture(date), slot, factor).map((e, i) => ({ ...e, id: newId(), createdAt: now + i }));
+        const added = entriesForMeal(m, date, slot, factor).map((e, i) => ({ ...e, id: newId(), createdAt: now + i }));
         set((s) => {
           let recent = s.recentFoods;
           for (const e of [...added].reverse()) {

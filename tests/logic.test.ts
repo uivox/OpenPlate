@@ -38,7 +38,7 @@ import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
 import { ALL_KEYS, _dicts, translate } from '../src/lib/i18n';
 import { dayGoal, weightOn } from '../src/lib/goals';
 import { move, normalizeLayout, tabSides, toggle, visibleDiary, visibleTabs } from '../src/lib/layout';
-import { entriesForMeal, itemsFromEntries, mealTotals, newMeal, searchMeals } from '../src/lib/meals';
+import { entriesForMeal, itemsFromEntries, mealsUsingFood, mealTotals, newMeal, removeFoodFromMeals, replaceFoodInMeals, searchMeals } from '../src/lib/meals';
 import {
   bmr,
   dailyKcalGoal,
@@ -103,6 +103,8 @@ import {
   type DownloadedPack,
 } from '../src/lib/offlinePack';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
+import { APP_ICONS, iconIdFromNative, nativeIconName } from '../src/lib/appIcon';
+import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
@@ -513,6 +515,12 @@ test('streaks: logged days, goal judgement and calendar', () => {
   assert.equal(dayStatus('2026-10-13', '2026-10-13', totals, goalFor), 'pending');
   assert.equal(dayStatus('2026-10-09', '2026-10-14', totals, goalFor), 'empty');
   assert.equal(dayStatus('2026-10-20', '2026-10-14', totals, goalFor), 'future');
+  // food planned for days ahead doesn't count until those days have come
+  const planned = dailyTotals([entry('2026-10-13', apple, 100), entry('2026-10-15', apple, 100), entry('2026-10-16', apple, 100)]);
+  const ahead = streakInfo(planned, '2026-10-14', goalFor);
+  assert.equal(ahead.current, 1);
+  assert.equal(ahead.best, 1);
+  assert.equal(ahead.loggedDays, 1);
 
   // October 2026 starts on a Thursday: 3 blanks before it with Monday first
   const grid = monthGrid(2026, 10, 1);
@@ -635,6 +643,10 @@ test('layout: order, hiding and the add button', () => {
   assert.deepEqual(tabSides(['index', 'fasting', 'recipes', 'progress', 'profile'], 'center').right, ['progress', 'profile']);
   assert.deepEqual(tabSides(['index', 'profile'], 'left'), { left: [], right: ['index', 'profile'] });
   assert.deepEqual(normalizeLayout(undefined), normalizeLayout({}));
+  // folded meals: known meals only, once each, in meal order; older data has none folded
+  assert.deepEqual(l.collapsedMeals, []);
+  assert.deepEqual(normalizeLayout({ collapsedMeals: ['snack', 'nope' as never, 'breakfast', 'snack'] }).collapsedMeals, ['breakfast', 'snack']);
+  assert.deepEqual(normalizeLayout({ collapsedMeals: 'lunch' as never }).collapsedMeals, []);
 });
 
 test('Open Food Facts: retailer queries and German-first ranking', () => {
@@ -2038,4 +2050,77 @@ test('ai log: a prompt change comes with a new PROMPT_VERSION', () => {
   // When this fails because a prompt text changed: bump PROMPT_VERSION in src/lib/aiLog.ts and put
   // the new version and hash here, so logged answers from before and after can be told apart.
   assert.deepEqual(current, { 'meal-1': '67db22dc6c52d6f8', 'label-1': 'e49a4e8cfed1cdd0' });
+});
+
+test('diary: swiping sideways between days', () => {
+  // scrolling and taps stay with the page until a drag is clearly sideways
+  assert.equal(isSideways(10, 0), false);
+  assert.equal(isSideways(30, 20), false);
+  assert.equal(isSideways(30, 10), true);
+  assert.equal(isSideways(-40, 5), true);
+  // dragged right: previous day; dragged left: next day
+  assert.equal(swipeResult(150, 0, 400), -1);
+  assert.equal(swipeResult(-150, 0, 400), 1);
+  // a short slow drag springs back, a quick flick is enough
+  assert.equal(swipeResult(70, 0.1, 400), 0);
+  assert.equal(swipeResult(-70, -0.9, 400), 1);
+  // a flick against the drag direction doesn't count
+  assert.equal(swipeResult(70, -0.9, 400), 0);
+  // tiny drags never change the day, even on a narrow screen
+  assert.equal(swipeResult(50, 0, 100), 0);
+  assert.equal(dragOffset(500, 400), 400);
+  assert.equal(dragOffset(-500, 400), -400);
+  assert.equal(dragOffset(30, 0), 1);
+});
+
+test('own foods: editing and deleting reach saved meals, never the diary', () => {
+  const muesli: Food = { id: 'custom:m', source: 'custom', name: 'Müsli', per100: { kcal: 400, protein: 10, carbs: 60, fat: 12 }, servings: [] };
+  const bowl = newMeal('Bowl', [{ food: muesli, grams: 60 }, { food: apple, grams: 100 }], 1);
+  const only = newMeal('Nur Müsli', [{ food: muesli, grams: 80 }], 2);
+  const other = newMeal('Obst', [{ food: apple, grams: 150 }], 3);
+  const meals = [bowl, only, other];
+  assert.deepEqual(mealsUsingFood(meals, muesli.id).map((m) => m.name), ['Bowl', 'Nur Müsli']);
+
+  const better = { ...muesli, name: 'Nussmüsli', per100: { ...muesli.per100, kcal: 450 } };
+  const edited = replaceFoodInMeals(meals, better);
+  assert.equal(edited[0].items[0].food.name, 'Nussmüsli');
+  assert.equal(edited[0].items[0].food.per100.kcal, 450);
+  assert.equal(edited[0].items[0].grams, 60); // amounts stay
+  assert.equal(edited[0].items[1].food, apple);
+  assert.equal(edited[2], other); // untouched meals stay the same objects
+  assert.equal(Math.round(mealTotals(edited[1].items).kcal), 360);
+
+  // a diary entry logged before keeps its old values
+  const logged = entriesForMeal(bowl, '2026-10-20', 'breakfast');
+  replaceFoodInMeals(meals, better);
+  assert.equal(logged[0].food.per100.kcal, 400);
+
+  const after = removeFoodFromMeals(meals, muesli.id);
+  assert.deepEqual(after.map((m) => m.name), ['Bowl', 'Obst']); // "Nur Müsli" is empty now and goes
+  assert.deepEqual(after[0].items.map((i) => i.food.id), [apple.id]);
+  assert.equal(after[1], other);
+});
+
+test('app icon: colours, native names and the plugin config agree', () => {
+  assert.equal(nativeIconName('default'), null);
+  assert.equal(nativeIconName('ocean'), 'Ocean');
+  assert.equal(iconIdFromNative('Night'), 'night');
+  assert.equal(iconIdFromNative(null), 'default');
+  assert.equal(iconIdFromNative('Gone'), 'default');
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const app = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo;
+  const plugins: unknown[] = app.plugins;
+  const icons = (plugins.find((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons') as [string, { name: string; ios: string; android: { foregroundImage: string; backgroundColor: string } }[]])[1];
+  // every colour but the normal icon has its images, with the same background as the settings preview
+  assert.deepEqual(icons.map((i) => i.name), APP_ICONS.filter((i) => i.id !== 'default').map((i) => nativeIconName(i.id)));
+  for (const i of icons) {
+    assert.ok(fs.existsSync(path.join(root, i.ios)), i.ios);
+    assert.ok(fs.existsSync(path.join(root, i.android.foregroundImage)), i.android.foregroundImage);
+    assert.equal(i.android.backgroundColor, APP_ICONS.find((a) => nativeIconName(a.id) === i.name)!.bg);
+  }
+  // the alias fix must run after the icon plugin, so it is listed before it
+  assert.ok(plugins.indexOf('./plugins/withAlternateIconAliases') < plugins.findIndex((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons'));
+  assert.equal(APP_ICONS.find((i) => i.id === 'default')!.bg, app.android.adaptiveIcon.backgroundColor);
 });

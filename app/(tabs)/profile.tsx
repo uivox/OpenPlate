@@ -14,7 +14,6 @@ import { showAlert } from '../../src/lib/alert';
 import { daysSinceBackup } from '../../src/lib/backupReminder';
 import { dayKey, locale } from '../../src/lib/dates';
 import { cancelNotification, canPickFiles } from '../../src/lib/device';
-import { foodSubtitle } from '../../src/lib/format';
 import { goalsFor } from '../../src/lib/hooks';
 import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
 import { clearAllKeys } from '../../src/lib/secure';
@@ -121,29 +120,19 @@ export default function ProfileScreen() {
         />
       </Card>
 
-      {state.customFoods.length > 0 ? (
-        <>
-          <SectionTitle>{t('my_foods')}</SectionTitle>
-          <Card>
-            {state.customFoods.map((f, i) => (
-              <View key={f.id}>
-                {i > 0 ? <Divider /> : null}
-                <ListRow
-                  title={f.name}
-                  subtitle={foodSubtitle(f)}
-                  onLongPress={() =>
-                    showAlert(t('delete_food_q'), f.name, [
-                      { text: t('cancel'), style: 'cancel' },
-                      { text: t('delete'), style: 'destructive', onPress: () => state.removeCustomFood(f.id) },
-                    ])
-                  }
-                />
-              </View>
-            ))}
-          </Card>
-          <Txt v="small">{t('long_press_delete')}</Txt>
-        </>
-      ) : null}
+      <Card>
+        <ListRow
+          icon="bookmark-outline"
+          title={t('my_foods_meals')}
+          subtitle={[
+            state.customFoods.length === 1 ? t('meal_items_one') : t('meal_items_n', { n: state.customFoods.length }),
+            state.meals.length === 1 ? t('count_meals_one') : t('count_meals_n', { n: state.meals.length }),
+            state.recipes.length === 1 ? t('count_recipes_one') : t('count_recipes_n', { n: state.recipes.length }),
+          ].join(' · ')}
+          right={chevron}
+          onPress={() => router.push('/my-foods')}
+        />
+      </Card>
 
       <SectionTitle>{t('data')}</SectionTitle>
       <Card>

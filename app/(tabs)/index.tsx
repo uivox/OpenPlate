@@ -4,18 +4,19 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DaySwipe } from '../../src/components/DaySwipe';
 import { exportBackupFlow } from '../../src/components/exportBackup';
 import { Burst, Tap, useCountUp } from '../../src/components/motion';
 import { PlateRing } from '../../src/components/PlateRing';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
 import { backupDue } from '../../src/lib/backupReminder';
-import { addDays, dayKey, formatDuration, formatShortDate } from '../../src/lib/dates';
+import { addDays, formatDuration, formatShortDate } from '../../src/lib/dates';
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
 import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
-import { visibleDiary } from '../../src/lib/layout';
+import { toggle, visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
 import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
@@ -43,12 +44,12 @@ export default function DiaryScreen() {
     if (prevToday.current === today) return;
     const before = prevToday.current;
     prevToday.current = today;
-    setDate((d) => (d === before || d > today ? today : d));
+    setDate((d) => (d === before ? today : d));
   }, [today]);
-  // Opened from the calendar with a day to show (never a future day: nothing is logged ahead).
+  // Opened from the calendar (or a statistics list) with a day to show.
   const params = useLocalSearchParams<{ date?: string }>();
   useEffect(() => {
-    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date > dayKey() ? dayKey() : params.date);
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)) setDate(params.date);
   }, [params.date]);
 
   const profile = useStore((s) => s.profile)!;
@@ -73,173 +74,182 @@ export default function DiaryScreen() {
   const backupSnoozedUntil = useStore((s) => s.backupSnoozedUntil);
   const showBackupReminder = backupDue(Date.now(), { since: profile.createdAt, lastBackupAt, snoozedUntil: backupSnoozedUntil });
 
-  const dateLabel = date === today ? t('today') : date === addDays(today, -1) ? t('yesterday') : formatShortDate(date, lang);
+  const dateLabel =
+    date === today
+      ? t('today')
+      : date === addDays(today, -1)
+        ? t('yesterday')
+        : date === addDays(today, 1)
+          ? t('tomorrow')
+          : formatShortDate(date, lang);
   const hour = new Date().getHours();
   const greeting = t(hour < 11 ? 'greet_morning' : hour < 18 ? 'greet_day' : 'greet_evening');
 
   return (
-    <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
-      <Row style={{ justifyContent: 'space-between', paddingHorizontal: 4 }}>
-        <View style={{ flex: 1 }}>
-          <Txt v="title" numberOfLines={1}>
-            {profile.name ? `${greeting}, ${profile.name}` : greeting}
-          </Txt>
-        </View>
-        <Tap
-          onPress={() => router.push('/streak')}
-          accessibilityRole="button"
-          accessibilityLabel={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
-          scaleTo={0.9}
-          rippleColor={c.coral}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            backgroundColor: c.card,
-            borderRadius: 999,
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-          }}
-        >
-          <Ionicons name="flame" size={18} color={streak.todayLogged ? c.coral : c.sub} />
-          <Txt v="h3">{streak.current}</Txt>
-        </Tap>
-      </Row>
+    <DaySwipe day={date} onChange={(dir) => setDate((d) => addDays(d, dir))}>
+      <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
+        <Row style={{ justifyContent: 'space-between', paddingHorizontal: 4 }}>
+          <View style={{ flex: 1 }}>
+            <Txt v="title" numberOfLines={1}>
+              {profile.name ? `${greeting}, ${profile.name}` : greeting}
+            </Txt>
+          </View>
+          <Tap
+            onPress={() => router.push('/streak')}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
+            scaleTo={0.9}
+            rippleColor={c.coral}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: c.card,
+              borderRadius: 999,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+            }}
+          >
+            <Ionicons name="flame" size={18} color={streak.todayLogged ? c.coral : c.sub} />
+            <Txt v="h3">{streak.current}</Txt>
+          </Tap>
+        </Row>
 
-      <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
-        <IconButton icon="chevron-back" size={18} label={t('previous_day')} onPress={() => setDate(addDays(date, -1))} color={c.text} />
-        <Pressable onPress={() => setDate(today)} accessibilityRole="button" accessibilityHint={t('today')} style={{ minWidth: 92, alignItems: 'center' }}>
-          <Txt v="h3">{dateLabel}</Txt>
-        </Pressable>
-        <IconButton
-          icon="chevron-forward"
-          size={18}
-          label={t('next_day')}
-          onPress={() => date < today && setDate(addDays(date, 1))}
-          color={date >= today ? c.line : c.text}
-        />
-        <IconButton icon="calendar-outline" size={18} label={t('open_calendar')} onPress={() => router.push('/streak')} color={c.text} />
-      </Row>
+        <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
+          <IconButton icon="chevron-back" size={18} label={t('previous_day')} onPress={() => setDate(addDays(date, -1))} color={c.text} />
+          <Pressable onPress={() => setDate(today)} accessibilityRole="button" accessibilityHint={t('today')} style={{ minWidth: 92, alignItems: 'center' }}>
+            <Txt v="h3">{dateLabel}</Txt>
+          </Pressable>
+          <IconButton
+            icon="chevron-forward"
+            size={18}
+            label={t('next_day')}
+            onPress={() => setDate(addDays(date, 1))}
+            color={c.text}
+          />
+          <IconButton icon="calendar-outline" size={18} label={t('open_calendar')} onPress={() => router.push('/streak')} color={c.text} />
+        </Row>
 
-      {goals.status === 'minor' || goals.status === 'underweight' || goals.status === 'reached' ? (
-        <Banner icon={goals.status === 'reached' ? 'trophy' : 'information-circle'} tone="leaf" text={t(`warn_${goals.status}`)} />
-      ) : null}
-      {date === today && streak.todayLogged && isMilestone(streak.current) ? (
-        <View>
-          <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
-          <Burst trigger={streak.current} colors={[c.coral, c.carbs, c.accent, c.leaf]} size={260} />
-        </View>
-      ) : null}
-      {showBackupReminder ? (
-        <View style={{ gap: space.s }}>
-          <Banner icon="save-outline" text={t('backup_reminder')} />
-          <Row style={{ justifyContent: 'flex-end' }}>
-            <Button small kind="ghost" title={t('backup_later')} onPress={() => useStore.getState().snoozeBackupReminder()} />
-            <Button small icon="share-outline" title={t('backup_now')} onPress={exportBackupFlow} />
-          </Row>
-        </View>
-      ) : null}
+        {goals.status === 'minor' || goals.status === 'underweight' || goals.status === 'reached' ? (
+          <Banner icon={goals.status === 'reached' ? 'trophy' : 'information-circle'} tone="leaf" text={t(`warn_${goals.status}`)} />
+        ) : null}
+        {date === today && streak.todayLogged && isMilestone(streak.current) ? (
+          <View>
+            <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
+            <Burst trigger={streak.current} colors={[c.coral, c.carbs, c.accent, c.leaf]} size={260} />
+          </View>
+        ) : null}
+        {showBackupReminder ? (
+          <View style={{ gap: space.s }}>
+            <Banner icon="save-outline" text={t('backup_reminder')} />
+            <Row style={{ justifyContent: 'flex-end' }}>
+              <Button small kind="ghost" title={t('backup_later')} onPress={() => useStore.getState().snoozeBackupReminder()} />
+              <Button small icon="share-outline" title={t('backup_now')} onPress={exportBackupFlow} />
+            </Row>
+          </View>
+        ) : null}
 
-      {visibleDiary(layout).map((section) => {
-        if (section === 'plate')
+        {visibleDiary(layout).map((section) => {
+          if (section === 'plate')
+            return (
+              <Card key={section} r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
+                <PlateRing
+                  size={236}
+                  budget={budget}
+                  eatenKcal={totals.kcal}
+                  carbsKcal={totals.carbs * 4}
+                  proteinKcal={totals.protein * 4}
+                  fatKcal={totals.fat * 9}
+                >
+                  <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
+                    {Math.abs(Math.round(shownRemaining))}
+                  </Txt>
+                  <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
+                </PlateRing>
+
+                <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
+                  <Stat label={t('goal')} value={goals.kcal} />
+                  <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
+                  <Stat label={t('eaten')} value={Math.round(totals.kcal)} />
+                  <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
+                  <Stat label={t('burned')} value={burned} />
+                </Row>
+
+                <Row gap={14} style={{ alignSelf: 'stretch' }}>
+                  <MacroBar label={t('carbs')} value={totals.carbs} goal={goals.macros.carbs} color={c.carbs} />
+                  <MacroBar label={t('protein')} value={totals.protein} goal={goals.macros.protein} color={c.protein} />
+                  <MacroBar label={t('fat')} value={totals.fat} goal={goals.macros.fat} color={c.fat} />
+                </Row>
+              </Card>
+            );
+          if (section === 'fasting')
+            return goals.fastDay || (fastingActive && date === today) ? (
+              <View key={section} style={{ gap: space.m }}>
+                {goals.fastDay ? <Banner icon="leaf" tone="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
+                {fastingActive && date === today ? <FastingMini start={fastingActive.start} target={fastingActive.targetHours} /> : null}
+              </View>
+            ) : null;
+          if (section === 'meals')
+            return (
+              <View key={section} style={{ gap: space.m }}>
+                <SectionTitle>{t('meals')}</SectionTitle>
+                {MEALS.map((meal) => (
+                  <MealCard
+                    key={meal}
+                    meal={meal}
+                    date={date}
+                    entries={entries.filter((e) => e.meal === meal)}
+                    target={Math.round(budget * MEAL_SHARE[meal])}
+                  />
+                ))}
+              </View>
+            );
+          if (section === 'water') return <WaterCard key={section} date={date} />;
           return (
-            <Card key={section} r="xl" style={{ alignItems: 'center', gap: 18, paddingVertical: 24 }}>
-              <PlateRing
-                size={236}
-                budget={budget}
-                eatenKcal={totals.kcal}
-                carbsKcal={totals.carbs * 4}
-                proteinKcal={totals.protein * 4}
-                fatKcal={totals.fat * 9}
-              >
-                <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
-                  {Math.abs(Math.round(shownRemaining))}
-                </Txt>
-                <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
-              </PlateRing>
-
-              <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
-                <Stat label={t('goal')} value={goals.kcal} />
-                <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
-                <Stat label={t('eaten')} value={Math.round(totals.kcal)} />
-                <View style={{ width: 1, height: 30, backgroundColor: c.line }} />
-                <Stat label={t('burned')} value={burned} />
+            <Card key={section} r="l">
+              <Row gap={12}>
+                <Tile icon="footsteps" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt v="h3">{t('steps')}</Txt>
+                  <Txt v="sub">
+                    {steps !== null
+                      ? `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`
+                      : stepsLoading
+                        ? '…'
+                        : t('steps_unavailable')}
+                  </Txt>
+                </View>
               </Row>
-
-              <Row gap={14} style={{ alignSelf: 'stretch' }}>
-                <MacroBar label={t('carbs')} value={totals.carbs} goal={goals.macros.carbs} color={c.carbs} />
-                <MacroBar label={t('protein')} value={totals.protein} goal={goals.macros.protein} color={c.protein} />
-                <MacroBar label={t('fat')} value={totals.fat} goal={goals.macros.fat} color={c.fat} />
-              </Row>
+              {steps !== null ? (
+                <>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden', marginTop: 4 }}>
+                    <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.leaf }} />
+                  </View>
+                  <Txt v="small">
+                    {t('steps_kcal', { kcal: stepKcal })}
+                    {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
+                  </Txt>
+                </>
+              ) : stepsReason ? (
+                <>
+                  <Txt v="small">{t(stepsReason)}</Txt>
+                  {stepsAction ? (
+                    <Button
+                      small
+                      kind="ghost"
+                      icon="open-outline"
+                      title={t(stepsAction.label)}
+                      style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
+                      onPress={stepsAction.run}
+                    />
+                  ) : null}
+                </>
+              ) : null}
             </Card>
           );
-        if (section === 'fasting')
-          return goals.fastDay || (fastingActive && date === today) ? (
-            <View key={section} style={{ gap: space.m }}>
-              {goals.fastDay ? <Banner icon="leaf" tone="leaf" text={t('fasting_day_banner', { kcal: goals.kcal })} /> : null}
-              {fastingActive && date === today ? <FastingMini start={fastingActive.start} target={fastingActive.targetHours} /> : null}
-            </View>
-          ) : null;
-        if (section === 'meals')
-          return (
-            <View key={section} style={{ gap: space.m }}>
-              <SectionTitle>{t('meals')}</SectionTitle>
-              {MEALS.map((meal) => (
-                <MealCard
-                  key={meal}
-                  meal={meal}
-                  date={date}
-                  entries={entries.filter((e) => e.meal === meal)}
-                  target={Math.round(budget * MEAL_SHARE[meal])}
-                />
-              ))}
-            </View>
-          );
-        if (section === 'water') return <WaterCard key={section} date={date} />;
-        return (
-          <Card key={section} r="l">
-            <Row gap={12}>
-              <Tile icon="footsteps" bg={c.meal.lunch.tile} color={c.meal.lunch.icon} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <Txt v="h3">{t('steps')}</Txt>
-                <Txt v="sub">
-                  {steps !== null
-                    ? `${steps.toLocaleString(lang)} / ${profile.stepGoal.toLocaleString(lang)}`
-                    : stepsLoading
-                      ? '…'
-                      : t('steps_unavailable')}
-                </Txt>
-              </View>
-            </Row>
-            {steps !== null ? (
-              <>
-                <View style={{ height: 8, borderRadius: 4, backgroundColor: c.ringTrack, overflow: 'hidden', marginTop: 4 }}>
-                  <View style={{ width: `${Math.min(1, steps / profile.stepGoal) * 100}%`, height: 8, borderRadius: 4, backgroundColor: c.leaf }} />
-                </View>
-                <Txt v="small">
-                  {t('steps_kcal', { kcal: stepKcal })}
-                  {profile.addActivityCalories ? '' : `. ${t('steps_not_added')}`}
-                </Txt>
-              </>
-            ) : stepsReason ? (
-              <>
-                <Txt v="small">{t(stepsReason)}</Txt>
-                {stepsAction ? (
-                  <Button
-                    small
-                    kind="ghost"
-                    icon="open-outline"
-                    title={t(stepsAction.label)}
-                    style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
-                    onPress={stepsAction.run}
-                  />
-                ) : null}
-              </>
-            ) : null}
-          </Card>
-        );
-      })}
-    </Screen>
+        })}
+      </Screen>
+    </DaySwipe>
   );
 }
 
@@ -282,23 +292,51 @@ function FastingMini({ start, target }: { start: number; target: number }) {
 function MealCard({ meal, date, entries, target }: { meal: MealType; date: string; entries: DiaryEntry[]; target: number }) {
   const c = useColors();
   const { t } = useT();
-  const copyMeal = useStore((s) => s.copyMeal);
-  const yesterdayHas = useStore((s) => s.entries.some((e) => e.date === addDays(date, -1) && e.meal === meal));
   const total = Math.round(sumEntries(entries).kcal);
   const add = () => router.push({ pathname: '/add-food', params: { meal, date } });
+  // Folded meals show only this header row (name, kcal, add button); the choice holds on every day.
+  const collapsed = useStore((s) => s.layout.collapsedMeals.includes(meal));
+  const toggleCollapsed = () => {
+    const l = useStore.getState().layout;
+    useStore.getState().setLayout({ collapsedMeals: toggle(l.collapsedMeals, meal, !collapsed) });
+    Haptics.selectionAsync().catch(() => {});
+  };
 
   return (
     <Card r="l" style={{ gap: 4 }}>
       <Row gap={12}>
         <Tile icon={MEAL_ICONS[meal]} bg={c.meal[meal].tile} color={c.meal[meal].icon} />
-        <Pressable style={{ flex: 1, gap: 2 }} onPress={add} accessibilityRole="button">
-          <Txt v="h3">{t(`meal_${meal}`)}</Txt>
+        <Pressable
+          style={{ flex: 1, gap: 2 }}
+          onPress={toggleCollapsed}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !collapsed }}
+          accessibilityLabel={`${t(`meal_${meal}`)}, ${total} / ${target} kcal`}
+          accessibilityHint={collapsed ? t('meal_expand') : t('meal_collapse')}
+          testID={`meal-toggle-${meal}`}
+        >
+          <Row gap={6}>
+            <Txt v="h3">{t(`meal_${meal}`)}</Txt>
+            <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={16} color={c.sub} />
+          </Row>
           <Txt v="sub">
             {total} / {target} kcal
+            {collapsed && entries.length > 0 ? ` · ${entries.length === 1 ? t('meal_items_one') : t('meal_items_n', { n: entries.length })}` : ''}
           </Txt>
         </Pressable>
         <IconButton icon="add" label={`${t('add_food')}: ${t(`meal_${meal}`)}`} bg={c.accentSoft} color={c.accent} size={22} onPress={add} />
       </Row>
+      {collapsed ? null : <MealBody meal={meal} date={date} entries={entries} />}
+    </Card>
+  );
+}
+
+function MealBody({ meal, date, entries }: { meal: MealType; date: string; entries: DiaryEntry[] }) {
+  const { t } = useT();
+  const copyMeal = useStore((s) => s.copyMeal);
+  const yesterdayHas = useStore((s) => s.entries.some((e) => e.date === addDays(date, -1) && e.meal === meal));
+  return (
+    <>
       {entries.length > 0 ? <View style={{ height: 6 }} /> : null}
       {entries.map((e, i) => (
         <View key={e.id}>
@@ -343,7 +381,7 @@ function MealCard({ meal, date, entries, target }: { meal: MealType; date: strin
           />
         </View>
       ) : null}
-    </Card>
+    </>
   );
 }
 
