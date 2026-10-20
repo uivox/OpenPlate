@@ -228,13 +228,61 @@ async function run(scheme) {
       await btn('Save').click();
       await text('2250', { exact: true }).waitFor();
     });
-    await step('progress: decimal comma in the weight, each day’s own goal', async () => {
+    await step('progress: tiles, today so far, a past day in the average', async () => {
       await page.getByRole('tab', { name: 'Progress' }).click();
-      await text(/each day’s own calorie goal/).waitFor();
+      await page.getByTestId('insight-energy').filter({ visible: true }).first().click();
+      await text('In the last 30 days', { exact: true }).waitFor();
+      await text(/^Today so far: .* kcal\. Averages start once a day is over\.$/).waitFor(); // only today has food yet
+      await page.goBack();
+      // log an apple yesterday: now there is a finished day to average
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Previous day').click();
+      await text('Yesterday', { exact: true }).waitFor();
+      await btn('Add food: Breakfast').click();
+      await field('Search foods and products').fill('apple');
+      await text('Apple', { exact: true }).click();
+      await btn('Add').click();
+      await text('Yesterday', { exact: true }).waitFor();
+      await text('Yesterday', { exact: true }).click(); // back to today
+      await text('Today', { exact: true }).waitFor();
+      await page.getByRole('tab', { name: 'Progress' }).click();
+      await page.getByTestId('insight-energy').filter({ visible: true }).first().click();
+      await text('Based on 1 logged day.', { exact: true }).waitFor();
+      await text('94 kcal', { exact: true }).waitFor(); // yesterday's apple (180 g) is the average; today's food isn't
+      await text('The lighter bar is today so far; it isn’t in the averages.').waitFor();
+    });
+    await step('progress: weekly, custom range, explanation, open a day', async () => {
+      await btn('Weekly').click();
+      await text(/logged days?$/).waitFor();
+      await btn('Custom').click();
+      await page.getByLabel('From').filter({ visible: true }).first().waitFor().catch(() => {});
+      await text(/^Up to three years/).waitFor();
+      await btn('30 days').click();
+      await btn('Daily').click();
+      await text('How this is calculated', { exact: true }).click();
+      await text(/^Only days with entries count\./).waitFor();
+      // a day in the history opens the diary on that day
+      const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+      await page.getByRole('button', { name: new RegExp(`^${yesterday}`) }).filter({ visible: true }).first().click();
+      await text('Yesterday', { exact: true }).waitFor();
+      await text('Yesterday', { exact: true }).click();
+      await text('Today', { exact: true }).waitFor();
+    });
+    await step('progress: macros as shares of the energy', async () => {
+      await page.getByRole('tab', { name: 'Progress' }).click();
+      await page.getByTestId('insight-macros').filter({ visible: true }).first().click();
+      await text(/^Carbs: ⌀ \d+ g \(\d+ %\)$/).waitFor();
+      await text('Carbs / protein / fat, as shares of the energy.').waitFor();
+      await page.goBack();
+    });
+    await step('progress: decimal comma in the weight', async () => {
+      await page.getByTestId('insight-weight').filter({ visible: true }).first().click();
       await page.locator('input').filter({ visible: true }).first().fill('68,4');
       await btn('Save').click();
       await text('68.4 kg', { exact: true }).waitFor();
       await text('Update today’s weight').waitFor();
+      await page.goBack();
+      await text('68.4 kg', { exact: true }).waitFor(); // the weight tile shows it too
       await page.getByRole('tab', { name: 'Profile' }).click();
     });
     await step('appearance: neon theme', async () => {

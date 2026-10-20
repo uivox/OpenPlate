@@ -105,3 +105,95 @@ export function BarChart({
     </Svg>
   );
 }
+
+/** Round step for axis lines (1, 2, 2.5 or 5 times a power of ten) so about `count` lines fit `max`. */
+function niceStep(max: number, count = 4): number {
+  const raw = max / count;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+
+/**
+ * Bars for a statistic over a range (Progress → one tile): one bar per day, week or month, stacked
+ * when a bar has several parts (macros by energy), the goal as a line across, axis values on the
+ * left. A bar marked `partial` (today so far) is drawn lighter. Only a few dates are written
+ * underneath, so long ranges stay readable.
+ */
+export function PeriodChart({
+  bars,
+  colors,
+  goal,
+  width,
+  height = 210,
+  formatAxis = (v) => String(Math.round(v)),
+}: {
+  bars: { label: string; parts: number[] | null; partial?: boolean }[];
+  colors: string[];
+  goal?: number;
+  width: number;
+  height?: number;
+  formatAxis?: (v: number) => string;
+}) {
+  const c = useColors();
+  if (width <= 0 || bars.length === 0) return <View style={{ height }} />;
+  const totals = bars.map((b) => (b.parts ? b.parts.reduce((s, v) => s + v, 0) : 0));
+  const top = Math.max(...totals, goal ?? 0, 1);
+  const step = niceStep(top);
+  const max = Math.ceil((top * 1.05) / step) * step;
+  const padL = 42;
+  const padR = 6;
+  const padT = 8;
+  const padB = 22;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+  const y = (v: number) => padT + h - (v / max) * h;
+  const slot = w / bars.length;
+  const bw = Math.max(2, Math.min(26, slot * 0.7));
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + step / 2; v += step) ticks.push(v);
+  const every = Math.max(1, Math.ceil(bars.length / 5));
+  return (
+    <Svg width={width} height={height}>
+      {ticks.map((t, i) => (
+        <React.Fragment key={`t${i}`}>
+          <Line x1={padL} x2={width - padR} y1={y(t)} y2={y(t)} stroke={c.line} strokeWidth={1} />
+          <SvgText x={padL - 6} y={y(t) + 4} fontSize={10} fill={c.sub} textAnchor="end">
+            {formatAxis(t)}
+          </SvgText>
+        </React.Fragment>
+      ))}
+      {bars.map((b, i) => {
+        const mid = padL + i * slot + slot / 2;
+        let base = 0;
+        return (
+          <React.Fragment key={`b${i}`}>
+            {(b.parts ?? []).map((v, j) => {
+              const y0 = y(base);
+              base += v;
+              const y1 = y(base);
+              return (
+                <Rect
+                  key={j}
+                  x={mid - bw / 2}
+                  y={y1}
+                  width={bw}
+                  height={Math.max(0, y0 - y1)}
+                  rx={Math.min(3, bw / 3)}
+                  fill={colors[j % colors.length]}
+                  opacity={b.partial ? 0.4 : 1}
+                />
+              );
+            })}
+            {(bars.length - 1 - i) % every === 0 ? (
+              <SvgText x={mid} y={height - 6} fontSize={10} fill={c.sub} textAnchor="middle">
+                {b.label}
+              </SvgText>
+            ) : null}
+          </React.Fragment>
+        );
+      })}
+      {goal ? <Line x1={padL} x2={width - padR} y1={y(goal)} y2={y(goal)} stroke={c.leaf} strokeWidth={1.5} /> : null}
+    </Svg>
+  );
+}

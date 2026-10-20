@@ -5,6 +5,7 @@ import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import { snoozeEnd } from './backupReminder';
 import type { BackupData } from './backup';
 import { newId } from './id';
+import { DEFAULT_INSIGHTS, normalizeInsights, type InsightPrefs } from './insights';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
 import { migrateState, STORE_VERSION } from './migrations';
@@ -46,6 +47,8 @@ interface State {
   recipes: Recipe[];
   appearance: Appearance;
   layout: LayoutPrefs;
+  /** Last choice on the statistics screens (grouping, range). Per device, not part of backups. */
+  insights: InsightPrefs;
   /** Last export (or import of a backup file) on this device, ms. Not part of backups. */
   lastBackupAt: number | null;
   /** The backup reminder stays hidden until then, ms. */
@@ -80,6 +83,7 @@ interface State {
   setAI: (patch: Partial<AISettings>) => void;
   setAppearance: (patch: Partial<Appearance>) => void;
   setLayout: (patch: Partial<LayoutPrefs>) => void;
+  setInsights: (patch: Partial<InsightPrefs>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
   markBackedUp: () => void;
   snoozeBackupReminder: () => void;
@@ -105,6 +109,7 @@ type Persisted = Pick<
   | 'recipes'
   | 'appearance'
   | 'layout'
+  | 'insights'
   | 'lastBackupAt'
   | 'backupSnoozedUntil'
 >;
@@ -124,6 +129,7 @@ const initial = {
   recipes: [] as Recipe[],
   appearance: DEFAULT_APPEARANCE,
   layout: DEFAULT_LAYOUT,
+  insights: DEFAULT_INSIGHTS,
   lastBackupAt: null as number | null,
   backupSnoozedUntil: null as number | null,
 };
@@ -218,6 +224,7 @@ export const useStore = create<State>()(
       setAI: (patch) => set((s) => ({ ai: { ...s.ai, ...patch } })),
       setAppearance: (patch) => set((s) => ({ appearance: normalizeAppearance({ ...s.appearance, ...patch }) })),
       setLayout: (patch) => set((s) => ({ layout: normalizeLayout({ ...s.layout, ...patch }) })),
+      setInsights: (patch) => set((s) => ({ insights: normalizeInsights({ ...s.insights, ...patch }) })),
       setProviderConfig: (id, patch) =>
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
 
@@ -232,6 +239,7 @@ export const useStore = create<State>()(
           // older exports have no look/layout: keep the current one
           appearance: d.appearance ? normalizeAppearance(d.appearance) : s.appearance,
           layout: d.layout ? normalizeLayout(d.layout) : s.layout,
+          insights: s.insights, // a choice on this device, not in backups
           // Only model names come from the file; providers and server addresses stay as set on this
           // device, so a backup can never redirect a saved API key (see sanitizeImportedAI).
           ai: sanitizeImportedAI(d.ai, s.ai),
@@ -264,6 +272,7 @@ export const useStore = create<State>()(
         recipes: s.recipes,
         appearance: s.appearance,
         layout: s.layout,
+        insights: s.insights,
         lastBackupAt: s.lastBackupAt,
         backupSnoozedUntil: s.backupSnoozedUntil,
       }),
@@ -279,6 +288,7 @@ export const useStore = create<State>()(
           },
           appearance: normalizeAppearance(p.appearance),
           layout: normalizeLayout(p.layout),
+          insights: normalizeInsights(p.insights),
           lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,
           backupSnoozedUntil: typeof p.backupSnoozedUntil === 'number' ? p.backupSnoozedUntil : null,
         };
