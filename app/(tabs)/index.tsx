@@ -19,6 +19,7 @@ import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
 import { toggle, visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
 import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
+import { clockText, hintCardMeal, suggestAll } from '../../src/lib/reminders';
 import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
 import { useStore } from '../../src/lib/store';
 import { radius, space, useColors } from '../../src/lib/theme';
@@ -73,6 +74,12 @@ export default function DiaryScreen() {
   const lastBackupAt = useStore((s) => s.lastBackupAt);
   const backupSnoozedUntil = useStore((s) => s.backupSnoozedUntil);
   const showBackupReminder = backupDue(Date.now(), { since: profile.createdAt, lastBackupAt, snoozedUntil: backupSnoozedUntil });
+  // One-time offer once the app knows when a meal is usually eaten (5 logged days, see reminders.ts).
+  const reminderPrefs = useStore((s) => s.reminders);
+  const reminderHint = useMemo(
+    () => (reminderPrefs.enabled || reminderPrefs.hintDismissed ? null : hintCardMeal(reminderPrefs, suggestAll(allEntries, today))),
+    [reminderPrefs, allEntries, today],
+  );
 
   const dateLabel =
     date === today
@@ -145,6 +152,27 @@ export default function DiaryScreen() {
             <Row style={{ justifyContent: 'flex-end' }}>
               <Button small kind="ghost" title={t('backup_later')} onPress={() => useStore.getState().snoozeBackupReminder()} />
               <Button small icon="share-outline" title={t('backup_now')} onPress={exportBackupFlow} />
+            </Row>
+          </View>
+        ) : null}
+
+        {reminderHint && date === today && !showBackupReminder ? (
+          <View style={{ gap: space.s }} testID="reminder-hint">
+            <Banner
+              icon="notifications-outline"
+              text={t('reminder_card', { meal: t(`reminder_meal_${reminderHint.meal}`), time: clockText(reminderHint.time) })}
+            />
+            <Row style={{ justifyContent: 'flex-end' }}>
+              <Button small kind="ghost" title={t('reminder_card_no')} onPress={() => useStore.getState().setReminders({ hintDismissed: true })} />
+              <Button
+                small
+                icon="notifications-outline"
+                title={t('reminder_card_yes')}
+                onPress={() => {
+                  useStore.getState().setReminders({ hintDismissed: true });
+                  router.push('/reminders');
+                }}
+              />
             </Row>
           </View>
         ) : null}

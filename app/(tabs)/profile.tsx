@@ -19,7 +19,7 @@ import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
 import { clearAllKeys } from '../../src/lib/secure';
 import { useStore } from '../../src/lib/store';
 import { useColors } from '../../src/lib/theme';
-import type { LanguagePref } from '../../src/lib/types';
+import { MEALS, type LanguagePref } from '../../src/lib/types';
 import { useT } from '../../src/lib/useT';
 
 export default function ProfileScreen() {
@@ -70,6 +70,10 @@ export default function ProfileScreen() {
         ? t('pack_row_none')
         : t('pack_row_unavailable');
 
+  const onMeals = MEALS.filter((m) => state.reminders.meals[m].on);
+  const remindersLabel =
+    state.reminders.enabled && onMeals.length ? t('reminders_row_on', { meals: onMeals.map((m) => t(`meal_${m}`)).join(', ') }) : t('reminders_row_off');
+
   const aiLabel = state.ai.primary
     ? [state.ai.primary, state.ai.fallback].filter(Boolean).map((p) => PROVIDER_NAMES[p!]).join(' → ')
     : t('not_set_up');
@@ -105,6 +109,8 @@ export default function ProfileScreen() {
         <ListRow icon="color-palette-outline" title={t('appearance')} subtitle={t('appearance_sub')} right={chevron} onPress={() => router.push('/appearance')} />
         <Divider />
         <ListRow icon="grid-outline" title={t('layout_title')} subtitle={t('layout_sub')} right={chevron} onPress={() => router.push('/layout-settings')} />
+        <Divider />
+        <ListRow icon="notifications-outline" title={t('reminders_title')} subtitle={remindersLabel} right={chevron} onPress={() => router.push('/reminders')} />
       </Card>
 
       <SectionTitle>{t('language')}</SectionTitle>

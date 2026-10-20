@@ -22,7 +22,7 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 ### Web version
 
 - **Same features everywhere.** iPhone, Android and the web app have the same features and behaviour. A platform may only lack a feature when the platform makes it impossible (no step counter in browsers, notifications only while the web app is open, no HealthKit with a free Apple ID). Every such gap is listed in README → *Differences between platforms* and explained in the app where the user meets it.
-- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `canPickFiles`, `canChangeAppIcon`, `appIconNote`) are exported from both `device` files instead of checking `Platform.OS` in screens.
+- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `notificationAccess`, `canPickFiles`, `canChangeAppIcon`, `appIconNote`) are exported from both `device` files instead of checking `Platform.OS` in screens.
 - The Content Security Policy is written by `scripts/web-pwa.mjs`; a new server the app talks to has to be added there.
 - `scripts/web-smoke.mjs` clicks through the built web app in CI. Extend it when a flow changes that the browser can run; fake outside servers with `page.route`.
 
@@ -49,6 +49,13 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - `src/lib/barcode.ts`: the pure check (EAN-8, UPC-E, UPC-A, EAN-13, GTIN-14, check digit, spaces ignored).
 - `src/lib/barcodeFlow.ts`: `resolveBarcode` (own foods → Open Food Facts → Robotoff), `flowParams`.
 - `src/lib/openFoodFacts.ts`: barcode lookup, search, Robotoff, fair-use limits, and `lookupFailure`, which sorts errors into invalid / rate limited / server / offline.
+
+## Where things are (meal reminders)
+
+- `src/lib/reminders.ts` (pure): settings and `normalizeReminders`, suggested times (`suggestTime`: median first log of the day over 21 days, ≥ 5 days, same-day entries only), `planReminders` (time + delay, only empty meals, not inside a running fast, 14 days ahead), `reminderFigure` / `reminderText` (meal share for breakfast and lunch, optionally adjusted; what's left for dinner and snacks), `reminderDiff`.
+- `src/lib/device.ts` / `device.web.ts`: `notificationAccess`, `askNotifications`, `openNotificationSettings`, `syncReminders` (expo-notifications with ids `meal-reminder:<date>:<meal>`; timers in the browser), `onReminderOpened`. Permission is only asked from the reminders switch, never by the sync.
+- `src/components/MealReminderSync.tsx`: rendered once in `app/_layout.tsx`; reschedules after store changes (entries, reminders, profile, weights, fasting, language), when the app comes to the front and hourly; a tap opens `/add-food` with `meal` and `date`. The service worker (`scripts/web-pwa.mjs`) passes web taps on as a `openplate-reminder` message.
+- `app/reminders.tsx` (Profile → *Meal reminders*) and the one-time card in the diary (`hintCardMeal`). Settings are part of backups.
 
 ## Where things are (steps)
 

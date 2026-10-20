@@ -1,6 +1,7 @@
 import { MAX_KCAL_PER_100G } from './ai';
 import { planById } from './fasting';
 import { RECIPE_TAGS } from './recipes';
+import { normalizeReminders, type ReminderPrefs } from './reminders';
 import {
   MEALS,
   type Activity,
@@ -46,6 +47,8 @@ export interface BackupData {
   /** Look and layout; optional, normalised by the store on import. */
   appearance?: Partial<Appearance>;
   layout?: Partial<LayoutPrefs>;
+  /** Meal reminder settings; optional, normalised on import. */
+  reminders?: ReminderPrefs;
 }
 
 const BACKUP_KEYS: (keyof BackupData)[] = [
@@ -63,6 +66,7 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'recipes',
   'appearance',
   'layout',
+  'reminders',
 ];
 
 /** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
@@ -348,6 +352,7 @@ export function parseBackupReport(input: string, now = new Date()): BackupReport
     ai: isObj(raw.ai) ? (raw.ai as Partial<AISettings>) : undefined,
     appearance: isObj(raw.appearance) ? (raw.appearance as Partial<Appearance>) : undefined,
     layout: isObj(raw.layout) ? (raw.layout as Partial<LayoutPrefs>) : undefined,
+    reminders: isObj(raw.reminders) ? normalizeReminders(raw.reminders) : undefined,
     recipes: uniqueById(keep(raw.recipes, sanitizeRecipe, counter)),
     meals: uniqueById(keep(raw.meals, sanitizeMeal, counter)),
   };

@@ -214,6 +214,79 @@ async function run(scheme) {
       await btn('Start fasting').waitFor();
       await page.getByRole('tab', { name: 'Diary' }).click();
     });
+    await step('reminders: switching on asks for notifications and fills in the times', async () => {
+      await ctx.grantPermissions(['notifications'], { origin: url.slice(0, -1) });
+      // Record what would be shown instead of showing it (headless Chromium has no notification centre).
+      await page.evaluate(() => {
+        window.__shown = [];
+        const record = (title, opts) => window.__shown.push({ title, body: opts?.body, data: opts?.data });
+        if (window.ServiceWorkerRegistration)
+          ServiceWorkerRegistration.prototype.showNotification = function (title, opts) {
+            record(title, opts);
+            return Promise.resolve();
+          };
+        window.Notification = class extends EventTarget {
+          static permission = 'granted';
+          static requestPermission = async () => 'granted';
+          constructor(title, opts) {
+            super();
+            record(title, opts);
+          }
+          close() {}
+        };
+      });
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Meal reminders', { exact: true }).click();
+      await text(/reminders only come while OpenPlate is open/).waitFor();
+      if (await page.getByTestId('reminder-time-dinner').filter({ visible: true }).count()) throw new Error('times shown while reminders are off');
+      await page.getByTestId('reminders-switch').filter({ visible: true }).first().click();
+      await text('Times', { exact: true }).waitFor();
+      const dinner = page.getByTestId('reminder-time-dinner').filter({ visible: true }).first();
+      if ((await dinner.inputValue()) !== '19:00') throw new Error(`dinner time not pre-filled: ${await dinner.inputValue()}`);
+      // Snacks start off; a typed time that isn't one is refused.
+      if (await page.getByTestId('reminder-time-snack').filter({ visible: true }).count()) throw new Error('snack reminder on by default');
+      await dinner.fill('25:00');
+      await dinner.press('Enter');
+      await text('Enter a time like 12:30.').waitFor();
+      await dinner.fill('19:00');
+      await dinner.press('Enter');
+    });
+    await step('reminders: an empty dinner gets a reminder, and a tap opens its add screen', async () => {
+      const now = new Date();
+      // Dinner is still empty here. Set it so time + 30 min is the next full minute (light run only: it waits for the clock).
+      const fireAt = new Date(now.getTime() + 60000);
+      fireAt.setSeconds(0, 0);
+      const wait = scheme === 'light' && fireAt.getDate() === now.getDate();
+      const mins = fireAt.getHours() * 60 + fireAt.getMinutes() - 30;
+      const dinner = page.getByTestId('reminder-time-dinner').filter({ visible: true }).first();
+      const typed = wait && mins >= 0 ? `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}` : '19:00';
+      await dinner.fill(typed);
+      await dinner.press('Enter');
+      let reminder = { meal: 'dinner', date: todayKey };
+      if (typed !== '19:00') {
+        await page.waitForFunction(() => window.__shown.length > 0, null, { timeout: 150000 });
+        const shown = await page.evaluate(() => window.__shown[0]);
+        if (shown.title !== 'Dinner isn’t logged yet' || !/kcal left today\. Tap to log it\.$/.test(shown.body ?? ''))
+          throw new Error(`unexpected reminder: ${JSON.stringify(shown)}`);
+        reminder = shown.data?.reminder ?? reminder;
+        console.log(`[${scheme}] reminder shown at ${new Date().toTimeString().slice(0, 8)}: ${shown.title} / ${shown.body}`);
+        if (shown.data?.url && !shown.data.url.includes(`add-food?meal=dinner&date=${todayKey}`)) throw new Error(`reminder link: ${shown.data.url}`);
+      }
+      // What the service worker passes on when the reminder (or *Log now*) is tapped.
+      await page.evaluate((r) => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'openplate-reminder', reminder: r } })), reminder);
+      await field('Search foods and products').waitFor();
+      await page.getByRole('heading', { name: 'Dinner' }).or(text('Dinner', { exact: true })).first().waitFor();
+      await page.goBack();
+    });
+    await step('reminders: switching off hides the times and the profile says Off', async () => {
+      await page.getByTestId('reminders-switch').filter({ visible: true }).first().click();
+      await page.getByTestId('reminder-time-dinner').filter({ visible: true }).waitFor({ state: 'detached' }).catch(() => {});
+      if (await page.getByTestId('reminder-time-dinner').filter({ visible: true }).count()) throw new Error('times still shown after switching off');
+      await page.goBack();
+      await text('Off', { exact: true }).waitFor();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').waitFor();
+    });
     await step('exact goal', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('kcal per day').click();
