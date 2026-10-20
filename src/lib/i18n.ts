@@ -640,6 +640,18 @@ const en = {
   pack_error_older: 'The server offered older data than you have, so it wasn’t used.',
   pack_error_too_large: 'The download is larger than expected, so it wasn’t used.',
   pack_error_storage: 'There isn’t enough free storage on this device.',
+  meal_collapse: 'Fold this meal down to one line',
+  meal_expand: 'Show this meal’s foods',
+  tomorrow: 'Tomorrow',
+  edit_food: 'Edit food',
+  edit_food_note: 'Changes apply to everything you log from now on and to your saved meals with this food. Your diary keeps the values it has.',
+  delete_food: 'Delete food',
+  delete_food_in_meals: 'It’s also removed from these saved meals: {meals}. A meal left without foods is deleted. Your diary keeps it.',
+  my_foods_meals: 'My foods & meals',
+  my_foods_meals_sub: '{foods} foods · {meals} meals · {recipes} recipes',
+  my_foods_empty: 'You haven’t created any foods yet.',
+  my_meals_empty: 'You haven’t saved any meals yet.',
+  my_foods_hint: 'Tap an item to edit it. Your diary always keeps the values you logged.',
 };
 
 export type TKey = keyof typeof en;
@@ -1274,6 +1286,18 @@ const de: Record<TKey, string> = {
   pack_error_older: 'Der Server hat ältere Daten angeboten, als du schon hast. Sie wurden nicht verwendet.',
   pack_error_too_large: 'Der Download ist größer als erwartet und wurde nicht verwendet.',
   pack_error_storage: 'Auf diesem Gerät ist nicht genug Speicher frei.',
+  meal_collapse: 'Diese Mahlzeit auf eine Zeile zuklappen',
+  meal_expand: 'Lebensmittel dieser Mahlzeit anzeigen',
+  tomorrow: 'Morgen',
+  edit_food: 'Lebensmittel bearbeiten',
+  edit_food_note: 'Änderungen gelten für alles, was du ab jetzt einträgst, und für deine gespeicherten Mahlzeiten mit diesem Lebensmittel. Dein Tagebuch behält seine bisherigen Werte.',
+  delete_food: 'Lebensmittel löschen',
+  delete_food_in_meals: 'Es wird auch aus diesen gespeicherten Mahlzeiten entfernt: {meals}. Eine Mahlzeit ohne Lebensmittel wird gelöscht. Dein Tagebuch behält es.',
+  my_foods_meals: 'Meine Lebensmittel & Mahlzeiten',
+  my_foods_meals_sub: '{foods} Lebensmittel · {meals} Mahlzeiten · {recipes} Rezepte',
+  my_foods_empty: 'Du hast noch keine Lebensmittel angelegt.',
+  my_meals_empty: 'Du hast noch keine Mahlzeiten gespeichert.',
+  my_foods_hint: 'Tippe auf einen Eintrag, um ihn zu bearbeiten. Dein Tagebuch behält immer die Werte, die du eingetragen hast.',
 };
 
 const DICTS: Record<Lang, Record<TKey, string>> = { en, de };

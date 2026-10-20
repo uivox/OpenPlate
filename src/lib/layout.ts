@@ -1,4 +1,4 @@
-import type { DiarySection, LayoutPrefs, TabId } from './types';
+import { MEALS, type DiarySection, type LayoutPrefs, type TabId } from './types';
 
 /** Order and visibility of the tabs and the diary sections. Pure, so it can be tested. */
 
@@ -15,6 +15,7 @@ export const DEFAULT_LAYOUT: LayoutPrefs = {
   addButton: 'center',
   diaryOrder: ALL_DIARY,
   hiddenDiary: [],
+  collapsedMeals: [],
 };
 
 /**
@@ -45,12 +46,14 @@ export function normalizeLayout(l: Partial<LayoutPrefs> | undefined): LayoutPref
   const v: Partial<LayoutPrefs> = l && typeof l === 'object' ? l : {};
   const hiddenTabs: unknown[] = Array.isArray(v.hiddenTabs) ? v.hiddenTabs : [];
   const hiddenDiary: unknown[] = Array.isArray(v.hiddenDiary) ? v.hiddenDiary : [];
+  const collapsed: unknown[] = Array.isArray(v.collapsedMeals) ? v.collapsedMeals : [];
   return {
     tabOrder: complete(v.tabOrder, ALL_TABS),
     hiddenTabs: complete(v.hiddenTabs, ALL_TABS).filter((id) => hiddenTabs.includes(id) && !FIXED_TABS.includes(id)),
     addButton: v.addButton === 'left' || v.addButton === 'right' ? v.addButton : 'center',
     diaryOrder: complete(v.diaryOrder, ALL_DIARY),
     hiddenDiary: complete(v.hiddenDiary, ALL_DIARY).filter((id) => hiddenDiary.includes(id) && !FIXED_DIARY.includes(id)),
+    collapsedMeals: MEALS.filter((m) => collapsed.includes(m)),
   };
 }
 

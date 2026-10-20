@@ -37,7 +37,7 @@ export interface Food {
 }
 
 export interface SavedMealItem {
-  /** Full snapshot, like diary entries, so later edits to a custom food don't change the meal. */
+  /** Full copy of the food. Editing one of the user's own foods updates these copies too (replaceFoodInMeals); diary entries keep theirs. */
   food: Food;
   grams: number;
 }
@@ -205,6 +205,8 @@ export interface LayoutPrefs {
   addButton: 'left' | 'center' | 'right';
   diaryOrder: DiarySection[];
   hiddenDiary: DiarySection[];
+  /** Meals folded down to their header row in the diary; the same on every day. */
+  collapsedMeals: MealType[];
 }
 
 export type RecipeTag = 'breakfast' | 'main' | 'snack' | 'vegetarian' | 'vegan' | 'high_protein' | 'quick';

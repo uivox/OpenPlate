@@ -40,6 +40,20 @@ export function Tap({ style, children, scaleTo = 0.96, rippleColor, haptic, onPr
   const ripple = useRef(new Animated.Value(0)).current;
   const [spot, setSpot] = useState<{ x: number; y: number; r: number; k: number } | null>(null);
   const box = useRef({ w: 0, h: 0 });
+  const spotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (spotTimer.current) clearTimeout(spotTimer.current);
+  }, []);
+  // The ripple circle is removed once it has played. Without this it stayed mounted, and when its
+  // animation was cut short (the tap opened another screen, the browser paused frames) it was left
+  // on screen half-faded: the small dot after tapping. The timer covers animations that never report back.
+  const spotKey = useRef(0);
+  const clearSpot = (k: number) => {
+    if (spotKey.current !== k) return; // a newer tap owns the circle now
+    if (spotTimer.current) clearTimeout(spotTimer.current);
+    spotTimer.current = null;
+    setSpot((s) => (s && s.k === k ? null : s));
+  };
 
   const pressIn = (e: GestureResponderEvent) => {
     onPressIn?.(e);
@@ -54,9 +68,13 @@ export function Tap({ style, children, scaleTo = 0.96, rippleColor, haptic, onPr
       const x = ne.locationX ?? ne.offsetX ?? box.current.w / 2;
       const y = ne.locationY ?? ne.offsetY ?? box.current.h / 2;
       const r = Math.max(box.current.w, box.current.h, 40) * 1.1;
-      setSpot({ x, y, r, k: Date.now() });
+      const k = spotKey.current + 1;
+      spotKey.current = k;
+      setSpot({ x, y, r, k });
       ripple.setValue(0);
-      Animated.timing(ripple, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: native }).start();
+      if (spotTimer.current) clearTimeout(spotTimer.current);
+      spotTimer.current = setTimeout(() => clearSpot(k), 900);
+      Animated.timing(ripple, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: native }).start(() => clearSpot(k));
     }
   };
   const pressOut = (e: GestureResponderEvent) => {
