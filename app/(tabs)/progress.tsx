@@ -1,141 +1,103 @@
-import * as Haptics from 'expo-haptics';
-import React, { useMemo, useState } from 'react';
+import { router } from 'expo-router';
+import React, { useMemo } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BarChart, LineChart } from '../../src/components/charts';
+import { Tap } from '../../src/components/motion';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
-import { Button, Card, ChipGroup, NumField, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
-import { showAlert } from '../../src/lib/alert';
-import { addDays, dayKey, lastNDays, locale, parseDayKey } from '../../src/lib/dates';
-import { goalsFor } from '../../src/lib/hooks';
-import { bmi, bmiCategory } from '../../src/lib/nutrition';
+import { Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
+import { addDays } from '../../src/lib/dates';
+import { canReadSteps, STEPS_REASON, useToday } from '../../src/lib/hooks';
+import type { TKey } from '../../src/lib/i18n';
+import { fastingByDay, foodByDay, formatValue, macroPercents, summarize, type Metric } from '../../src/lib/insights';
 import { useStore, weightOn } from '../../src/lib/store';
-import { dailyTotals } from '../../src/lib/streaks';
 import { useColors } from '../../src/lib/theme';
 import { useT } from '../../src/lib/useT';
-import { weekSummary } from '../../src/lib/weekly';
 
-const RANGES = [30, 90, 365] as const;
+const ICONS: Record<Metric, IconName> = {
+  energy: 'flame',
+  macros: 'pie-chart',
+  water: 'water',
+  weight: 'scale',
+  steps: 'footsteps',
+  nutrients: 'leaf',
+  fasting: 'moon',
+};
 
+/**
+ * Progress tab: one tile per statistic, each opening its own screen (app/insight.tsx) with daily,
+ * weekly and monthly bars. Under each name a short line about the last 30 days.
+ */
 export default function ProgressScreen() {
   const insets = useSafeAreaInsets();
   const { t, lang } = useT();
   const c = useColors();
+  const today = useToday();
   const profile = useStore((s) => s.profile)!;
-  const weights = useStore((s) => s.weights);
   const entries = useStore((s) => s.entries);
   const water = useStore((s) => s.water);
-  const logWeight = useStore((s) => s.logWeight);
-  const removeWeight = useStore((s) => s.removeWeight);
+  const weights = useStore((s) => s.weights);
+  const fasts = useStore((s) => s.fastingHistory);
 
-  const today = dayKey();
-  const current = weightOn(weights, profile, today);
-  const [input, setInput] = useState<number | null>(current);
-  const [range, setRange] = useState<(typeof RANGES)[number]>(90);
-  const [width, setWidth] = useState(0);
+  const lines = useMemo(() => {
+    const from = addDays(today, -29);
+    const food = foodByDay(entries);
+    const fd = fastingByDay(fasts);
+    const avgOf = (m: Metric, valueOf: (d: string) => number[] | null, countToday = false) => {
+      const s = summarize(from, today, valueOf, today, { countToday });
+      if (!s.avg) return t('insight_tile_none');
+      return t('insight_tile_avg', { value: formatValue(m, s.avg.reduce((a, b) => a + b, 0), lang) });
+    };
+    const macros = summarize(from, today, (d) => (food.has(d) ? [food.get(d)!.carbs, food.get(d)!.protein, food.get(d)!.fat] : null), today);
+    const p = macros.avg ? macroPercents({ carbs: macros.avg[0], protein: macros.avg[1], fat: macros.avg[2] }) : null;
+    return {
+      energy: avgOf('energy', (d) => (food.has(d) ? [food.get(d)!.kcal] : null)),
+      macros: p ? `${p[0]} / ${p[1]} / ${p[2]} %` : t('insight_tile_none'),
+      water: avgOf('water', (d) => ((water[d] ?? 0) > 0 ? [water[d]] : null)),
+      weight: formatValue('weight', weightOn(weights, profile, today), lang),
+      steps: canReadSteps ? t('insight_tile_steps') : t(STEPS_REASON as TKey),
+      nutrients: t('insight_tile_nutrients'),
+      fasting: avgOf('fasting', (d) => (fd.has(d) ? [fd.get(d)!.hours] : null), true),
+    } satisfies Record<Metric, string>;
+  }, [today, entries, water, weights, fasts, profile, lang, t]);
 
-  const dec = (n: number, d = 1) => n.toFixed(d).replace('.', lang === 'de' ? ',' : '.');
-  const change = current - profile.startWeightKg;
-  const toGo = current - profile.targetWeightKg;
-  const bmiValue = bmi(current, profile.heightCm);
-
-  const shortLabel = (key: string) => parseDayKey(key).toLocaleDateString(locale(lang), { day: 'numeric', month: 'short' });
-  const points = useMemo(() => {
-    const from = addDays(today, -range);
-    return weights.filter((w) => w.date >= from).map((w) => ({ label: shortLabel(w.date), value: w.kg }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weights, range, lang, today]);
-
-  const summary = useMemo(
-    () => weekSummary(lastNDays(today, 7), dailyTotals(entries), water, (d) => goalsFor(profile, weights, d).kcal),
-    [today, entries, water, profile, weights],
+  const tile = (m: Metric, bg: string, color: string) => (
+    <Tap
+      key={m}
+      onPress={() => router.push({ pathname: '/insight', params: { kind: m } })}
+      accessibilityRole="button"
+      accessibilityLabel={`${t(`insight_${m}` as TKey)}: ${lines[m]}`}
+      scaleTo={0.96}
+      haptic
+      testID={`insight-${m}`}
+      style={{ flexBasis: '40%', flexGrow: 1, backgroundColor: c.card, borderRadius: 22, padding: 14, gap: 10 }}
+    >
+      <Tile icon={ICONS[m]} bg={bg} color={color} />
+      <View style={{ gap: 2 }}>
+        <Txt v="h3">{t(`insight_${m}` as TKey)}</Txt>
+        <Txt v="small" numberOfLines={2}>
+          {lines[m]}
+        </Txt>
+      </View>
+    </Tap>
   );
-  const bars = summary.bars.map((b) => ({
-    label: parseDayKey(b.date).toLocaleDateString(locale(lang), { weekday: 'narrow' }),
-    value: b.kcal,
-    goal: b.goal,
-  }));
-
-  const save = () => {
-    if (!input || input < 30 || input > 300) return;
-    logWeight(today, Math.round(input * 10) / 10);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  };
-
-  const loggedToday = weights.some((w) => w.date === today);
 
   return (
     <Screen style={{ paddingTop: insets.top + 12 }} bottomInset={TAB_BAR_SPACE} appear>
       <Txt v="title">{t('tab_progress')}</Txt>
-
-      <Card r="xl" style={{ paddingVertical: 22 }}>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View>
-            <Txt v="small">{t('current_weight')}</Txt>
-            <Txt v="big">{dec(current)} kg</Txt>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Txt v="sub" color={change <= 0 ? c.accent : c.coral}>
-              {change > 0 ? '+' : change < 0 ? '−' : '±'}
-              {dec(Math.abs(change))} kg {t('since_start')}
-            </Txt>
-            {profile.goal !== 'maintain' ? (
-              <Txt v="sub">{t('to_go', { kg: dec(Math.max(0, profile.goal === 'lose' ? toGo : -toGo)) })}</Txt>
-            ) : null}
-            <Txt v="sub">
-              BMI {dec(bmiValue)} · {t(`bmi_${bmiCategory(bmiValue)}`)}
-            </Txt>
-          </View>
-        </Row>
-        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-          {points.length > 0 ? (
-            <LineChart points={points} width={width} target={profile.goal !== 'maintain' ? profile.targetWeightKg : undefined} />
-          ) : (
-            <Txt v="sub">{t('no_weights')}</Txt>
-          )}
-        </View>
-        <ChipGroup options={RANGES.map((r) => ({ value: r, label: t('days_n', { n: r }) }))} value={range} onChange={setRange} />
-      </Card>
-
-      <Card style={{ gap: 12 }}>
-        <Txt v="h3">{loggedToday ? t('update_today_weight') : t('log_weight')}</Txt>
-        <Row>
-          <NumField value={input} onChange={setInput} suffix="kg" />
-          <Button title={t('save')} icon="checkmark" onPress={save} disabled={!input || input < 30 || input > 300} />
-        </Row>
-        {loggedToday ? (
-          <Button
-            small
-            kind="ghost"
-            title={t('remove_today_weight')}
-            style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
-            onPress={() =>
-              showAlert(t('remove_today_weight'), undefined, [
-                { text: t('cancel'), style: 'cancel' },
-                { text: t('delete'), style: 'destructive', onPress: () => removeWeight(today) },
-              ])
-            }
-          />
-        ) : null}
-      </Card>
-
-      <SectionTitle>{t('last_7_days')}</SectionTitle>
-      <Card>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt v="h3">{t('calories')}</Txt>
-          <Txt v="sub">{t('avg_kcal', { kcal: summary.avgKcal })}</Txt>
-        </Row>
-        <BarChart bars={bars} width={width} />
-        <Txt v="small">{t('chart_goal_line')}</Txt>
-      </Card>
-      <Card>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Txt v="h3">{t('water')}</Txt>
-          <Txt v="sub">
-            {summary.waterDays ? t('avg_water', { l: dec(summary.avgWater / 1000, 2) }) : t('no_water_week')}
-          </Txt>
-        </Row>
-      </Card>
+      <SectionTitle>{t('insight_highlights')}</SectionTitle>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {tile('energy', c.meal.breakfast.tile, c.meal.breakfast.icon)}
+        {tile('macros', c.meal.dinner.tile, c.meal.dinner.icon)}
+        {tile('water', `${c.water}22`, c.water)}
+        {tile('weight', c.meal.snack.tile, c.meal.snack.icon)}
+        {tile('steps', c.meal.lunch.tile, c.meal.lunch.icon)}
+        {tile('fasting', c.cardAlt, c.text)}
+      </View>
+      <SectionTitle>{t('insight_more')}</SectionTitle>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {tile('nutrients', `${c.leaf}22`, c.leaf)}
+        <View style={{ flexBasis: '40%', flexGrow: 1 }} />
+      </View>
     </Screen>
   );
 }

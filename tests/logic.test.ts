@@ -105,6 +105,7 @@ import {
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
 import { APP_ICONS, iconIdFromNative, nativeIconName } from '../src/lib/appIcon';
 import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
+import { buildBars, daysBetween, fastingByDay, foodByDay, formatDateInput, macroKcal, macroPercents, normalizeInsights, parseDateInput, periods, rangeBounds, summarize, weekStart } from '../src/lib/insights';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
 import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
@@ -2123,4 +2124,80 @@ test('app icon: colours, native names and the plugin config agree', () => {
   // the alias fix must run after the icon plugin, so it is listed before it
   assert.ok(plugins.indexOf('./plugins/withAlternateIconAliases') < plugins.findIndex((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons'));
   assert.equal(APP_ICONS.find((i) => i.id === 'default')!.bg, app.android.adaptiveIcon.backgroundColor);
+});
+
+test('insights: ranges, periods and what counts', () => {
+  const today = '2026-10-20'; // a Tuesday
+  assert.deepEqual(rangeBounds({ group: 'day', range: '7' }, today), { from: '2026-10-14', to: today });
+  assert.equal(daysBetween(...(Object.values(rangeBounds({ group: 'day', range: '30' }, today)) as [string, string])), 30);
+  // custom: put in order, never past today, at most about three years
+  assert.deepEqual(rangeBounds({ group: 'day', range: 'custom', from: '2026-11-05', to: '2026-10-01' }, today), { from: '2026-10-01', to: today });
+  assert.equal(rangeBounds({ group: 'day', range: 'custom', from: '1026-01-01', to: today }, today).from > '2023-01-01', true);
+  assert.deepEqual(rangeBounds({ group: 'day', range: 'custom' }, today).from, '2026-09-21');
+  assert.deepEqual(normalizeInsights({ group: 'year' as never, range: '12' as never, from: '2026-02-30' }), { group: 'day', range: '30' });
+
+  assert.equal(weekStart('2026-10-20'), '2026-10-19');
+  assert.equal(weekStart('2026-10-25'), '2026-10-19'); // Sunday belongs to the week before
+  assert.deepEqual(periods('2026-10-15', '2026-10-20', 'week'), [
+    { from: '2026-10-15', to: '2026-10-18' },
+    { from: '2026-10-19', to: '2026-10-20' },
+  ]);
+  assert.deepEqual(periods('2026-09-28', '2026-11-02', 'month').map((p) => p.from), ['2026-09-28', '2026-10-01', '2026-11-01']);
+  assert.equal(periods('2026-10-14', today, 'day').length, 7);
+
+  const kcal: Record<string, number> = { '2026-10-16': 2000, '2026-10-17': 3000, '2026-10-19': 2500, '2026-10-20': 900 };
+  const valueOf = (d: string) => (d in kcal ? [kcal[d]] : null);
+  const goalOf = (d: string) => (d === '2026-10-19' ? 1500 : 2500);
+  // average over logged past days only: today's 900 kcal so far and the empty days don't count
+  const sum = summarize('2026-10-14', today, valueOf, today, { goalOf });
+  assert.deepEqual(sum.avg, [2500]);
+  assert.equal(sum.days, 3);
+  assert.equal(Math.round(sum.goal!), 2167); // average goal of the counted days
+  const days = buildBars(periods('2026-10-18', today, 'day'), valueOf, today);
+  assert.deepEqual(days.map((b) => b.values), [null, [2500], [900]]);
+  assert.deepEqual(days.map((b) => b.partial), [false, false, true]);
+  // weekly: the average day of the week; this week holds only Monday so far (today is left out)
+  const weeks = buildBars(periods('2026-10-12', today, 'week'), valueOf, today);
+  assert.deepEqual(weeks.map((b) => b.values), [[2500], [2500]]);
+  assert.deepEqual(weeks.map((b) => b.days), [2, 1]);
+  // complete readings (a weigh-in) count today too
+  assert.equal(summarize(today, today, valueOf, today, { countToday: true }).days, 1);
+});
+
+test('insights: food, macros by energy, fasting', () => {
+  const pasta: Food = { id: 'p', source: 'generic', name: 'Pasta', per100: { kcal: 350, protein: 12, carbs: 70, fat: 2, sugar: 3 }, servings: [] };
+  const byDay = foodByDay([entry('2026-10-19', pasta, 200), entry('2026-10-19', apple, 100, 1), entry('2026-10-20', apple, 0, 2)]);
+  const d = byDay.get('2026-10-19')!;
+  assert.equal(Math.round(d.kcal), 752);
+  assert.equal(Math.round(d.sugar), 6); // apple has no sugar value: counts as 0
+  assert.ok(byDay.has('2026-10-20')); // logged, even with 0 kcal
+  // Yazio-like day: 280 g carbs, 147 g protein, 122 g fat → 39 / 22 / 39 % of the energy
+  assert.deepEqual(macroKcal({ carbs: 280, protein: 147, fat: 122 }), [1120, 588, 1098]);
+  assert.deepEqual(macroPercents({ carbs: 280, protein: 147, fat: 122 }), [40, 21, 39]);
+  const p = macroPercents({ carbs: 1, protein: 1, fat: 1 });
+  assert.equal(p[0] + p[1] + p[2], 100);
+  assert.deepEqual(macroPercents({ carbs: 0, protein: 0, fat: 0 }), [0, 0, 0]);
+
+  const h = 3600000;
+  const start = new Date(2026, 9, 18, 20).getTime();
+  const fasts = fastingByDay([
+    { id: 'a', start, end: start + 16 * h, targetHours: 16, planId: '16:8' },
+    { id: 'b', start: start + 17 * h, end: start + 18 * h, targetHours: 16, planId: '16:8' },
+    { id: 'c', start, targetHours: 16, planId: '16:8' }, // still running: not counted
+  ]);
+  assert.deepEqual([...fasts.keys()], ['2026-10-19']);
+  assert.equal(fasts.get('2026-10-19')!.hours, 16); // the longest fast of the day
+});
+
+test('insights: typed dates for a custom range', () => {
+  assert.equal(parseDateInput('20.10.2026', 'de'), '2026-10-20');
+  assert.equal(parseDateInput(' 1.2.26 ', 'de'), '2026-02-01');
+  assert.equal(parseDateInput('10/20/2026', 'en'), '2026-10-20');
+  assert.equal(parseDateInput('20.10.2026', 'en'), '2026-10-20');
+  assert.equal(parseDateInput('10/20/2026', 'de'), null);
+  assert.equal(parseDateInput('2026-10-20', 'de'), '2026-10-20');
+  assert.equal(parseDateInput('31.02.2026', 'de'), null);
+  assert.equal(parseDateInput('gestern', 'de'), null);
+  assert.equal(formatDateInput('2026-10-20', 'de'), '20.10.2026');
+  assert.equal(formatDateInput('2026-10-20', 'en'), '10/20/2026');
 });

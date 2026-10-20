@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import { COMMUNITY_RECIPES } from './communityRecipes';
-import { dayKey } from './dates';
+import { addDays, dayKey } from './dates';
 import { openStepSettings, stepSource, stepsForDay } from './device';
 import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
@@ -106,4 +106,47 @@ export function useRecipes(): Recipe[] {
   const { lang } = useT();
   const community = useMemo(() => COMMUNITY_RECIPES.map((c) => resolveCommunity(c, lang).recipe), [lang]);
   return useMemo(() => [...own, ...community], [own, community]);
+}
+
+/** How far back the statistics ask the phone for steps (the iPhone keeps about 7 days anyway). */
+export const STEP_HISTORY_DAYS = 30;
+
+/**
+ * Steps per day for the statistics, read one day after another from the phone (motion sensor or
+ * Health Connect) for the days in from…to that are at most STEP_HISTORY_DAYS old. `reason` is the
+ * text to show when no day could be read (always in the browser).
+ */
+export function useStepHistory(from: string, to: string, enabled: boolean) {
+  const [state, setState] = useState<{ key: string; byDay: Map<string, number>; reason: ReturnType<typeof stepsReasonKey> | null; loading: boolean }>({
+    key: '',
+    byDay: new Map(),
+    reason: null,
+    loading: true,
+  });
+  const key = `${from}|${to}`;
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const today = dayKey();
+    const first = [from, addDays(today, -(STEP_HISTORY_DAYS - 1))].sort()[1];
+    const last = to < today ? to : today;
+    (async () => {
+      const byDay = new Map<string, number>();
+      let status: StepReading['status'] | null = null;
+      for (let d = last; d >= first && alive; d = addDays(d, -1)) {
+        const r = await stepsForDay(d);
+        if (r.steps !== null) {
+          if (r.steps > 0) byDay.set(d, r.steps);
+        } else {
+          status = r.status;
+          break; // not allowed or not available: no other day will work either
+        }
+      }
+      if (alive) setState({ key, byDay, reason: byDay.size === 0 && status ? stepsReasonKey(stepSource, status) : null, loading: false });
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [key, from, to, enabled]);
+  return state.key === key ? state : { ...state, byDay: new Map<string, number>(), loading: true };
 }
