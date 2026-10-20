@@ -389,7 +389,8 @@ async function run(scheme) {
     await step('own foods: edit a food from My foods & meals', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('My foods & meals', { exact: true }).click();
-      await text('Smoke nougat cream', { exact: true }).click();
+      await text(/^Tap an item to edit it/).waitFor(); // the list is open (the diary entry has the same name)
+      await page.getByRole('button', { name: /Smoke nougat cream.*kcal \/ 100 g/ }).filter({ visible: true }).first().click();
       await text(/Your diary keeps the values it has/).waitFor();
       const kcal = page.locator('input').filter({ visible: true }).and(page.locator('input[value="556"]')).first();
       await kcal.fill('560');
