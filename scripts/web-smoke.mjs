@@ -164,7 +164,7 @@ async function run(scheme) {
       if ((await apples()) < 1) throw new Error('no Apple entry to fold');
       await page.getByTestId('meal-toggle-breakfast').filter({ visible: true }).first().click();
       await page.waitForFunction(() => ![...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && e.textContent === 'Apple' && e.offsetParent));
-      await text(/2 foods|1 food/).waitFor(); // the folded header says how many foods it holds
+      await text(/kcal · \d+ foods?$/).waitFor(); // the folded header says how many foods it holds
       await btn('Add food: Breakfast').waitFor(); // adding still works while folded
       await page.reload();
       await text('Breakfast', { exact: true }).waitFor();

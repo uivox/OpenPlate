@@ -120,12 +120,15 @@ export default function ProfileScreen() {
         />
       </Card>
 
-      <SectionTitle>{t('my_foods_meals')}</SectionTitle>
       <Card>
         <ListRow
           icon="bookmark-outline"
           title={t('my_foods_meals')}
-          subtitle={t('my_foods_meals_sub', { foods: state.customFoods.length, meals: state.meals.length, recipes: state.recipes.length })}
+          subtitle={[
+            state.customFoods.length === 1 ? t('meal_items_one') : t('meal_items_n', { n: state.customFoods.length }),
+            state.meals.length === 1 ? t('count_meals_one') : t('count_meals_n', { n: state.meals.length }),
+            state.recipes.length === 1 ? t('count_recipes_one') : t('count_recipes_n', { n: state.recipes.length }),
+          ].join(' · ')}
           right={chevron}
           onPress={() => router.push('/my-foods')}
         />
