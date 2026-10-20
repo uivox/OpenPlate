@@ -35,9 +35,28 @@ import { formatNumberInput, parseNumber } from '../src/lib/numbers';
 import { averageOfLogged, weekSummary } from '../src/lib/weekly';
 import { activeFastingDays, isFastingDay, stageFor } from '../src/lib/fasting';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
-import { ALL_KEYS, _dicts, translate } from '../src/lib/i18n';
+import { ALL_KEYS, _dicts, translate, type TKey } from '../src/lib/i18n';
 import { dayGoal, weightOn } from '../src/lib/goals';
 import { move, normalizeLayout, tabSides, toggle, visibleDiary, visibleTabs } from '../src/lib/layout';
+import {
+  clockText,
+  DEFAULT_REMINDERS,
+  firstSetupTimes,
+  hintCardMeal,
+  insideFast,
+  minutesOfDay,
+  normalizeReminders,
+  parseClock,
+  planReminders,
+  reminderDiff,
+  reminderFigure,
+  reminderTarget,
+  reminderText,
+  suggestionHint,
+  suggestTime,
+  wallClock,
+  type ReminderPrefs,
+} from '../src/lib/reminders';
 import { entriesForMeal, itemsFromEntries, mealsUsingFood, mealTotals, newMeal, removeFoodFromMeals, replaceFoodInMeals, searchMeals } from '../src/lib/meals';
 import {
   bmr,
@@ -108,7 +127,7 @@ import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { buildBars, daysBetween, fastingByDay, foodByDay, formatDateInput, macroKcal, macroPercents, normalizeInsights, parseDateInput, periods, rangeBounds, summarize, weekStart } from '../src/lib/insights';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
-import type { AISettings, DiaryEntry, Food, Profile } from '../src/lib/types';
+import { MEALS, type AISettings, type DiaryEntry, type Food, type MealType, type Profile } from '../src/lib/types';
 
 const profile: Profile = {
   sex: 'female',
@@ -2200,4 +2219,222 @@ test('insights: typed dates for a custom range', () => {
   assert.equal(parseDateInput('gestern', 'de'), null);
   assert.equal(formatDateInput('2026-10-20', 'de'), '20.10.2026');
   assert.equal(formatDateInput('2026-10-20', 'en'), '10/20/2026');
+});
+
+/* ---------- Meal reminders ---------- */
+
+const rmFood = (kcal: number): Food => ({ id: `f${kcal}`, source: 'quick', name: 'x', per100: { kcal, protein: 0, carbs: 0, fat: 0 }, servings: [] });
+let rmSeq = 0;
+/** An entry of `kcal` logged at local `h:m` on `loggedOn` (default: the entry's own day). */
+const rmEntry = (date: string, meal: MealType, h: number, m = 0, kcal = 100, loggedOn = date): DiaryEntry => {
+  const [y, mo, d] = loggedOn.split('-').map(Number);
+  return { id: `rm${rmSeq++}`, date, meal, food: rmFood(kcal), grams: 100, createdAt: new Date(y, mo - 1, d, h, m).getTime() };
+};
+const at = (date: string, h: number, m = 0) => {
+  const [y, mo, d] = date.split('-').map(Number);
+  return new Date(y, mo - 1, d, h, m).getTime();
+};
+const onPrefs = (patch: Partial<ReminderPrefs> = {}): ReminderPrefs => ({ ...DEFAULT_REMINDERS, enabled: true, ...patch });
+
+test('reminders: clock times are typed and shown as HH:MM', () => {
+  assert.equal(parseClock('12:30'), 750);
+  assert.equal(parseClock(' 9.05 '), 545);
+  assert.equal(parseClock('1230'), 750);
+  assert.equal(parseClock('930'), 570);
+  assert.equal(parseClock('7'), 420);
+  assert.equal(parseClock('7h15'), 435);
+  assert.equal(parseClock('24:00'), null);
+  assert.equal(parseClock('12:60'), null);
+  assert.equal(parseClock('mittags'), null);
+  assert.equal(clockText(750), '12:30');
+  assert.equal(clockText(1440 + 15), '00:15');
+});
+
+test('reminders: stored or imported prefs are normalised', () => {
+  assert.deepEqual(normalizeReminders(undefined), DEFAULT_REMINDERS);
+  assert.deepEqual(normalizeReminders('x'), DEFAULT_REMINDERS);
+  const r = normalizeReminders({ enabled: true, delay: 45, adjust: 'yes', meals: { lunch: { on: false, time: 800 }, dinner: { time: 99999 }, snack: { on: true, time: 1.5 } } });
+  assert.equal(r.enabled, true);
+  assert.equal(r.delay, 30); // only 15 / 30 / 60 / 90
+  assert.equal(r.adjust, false);
+  assert.deepEqual(r.meals.lunch, { on: false, time: 800 });
+  assert.deepEqual(r.meals.dinner, DEFAULT_REMINDERS.meals.dinner);
+  assert.deepEqual(r.meals.snack, { on: true, time: DEFAULT_REMINDERS.meals.snack.time });
+  assert.equal(normalizeReminders({ delay: 90 }).delay, 90);
+  // Breakfast, lunch and dinner start on, snacks off, everything off until switched on.
+  assert.deepEqual(MEALS.map((m) => DEFAULT_REMINDERS.meals[m].on), [true, true, true, false]);
+  assert.equal(DEFAULT_REMINDERS.enabled, false);
+});
+
+test('reminders: suggested time is the median of same-day logs, rounded to 15 min', () => {
+  const today = '2026-10-20';
+  const days = ['2026-10-20', '2026-10-19', '2026-10-18', '2026-10-17'];
+  const four = [rmEntry(days[0], 'lunch', 13, 0), rmEntry(days[1], 'lunch', 13, 10), rmEntry(days[2], 'lunch', 12, 40), rmEntry(days[3], 'lunch', 13, 20)];
+  assert.equal(suggestTime(four, 'lunch', today), null); // needs 5 days
+  const five = [...four, rmEntry('2026-10-16', 'lunch', 14, 0)];
+  // 12:40, 13:00, 13:10, 13:20, 14:00 → median 13:10 → 13:15
+  assert.equal(suggestTime(five, 'lunch', today), 13 * 60 + 15);
+  // Only the first log of a day counts; a second item that day doesn't shift it.
+  assert.equal(suggestTime([...five, rmEntry(days[0], 'lunch', 16, 0)], 'lunch', today), 13 * 60 + 15);
+  // Filled in later (logged on another day) doesn't count.
+  const late = [...four, rmEntry('2026-10-16', 'lunch', 21, 0, 100, '2026-10-17')];
+  assert.equal(suggestTime(late, 'lunch', today), null);
+  // Older than 21 days doesn't count; neither do entries without a log time (old backups).
+  const old = [...four, rmEntry('2026-09-29', 'lunch', 13, 0)];
+  assert.equal(suggestTime(old, 'lunch', today), null);
+  assert.equal(suggestTime([...four, { ...rmEntry('2026-10-16', 'lunch', 13), createdAt: 0 }], 'lunch', today), null);
+  // Even number of days: the middle two are averaged.
+  const six = [...five, rmEntry('2026-10-15', 'lunch', 12, 0)];
+  // 12:00 12:40 13:00 13:10 13:20 14:00 → 13:05 → 13:00
+  assert.equal(suggestTime(six, 'lunch', today), 13 * 60);
+  assert.equal(suggestTime(six, 'dinner', today), null);
+});
+
+test('reminders: a suggestion is only a hint 30 minutes or more away', () => {
+  assert.equal(suggestionHint(750, 780), 780);
+  assert.equal(suggestionHint(750, 765), null);
+  assert.equal(suggestionHint(750, null), null);
+  // Across midnight: 23:45 vs 00:15 is 30 minutes apart, 23:45 vs 00:10 only 25.
+  assert.equal(suggestionHint(1425, 15), 15);
+  assert.equal(suggestionHint(1425, 10), null);
+  const setup = firstSetupTimes(onPrefs(), { breakfast: 450, lunch: null, dinner: 1170, snack: null });
+  assert.deepEqual(MEALS.map((m) => setup.meals[m].time), [450, 750, 1170, 930]);
+  assert.equal(setup.setUp, true);
+});
+
+test('reminders: the diary card shows once a suggestion exists', () => {
+  const s = { breakfast: 450, lunch: 795, dinner: null, snack: null };
+  assert.deepEqual(hintCardMeal(DEFAULT_REMINDERS, s), { meal: 'lunch', time: 795 });
+  assert.deepEqual(hintCardMeal(DEFAULT_REMINDERS, { ...s, lunch: null }), { meal: 'breakfast', time: 450 });
+  assert.equal(hintCardMeal(DEFAULT_REMINDERS, { breakfast: null, lunch: null, dinner: null, snack: 900 }), null);
+  assert.equal(hintCardMeal({ ...DEFAULT_REMINDERS, hintDismissed: true }, s), null);
+  assert.equal(hintCardMeal(onPrefs(), s), null);
+});
+
+test('reminders: fire at time + delay, only for empty meals, 14 days ahead', () => {
+  const now = at('2026-10-20', 12, 50);
+  const goalFor = () => 2000;
+  const plan = planReminders({ prefs: onPrefs(), entries: [], goalFor, now });
+  // Today: breakfast (8:30) is past, lunch 13:00 and dinner 19:30 are still to come; snacks are off.
+  assert.deepEqual(plan.slice(0, 3).map((r) => [r.date, r.meal]), [['2026-10-20', 'lunch'], ['2026-10-20', 'dinner'], ['2026-10-21', 'breakfast']]);
+  assert.equal(plan[0].at, at('2026-10-20', 13, 0));
+  assert.equal(plan[0].id, 'meal-reminder:2026-10-20:lunch');
+  assert.equal(plan.length, 2 + 13 * 3);
+  assert.equal(plan.at(-1)!.date, '2026-11-02');
+  // Everything on: at most 56.
+  const all = onPrefs({ meals: { ...DEFAULT_REMINDERS.meals, snack: { on: true, time: 930 } } });
+  assert.ok(planReminders({ prefs: all, entries: [], goalFor, now: at('2026-10-20', 0, 0) }).length <= 56);
+  // Off: nothing.
+  assert.deepEqual(planReminders({ prefs: DEFAULT_REMINDERS, entries: [], goalFor, now }), []);
+
+  // One entry is enough, also one made ahead for a future day.
+  const logged = [rmEntry('2026-10-20', 'lunch', 12, 0, 20), rmEntry('2026-10-21', 'breakfast', 10, 0, 100, '2026-10-20')];
+  const p2 = planReminders({ prefs: onPrefs(), entries: logged, goalFor, now });
+  assert.ok(!p2.some((r) => r.id === 'meal-reminder:2026-10-20:lunch'));
+  assert.ok(!p2.some((r) => r.id === 'meal-reminder:2026-10-21:breakfast'));
+  // Deleting the last entry brings it back while its time is still ahead…
+  const p3 = planReminders({ prefs: onPrefs(), entries: logged.slice(1), goalFor, now });
+  assert.ok(p3.some((r) => r.id === 'meal-reminder:2026-10-20:lunch'));
+  // …but not once it has passed.
+  const p4 = planReminders({ prefs: onPrefs(), entries: logged.slice(1), goalFor, now: at('2026-10-20', 13, 1) });
+  assert.ok(!p4.some((r) => r.id === 'meal-reminder:2026-10-20:lunch'));
+
+  // A late time plus the delay rolls past midnight but still belongs to its day.
+  const late = onPrefs({ delay: 90, meals: { ...DEFAULT_REMINDERS.meals, dinner: { on: true, time: 23 * 60 } } });
+  const d = planReminders({ prefs: late, entries: [], goalFor, now }).find((r) => r.meal === 'dinner')!;
+  assert.equal(d.date, '2026-10-20');
+  assert.equal(d.at, at('2026-10-21', 0, 30));
+});
+
+test('reminders: a running fast holds back the reminders inside it', () => {
+  const now = at('2026-10-20', 9, 0);
+  const fast = { start: at('2026-10-20', 8, 0), targetHours: 16 }; // until 00:00
+  const plan = planReminders({ prefs: onPrefs(), entries: [], goalFor: () => 2000, fast, now });
+  assert.ok(!plan.some((r) => r.date === '2026-10-20'));
+  assert.equal(plan[0].id, 'meal-reminder:2026-10-21:breakfast');
+  assert.equal(insideFast(fast.start + 16 * 3600000, fast), false);
+  assert.equal(insideFast(fast.start, null), false);
+});
+
+test('reminders: figures — meal share for breakfast and lunch, what’s left for dinner and snacks', () => {
+  const d = '2026-10-20';
+  // Goal 2000: breakfast 25 % = 500, lunch 35 % = 700.
+  assert.deepEqual(reminderFigure('lunch', [], 2000, false), { kind: 'planned', kcal: 700 });
+  assert.deepEqual(reminderFigure('breakfast', [], 2003, false), { kind: 'planned', kcal: 500 }); // rounded to 10
+  assert.deepEqual(reminderFigure('lunch', [], null, false), { kind: 'plain' });
+  const ate = [rmEntry(d, 'breakfast', 8, 0, 600), rmEntry(d, 'snack', 10, 0, 160)];
+  // Fixed figure: a big breakfast doesn't change lunch…
+  assert.deepEqual(reminderFigure('lunch', ate, 2000, false), { kind: 'planned', kcal: 700 });
+  // …unless adjusting is on: breakfast came in 100 over, so lunch shows about 600.
+  assert.deepEqual(reminderFigure('lunch', ate, 2000, true), { kind: 'planned', kcal: 600 });
+  // An earlier meal without entries isn't counted as "under".
+  assert.deepEqual(reminderFigure('lunch', [rmEntry(d, 'snack', 9)], 2000, true), { kind: 'planned', kcal: 700 });
+  // Down to 0 → plain nudge.
+  assert.deepEqual(reminderFigure('lunch', [rmEntry(d, 'breakfast', 8, 0, 1300)], 2000, true), { kind: 'plain' });
+  // Dinner: what's left of the day (2000 − 760).
+  assert.deepEqual(reminderFigure('dinner', ate, 2000, false), { kind: 'left', kcal: 1240 });
+  assert.deepEqual(reminderFigure('snack', [rmEntry(d, 'lunch', 13, 0, 2100)], 2000, false), { kind: 'plain' });
+  assert.deepEqual(reminderFigure('dinner', ate, 0, false), { kind: 'plain' });
+
+  // In the plan the figure follows that day's entries and goal.
+  const now = at(d, 9, 0);
+  const plan = planReminders({ prefs: onPrefs(), entries: ate, goalFor: (day) => (day === d ? 2000 : 1500), now });
+  assert.deepEqual(plan.find((r) => r.id === `meal-reminder:${d}:dinner`)!.figure, { kind: 'left', kcal: 1240 });
+  assert.deepEqual(plan.find((r) => r.id === 'meal-reminder:2026-10-21:dinner')!.figure, { kind: 'left', kcal: 1500 });
+});
+
+test('reminders: notification text in English and German', () => {
+  const en = (k: TKey, p?: Record<string, string | number>) => translate('en', k, p);
+  const de = (k: TKey, p?: Record<string, string | number>) => translate('de', k, p);
+  assert.deepEqual(reminderText({ meal: 'dinner', figure: { kind: 'left', kcal: 1240 } }, en, 'en'), {
+    title: 'Dinner isn’t logged yet',
+    body: '1,240 kcal left today. Tap to log it.',
+  });
+  assert.equal(reminderText({ meal: 'lunch', figure: { kind: 'planned', kcal: 1700 } }, de, 'de').body, 'Etwa 1.700 kcal geplant. Tippe zum Eintragen.');
+  assert.equal(reminderText({ meal: 'snack', figure: { kind: 'plain' } }, de, 'de').title, 'Snacks sind noch nicht eingetragen');
+});
+
+test('reminders: daylight saving keeps the wall-clock time', () => {
+  const tz = process.env.TZ;
+  process.env.TZ = 'Europe/Berlin';
+  try {
+    // Clocks go back on 25 Oct 2026: 13:00 stays 13:00, one hour later in absolute time than a day before + 24 h.
+    const a = wallClock('2026-10-24', 13 * 60);
+    const b = wallClock('2026-10-25', 13 * 60);
+    assert.equal(b - a, 25 * 3600000);
+    assert.equal(new Date(b).getHours(), 13);
+    const plan = planReminders({ prefs: onPrefs(), entries: [], goalFor: () => 2000, now: a - 3600000 });
+    for (const r of plan) assert.equal(minutesOfDay(r.at), DEFAULT_REMINDERS.meals[r.meal].time + 30, r.id);
+  } finally {
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
+  }
+});
+
+test('reminders: only changed reminders are rescheduled', () => {
+  const a = { id: 'a', at: 1, title: 't', body: 'x' };
+  const b = { id: 'b', at: 2, title: 't', body: 'y' };
+  const c = { id: 'c', at: 3, title: 't', body: 'z' };
+  assert.deepEqual(reminderDiff([a, b], [a, b]), { cancel: [], add: [] });
+  const b2 = { ...b, body: 'y2' };
+  assert.deepEqual(reminderDiff([a, b], [a, b2, c]), { cancel: ['b'], add: [b2, c] });
+  assert.deepEqual(reminderDiff([a, b], []), { cancel: ['a', 'b'], add: [] });
+  assert.deepEqual(reminderTarget({ meal: 'lunch', date: '2026-10-20' }), { meal: 'lunch', date: '2026-10-20' });
+  assert.equal(reminderTarget({ meal: 'brunch', date: '2026-10-20' }), null);
+  assert.equal(reminderTarget({ meal: 'lunch', date: 'x' }), null);
+  assert.equal(reminderTarget(null), null);
+});
+
+test('reminders: settings travel with backups and come back normalised', () => {
+  const prefs = { ...DEFAULT_REMINDERS, enabled: true, delay: 60 as const, adjust: true, meals: { ...DEFAULT_REMINDERS.meals, lunch: { on: true, time: 795 } } };
+  const file = JSON.stringify(buildBackup({ profile: null, language: 'de', entries: [], customFoods: [], recentFoods: [], water: {}, weights: [], fastingActive: null, fastingHistory: [], meals: [], recipes: [], reminders: prefs }));
+  assert.deepEqual(parseBackup(file).reminders, prefs);
+  const tampered = JSON.parse(file);
+  tampered.reminders.delay = 1;
+  tampered.reminders.meals.lunch.time = -5;
+  const back = parseBackup(JSON.stringify(tampered)).reminders!;
+  assert.equal(back.delay, 30);
+  assert.equal(back.meals.lunch.time, DEFAULT_REMINDERS.meals.lunch.time);
+  delete tampered.reminders;
+  assert.equal(parseBackup(JSON.stringify(tampered)).reminders, undefined); // older exports: the device keeps its settings
 });

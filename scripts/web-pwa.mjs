@@ -191,12 +191,21 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// A tap (or the *Log now* button) on a meal reminder opens that meal's add screen: in the open app
+// if there is one, else in a new window. Other notifications just bring the app to the front.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const data = event.notification.data || {};
+  const reminder = data.reminder;
+  const url = typeof data.url === 'string' && data.url.startsWith(self.location.origin + ROOT) ? data.url : null;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) if ('focus' in c) return c.focus();
-      return self.clients.openWindow(ROOT);
+      for (const c of list) {
+        if (!('focus' in c)) continue;
+        if (reminder) c.postMessage({ type: 'openplate-reminder', reminder });
+        return c.focus();
+      }
+      return self.clients.openWindow(reminder && url ? url : ROOT);
     }),
   );
 });

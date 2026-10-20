@@ -11,6 +11,8 @@ import * as HealthConnect from 'react-native-health-connect';
 import { iconIdFromNative, nativeIconName, type AppIconId, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
+import { REMINDER_ID_PREFIX, reminderDiff, reminderTarget, type NotificationAccess, type ReminderNotice, type ScheduledReminder } from './reminders';
+import type { MealType } from './types';
 import { HEALTH_CONNECT_STORE_URLS, hasStepsPermission, healthConnectProblem, stepRange, stepsFromAggregate, type StepReading, type StepSource, type StepStatus } from './steps';
 
 /* ---------- Photos ---------- */
@@ -136,6 +138,106 @@ export async function cancelNotification(id?: string) {
     await Notifications.cancelScheduledNotificationAsync(id);
   } catch {
     /* ignore */
+  }
+}
+
+/* ---------- Meal reminders (local notifications, no server; see reminders.ts) ---------- */
+
+const REMINDER_CATEGORY = 'meal-reminder';
+const LOG_NOW_ACTION = 'log-now';
+
+/** Whether reminders can be shown: the phone's notification permission for OpenPlate. */
+export async function notificationAccess(): Promise<NotificationAccess> {
+  try {
+    const perm = await Notifications.getPermissionsAsync();
+    if (perm.granted || perm.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return 'granted';
+    return perm.canAskAgain ? 'ask' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/** Shows the system's permission prompt (only when the user switches reminders on). */
+export async function askNotifications(): Promise<boolean> {
+  try {
+    const perm = await Notifications.getPermissionsAsync();
+    if (perm.granted) return true;
+    if (!perm.canAskAgain) return false;
+    return (await Notifications.requestPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+/** OpenPlate's page in the phone's settings, where notifications can be allowed again. */
+export async function openNotificationSettings(): Promise<void> {
+  try {
+    await Linking.openSettings();
+  } catch {
+    /* nothing to open */
+  }
+}
+
+let categoryTitle = '';
+
+/**
+ * Makes the phone's pending reminders match `wanted`: changed ones are replaced, ones no longer
+ * wanted cancelled, unchanged ones left alone. Never asks for permission; without it, OpenPlate's
+ * pending reminders are removed and come back on the next sync once notifications are allowed.
+ */
+export async function syncReminders(wanted: ReminderNotice[], logNowTitle: string): Promise<void> {
+  try {
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    const ours = all.filter((n) => n.identifier.startsWith(REMINDER_ID_PREFIX));
+    const granted = (await Notifications.getPermissionsAsync()).granted;
+    const current: ScheduledReminder[] = ours.map((n) => ({
+      id: n.identifier,
+      at: typeof n.content.data?.at === 'number' ? n.content.data.at : 0,
+      title: n.content.title ?? '',
+      body: n.content.body ?? '',
+    }));
+    const { cancel, add } = reminderDiff(current, granted ? wanted : []);
+    for (const id of cancel) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    if (!add.length) return;
+    if (categoryTitle !== logNowTitle) {
+      // The *Log now* button (a plain tap does the same); its title follows the app's language.
+      await Notifications.setNotificationCategoryAsync(REMINDER_CATEGORY, [
+        { identifier: LOG_NOW_ACTION, buttonTitle: logNowTitle, options: { opensAppToForeground: true } },
+      ]).catch(() => {});
+      categoryTitle = logNowTitle;
+    }
+    const byId = new Map(wanted.map((w) => [w.id, w]));
+    for (const r of add) {
+      const w = byId.get(r.id)!;
+      if (w.at <= Date.now()) continue;
+      await Notifications.scheduleNotificationAsync({
+        identifier: w.id,
+        content: { title: w.title, body: w.body, data: { meal: w.meal, date: w.date, at: w.at }, categoryIdentifier: REMINDER_CATEGORY },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(w.at) },
+      }).catch(() => {});
+    }
+  } catch {
+    /* notifications unavailable: nothing to keep in step */
+  }
+}
+
+/**
+ * Calls `open` with the meal and day when the user taps a reminder or its *Log now* button,
+ * also when the tap started the app. Returns the unsubscribe function.
+ */
+export function onReminderOpened(open: (target: { meal: MealType; date: string }) => void): () => void {
+  const handle = (r: Notifications.NotificationResponse | null) => {
+    const target = r ? reminderTarget(r.notification.request.content.data) : null;
+    if (!target) return;
+    Notifications.clearLastNotificationResponse();
+    open(target);
+  };
+  try {
+    handle(Notifications.getLastNotificationResponse());
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => sub.remove();
+  } catch {
+    return () => {};
   }
 }
 
