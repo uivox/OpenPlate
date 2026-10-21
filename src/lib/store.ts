@@ -8,6 +8,7 @@ import { newId } from './id';
 import { DEFAULT_SCHEDULE, normalizeSchedule, type FastingSchedule, type SyncResult } from './fasting';
 import { DEFAULT_INSIGHTS, normalizeInsights, type InsightPrefs } from './insights';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
+import { normalizePending, type OffPending } from './offWrite';
 import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
 import { migrateState, STORE_VERSION } from './migrations';
 import { DEFAULT_REMINDERS, normalizeReminders, type ReminderPrefs } from './reminders';
@@ -55,6 +56,8 @@ interface State {
   reminders: ReminderPrefs;
   /** Last choice on the statistics screens (grouping, range). Per device, not part of backups. */
   insights: InsightPrefs;
+  /** Sends to Open Food Facts kept for later (Profile → Open Food Facts). Per device, not in backups. */
+  offPending: OffPending[];
   /** Last export (or import of a backup file) on this device, ms. Not part of backups. */
   lastBackupAt: number | null;
   /** The backup reminder stays hidden until then, ms. */
@@ -95,6 +98,8 @@ interface State {
   setAppearance: (patch: Partial<Appearance>) => void;
   setLayout: (patch: Partial<LayoutPrefs>) => void;
   setInsights: (patch: Partial<InsightPrefs>) => void;
+  keepOffForLater: (foodId: string) => void;
+  dropOffPending: (foodId: string) => void;
   setReminders: (patch: Partial<ReminderPrefs>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
   markBackedUp: () => void;
@@ -124,6 +129,7 @@ type Persisted = Pick<
   | 'layout'
   | 'reminders'
   | 'insights'
+  | 'offPending'
   | 'lastBackupAt'
   | 'backupSnoozedUntil'
 >;
@@ -146,6 +152,7 @@ const initial = {
   layout: DEFAULT_LAYOUT,
   reminders: DEFAULT_REMINDERS,
   insights: DEFAULT_INSIGHTS,
+  offPending: [] as OffPending[],
   lastBackupAt: null as number | null,
   backupSnoozedUntil: null as number | null,
 };
@@ -193,6 +200,7 @@ export const useStore = create<State>()(
         set((s) => ({
           customFoods: s.customFoods.filter((f) => f.id !== id),
           meals: removeFoodFromMeals(s.meals, id),
+          offPending: s.offPending.filter((p) => p.foodId !== id),
           recentFoods: s.recentFoods.filter((f) => f.id !== id),
         })),
 
@@ -256,6 +264,8 @@ export const useStore = create<State>()(
       setAppearance: (patch) => set((s) => ({ appearance: normalizeAppearance({ ...s.appearance, ...patch }) })),
       setLayout: (patch) => set((s) => ({ layout: normalizeLayout({ ...s.layout, ...patch }) })),
       setInsights: (patch) => set((s) => ({ insights: normalizeInsights({ ...s.insights, ...patch }) })),
+      keepOffForLater: (foodId) => set((s) => ({ offPending: [{ foodId, savedAt: Date.now() }, ...s.offPending.filter((p) => p.foodId !== foodId)] })),
+      dropOffPending: (foodId) => set((s) => ({ offPending: s.offPending.filter((p) => p.foodId !== foodId) })),
       setReminders: (patch) => set((s) => ({ reminders: normalizeReminders({ ...s.reminders, ...patch }) })),
       setProviderConfig: (id, patch) =>
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
@@ -275,6 +285,7 @@ export const useStore = create<State>()(
           reminders: d.reminders ? normalizeReminders(d.reminders) : s.reminders,
           fastingSchedule: d.fastingSchedule ? normalizeSchedule(d.fastingSchedule) : s.fastingSchedule,
           insights: s.insights, // a choice on this device, not in backups
+          offPending: s.offPending.filter((p) => (d.customFoods ?? []).some((f) => f.id === p.foodId)),
           // Only model names come from the file; providers and server addresses stay as set on this
           // device, so a backup can never redirect a saved API key (see sanitizeImportedAI).
           ai: sanitizeImportedAI(d.ai, s.ai),
@@ -310,6 +321,7 @@ export const useStore = create<State>()(
         layout: s.layout,
         reminders: s.reminders,
         insights: s.insights,
+        offPending: s.offPending,
         lastBackupAt: s.lastBackupAt,
         backupSnoozedUntil: s.backupSnoozedUntil,
       }),
@@ -328,6 +340,7 @@ export const useStore = create<State>()(
           reminders: normalizeReminders(p.reminders),
           fastingSchedule: normalizeSchedule(p.fastingSchedule),
           insights: normalizeInsights(p.insights),
+          offPending: normalizePending(p.offPending),
           lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,
           backupSnoozedUntil: typeof p.backupSnoozedUntil === 'number' ? p.backupSnoozedUntil : null,
         };

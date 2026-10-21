@@ -18,6 +18,7 @@ import { goalsFor } from '../../src/lib/hooks';
 import { mealSplitOf } from '../../src/lib/mealSplit';
 import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
 import { clearAllKeys } from '../../src/lib/secure';
+import { forgetOffLogin, useOffLogin } from '../../src/components/offLogin';
 import { useStore } from '../../src/lib/store';
 import { useColors } from '../../src/lib/theme';
 import { MEALS, type LanguagePref } from '../../src/lib/types';
@@ -54,6 +55,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearAllKeys();
+          forgetOffLogin();
           await removePack().catch(() => {});
           await deleteAILog().catch(() => {});
           // A running fast's reminder must not fire after its data is gone.
@@ -64,6 +66,11 @@ export default function ProfileScreen() {
       },
     ]);
 
+  const offLogin = useOffLogin();
+  const offWaiting = useStore((s) => s.offPending.length);
+  const offLabel = [offLogin ? t('off_signed_in', { user: offLogin.user }) : t('off_not_signed_in'), offWaiting ? t('off_waiting', { n: offWaiting }) : null]
+    .filter(Boolean)
+    .join(' · ');
   const pack = usePack();
   const packLabel =
     pack.status === 'ready'
@@ -153,6 +160,8 @@ export default function ProfileScreen() {
       <SectionTitle>{t('data')}</SectionTitle>
       <Card>
         <ListRow icon="cloud-download-outline" title={t('pack_title')} subtitle={packLabel} right={chevron} onPress={() => router.push('/offline-data')} />
+        <Divider />
+        <ListRow icon="cloud-upload-outline" title={t('off_title')} subtitle={offLabel} right={chevron} onPress={() => router.push('/off-account')} />
       </Card>
       <Card>
         <ListRow icon="share-outline" title={t('export_data')} subtitle={`${t('export_data_sub')} · ${lastExport}`} onPress={exportData} />

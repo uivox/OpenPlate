@@ -536,7 +536,7 @@ async function run(scheme) {
       await page.getByRole('textbox').filter({ visible: true }).first().fill('Smoke nougat cream');
       await btn('Save and continue').click();
       await text(/recognised automatically from an Open Food Facts photo/).waitFor();
-      await btn('Add to Open Food Facts').waitFor();
+      await btn('Send to Open Food Facts').waitFor();
       await btn('Add').click();
       await text('Smoke nougat cream', { exact: true }).waitFor();
       await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -606,6 +606,120 @@ async function run(scheme) {
       await text('Breakfast', { exact: true }).waitFor();
       await text(/2 foods/).waitFor();
       await page.goBack();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Snacks').waitFor();
+    });
+    // Open Food Facts is faked: sign-in (auth.pl), the product as it is now, the write and the photo upload.
+    const offCors = { 'access-control-allow-origin': '*' };
+    const offJson = (body, status = 200) => ({ status, contentType: 'application/json', headers: offCors, body: JSON.stringify(body) });
+    const writes = [];
+    let offProduct = {}; // code -> product the fake server knows
+    const routeOff = async ({ offline = false } = {}) => {
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      await page.route('https://world.openfoodfacts.org/cgi/auth.pl', (r) => {
+        const b = new URLSearchParams(r.request().postData() ?? '');
+        return r.fulfill(b.get('password') === 'right' ? offJson({ status: 1, status_verbose: 'user signed-in', user_id: 'smoke-user' }) : offJson({ status: 0, status_verbose: 'user not signed-in' }, 403));
+      });
+      await page.route('https://world.openfoodfacts.org/api/v2/product/**', (r) => {
+        if (offline) return r.abort('internetdisconnected');
+        const code = new URL(r.request().url()).pathname.split('/').pop().replace('.json', '');
+        return r.fulfill(offProduct[code] ? offJson({ status: 1, product: offProduct[code] }) : offJson({ status: 0, status_verbose: 'product not found' }, 404));
+      });
+      await page.route('https://world.openfoodfacts.org/cgi/product_jqm2.pl', (r) => {
+        const b = new URLSearchParams(r.request().postData() ?? '');
+        writes.push(b);
+        return r.fulfill(offJson(b.get('code') === 'new' ? { status: 1, status_verbose: 'fields saved', code: '2000000000123' } : { status: 1, status_verbose: 'fields saved' }));
+      });
+    };
+    const sent = (k) => writes[writes.length - 1]?.get(k) ?? null;
+    await step('open food facts: sign in, a wrong password first', async () => {
+      await routeOff();
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Open Food Facts', { exact: true }).click();
+      await text(/^Sign in with your own Open Food Facts account/).waitFor();
+      await page.getByRole('textbox').filter({ visible: true }).first().fill('smoke@example.org');
+      await page.locator('input[type="password"]').filter({ visible: true }).first().fill('wrong');
+      await btn('Sign in').click();
+      await text('Open Food Facts didn’t accept this user name and password.').waitFor();
+      await page.locator('input[type="password"]').filter({ visible: true }).first().fill('right');
+      await btn('Sign in').click();
+      await text('Signed in as smoke-user').waitFor();
+      // the password is kept apart from the app's data (and so never in a backup)
+      const stored = await page.evaluate(() => localStorage.getItem('openplate_off_login'));
+      if (!stored?.includes('"user":"smoke-user"')) throw new Error(`login not stored: ${stored}`);
+      const keys = await idbKeys();
+      for (const k of keys) if (JSON.stringify(await idbGet(k)).includes('"right"')) throw new Error(`password found in the app data (${k})`);
+      await text('Waiting to send (0)').waitFor();
+      await page.goBack();
+    });
+    await step('open food facts: a correction sends only what differs', async () => {
+      // Open Food Facts has the product with another kcal value and its own name; the name stays
+      offProduct['4006446005476'] = { code: '4006446005476', product_name: 'Nuss-Nougat-Creme', brands: 'Smoke Brand', nutriments: { 'energy-kcal_100g': 556 } };
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await text('Smoke nougat cream', { exact: true }).click();
+      await btn('Send to Open Food Facts').click();
+      await text('Correction for “Nuss-Nougat-Creme”').waitFor();
+      await text('556 kcal → 560 kcal').waitFor();
+      if (await page.getByText('Brand / shop', { exact: true }).filter({ visible: true }).count()) throw new Error('brand would be overwritten');
+      await btn('Send').click();
+      await text('Thank you!').waitFor();
+      if (sent('code') !== '4006446005476' || sent('nutriment_energy-kcal') !== '560' || sent('user_id') !== 'smoke-user' || sent('password') !== 'right' || sent('no_log') !== '1')
+        throw new Error(`wrong write: ${writes[writes.length - 1]}`);
+      if (sent('product_name_en') !== null || sent('brands') !== null) throw new Error('name or brand was sent for an existing product');
+      await btn('OK').click();
+      await btn('Send to Open Food Facts').waitFor();
+      await page.goBack();
+    });
+    await step('open food facts: a bakery item without barcode needs the shop, then gets its own code', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('My foods & meals', { exact: true }).click();
+      await btn('Create food').click();
+      const inputs = () => page.locator('input').filter({ visible: true });
+      await inputs().nth(0).fill('Smoke pretzel');
+      await inputs().nth(2).fill('280');
+      await btn('Save and continue').click();
+      await btn('Send to Open Food Facts').click();
+      await text(/add the bakery, market or shop as the brand/).waitFor();
+      if (!(await btn('Send').isDisabled())) throw new Error('sent without the shop');
+      await btn('Edit food').click();
+      await text(/Your diary keeps the values it has/).waitFor();
+      await inputs().nth(1).fill('Smoke Bakery');
+      await btn('Save').click();
+      await text('New product without barcode').waitFor();
+      await text('Smoke Bakery', { exact: true }).waitFor();
+      const before = writes.length;
+      await btn('Send').click();
+      await text('Thank you!').waitFor();
+      if (writes.length !== before + 1 || sent('code') !== 'new' || sent('brands') !== 'Smoke Bakery' || sent('lc') !== 'en' || sent('product_name_en') !== 'Smoke pretzel')
+        throw new Error(`wrong write: ${writes[writes.length - 1]}`);
+      await btn('OK').click();
+      // the second time it is the same product, under the code Open Food Facts gave it
+      offProduct['2000000000123'] = { code: '2000000000123', product_name: 'Smoke pretzel', brands: 'Smoke Bakery', nutriments: { 'energy-kcal_100g': 280, carbohydrates_100g: 0, proteins_100g: 0, fat_100g: 0 } };
+      await btn('Send to Open Food Facts').click();
+      await text('Open Food Facts already has these values. There is nothing to send.').waitFor();
+      if (!(await btn('Send').isDisabled())) throw new Error('nothing to send, but Send is enabled');
+      await page.goBack();
+    });
+    await step('open food facts: without a connection it is kept for later and sent from the list', async () => {
+      offProduct['2000000000123'].nutriments['energy-kcal_100g'] = 270;
+      await routeOff({ offline: true });
+      await btn('Send to Open Food Facts').click();
+      await text('No connection. Try again, or save it for later.').waitFor();
+      await btn('Save for later').click();
+      await text('Kept for later').waitFor();
+      await page.getByRole('button', { name: /OK$/ }).filter({ visible: true }).last().click();
+      await btn('Waiting to send · Open Food Facts settings').click();
+      await text('Waiting to send (1)').waitFor();
+      await routeOff();
+      await page.getByRole('button', { name: /^Smoke pretzel/ }).filter({ visible: true }).first().click();
+      await text('270 kcal → 280 kcal').waitFor(); // compared again, with the food as it is now
+      await btn('Send').click();
+      await text('Thank you!').waitFor();
+      if (sent('code') !== '2000000000123' || sent('nutriment_energy-kcal') !== '280') throw new Error(`wrong write: ${writes[writes.length - 1]}`);
+      await btn('OK').click();
+      await text('Waiting to send (0)').waitFor();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      for (let i = 0; i < 6 && !(await page.getByRole('tab', { name: 'Diary' }).isVisible()); i++) await page.goBack();
       await page.getByRole('tab', { name: 'Diary' }).click();
       await btn('Add food: Snacks').waitFor();
     });

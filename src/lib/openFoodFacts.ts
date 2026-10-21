@@ -150,13 +150,13 @@ export function lookupFailure(e: unknown): LookupFailure {
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-async function getJson(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 12000, notFoundOk = false): Promise<Json> {
+async function getJson(url: string, fetchImpl: FetchLike = fetch, timeoutMs = 12000, notFoundOk = false, extraHeaders: Record<string, string> = {}): Promise<Json> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     // Browsers don't let pages set User-Agent (or turn it into a CORS preflight), so the web version sends only Accept.
     const headers: Record<string, string> = typeof document === 'undefined' ? { 'User-Agent': USER_AGENT, Accept: 'application/json' } : { Accept: 'application/json' };
-    const res = await fetchImpl(url, { headers, signal: ctrl.signal });
+    const res = await fetchImpl(url, { headers: { ...headers, ...extraHeaders }, signal: ctrl.signal });
     // The product API answers an unknown barcode with 404 and {"status":0} (with CORS headers, so the
     // browser can read it too). That is a normal answer, not a failure.
     if (notFoundOk && res.status === 404) return ((await res.json().catch(() => null)) as Json | null) ?? { status: 0 };
@@ -251,6 +251,35 @@ export async function lookupBarcodeDetailed(code: string, lang: 'de' | 'en', fet
   };
 }
 
+const EDIT_FIELDS = 'code,product_name,product_name_de,product_name_en,brands,serving_size,nutriments';
+
+/**
+ * The product as Open Food Facts has it right now, with the raw fields the app compares before
+ * sending an edit (offWrite.ts), or null when it doesn't exist. Counts as a barcode lookup for the
+ * fair-use pause. Codes Open Food Facts gave products without barcode (starting with 2) have no
+ * check digit, so they are only checked for being digits.
+ */
+export async function fetchProductForEdit(
+  code: string,
+  fetchImpl: FetchLike = fetch,
+  now = Date.now(),
+  base = 'https://world.openfoodfacts.org',
+  basicAuth?: string,
+): Promise<Json | null> {
+  const clean = code.replace(/\s/g, '');
+  if (!/^\d{6,14}$/.test(clean)) throw new InvalidBarcodeError('not_digits');
+  checkPause(now);
+  let data: Json;
+  try {
+    const auth: Record<string, string> = basicAuth ? { Authorization: `Basic ${btoa(basicAuth)}` } : {};
+    data = await getJson(`${base}/api/v2/product/${clean}.json?fields=${EDIT_FIELDS}`, fetchImpl, 12000, true, auth);
+  } catch (e) {
+    notePause(e, now);
+    throw e;
+  }
+  return data.status === 1 && data.product && typeof data.product === 'object' ? (data.product as Json) : null;
+}
+
 /* ---------- Robotoff: values Open Food Facts' AI read off product photos ---------- */
 
 export interface RobotoffSuggestion {
@@ -289,17 +318,6 @@ export async function fetchRobotoffNutrition(code: string, fetchImpl: FetchLike 
     return { per100, issues, imageUrl: ROBOTOFF_IMAGE_PATH.test(path) ? `https://images.openfoodfacts.org/images/products${path}` : undefined };
   }
   return null;
-}
-
-/**
- * Where the user can add or complete a product on Open Food Facts themselves (they sign in there;
- * the app never handles Open Food Facts passwords). Products that don't exist yet are added from
- * the general "add a product" page, since the edit page only works for existing ones.
- */
-export function offContributeUrl(code: string, exists: boolean, lang: 'de' | 'en'): string {
-  const host = lang === 'de' ? 'de.openfoodfacts.org' : 'world.openfoodfacts.org';
-  const clean = code.replace(/\D/g, '');
-  return exists && clean ? `https://${host}/cgi/product.pl?type=edit&code=${clean}` : `https://${host}/cgi/product.pl`;
 }
 
 /**

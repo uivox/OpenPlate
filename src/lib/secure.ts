@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { parseOffLogin, type OffLogin } from './offWrite';
 import type { AIProviderId } from './types';
 
 /** API keys live in the iOS Keychain and are only sent to the provider they belong to. */
@@ -26,4 +27,27 @@ export async function clearAllKeys(): Promise<void> {
       /* ignore */
     }
   }
+  try {
+    await SecureStore.deleteItemAsync('off_login');
+  } catch {
+    /* ignore */
+  }
+}
+
+/* ---------- Open Food Facts login ---------- */
+
+const OFF_KEY = 'off_login';
+
+/** The user's own Open Food Facts login, kept in the Keychain / Keystore and only sent to Open Food Facts. */
+export async function getOffLogin(): Promise<OffLogin | null> {
+  try {
+    return parseOffLogin(await SecureStore.getItemAsync(OFF_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export async function setOffLogin(login: OffLogin | null): Promise<void> {
+  if (login) await SecureStore.setItemAsync(OFF_KEY, JSON.stringify(login));
+  else await SecureStore.deleteItemAsync(OFF_KEY);
 }
