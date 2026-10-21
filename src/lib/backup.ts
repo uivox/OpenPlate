@@ -1,7 +1,8 @@
 import { MAX_KCAL_PER_100G } from './ai';
-import { planById } from './fasting';
+import { normalizeSchedule, planById, type FastingSchedule } from './fasting';
 import { RECIPE_TAGS } from './recipes';
 import { normalizeReminders, type ReminderPrefs } from './reminders';
+import { normalizeMealSplit } from './mealSplit';
 import {
   MEALS,
   type Activity,
@@ -49,6 +50,8 @@ export interface BackupData {
   layout?: Partial<LayoutPrefs>;
   /** Meal reminder settings; optional, normalised on import. */
   reminders?: ReminderPrefs;
+  /** Fixed eating window; optional, normalised on import. */
+  fastingSchedule?: FastingSchedule;
 }
 
 const BACKUP_KEYS: (keyof BackupData)[] = [
@@ -67,6 +70,7 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'appearance',
   'layout',
   'reminders',
+  'fastingSchedule',
 ];
 
 /** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
@@ -232,6 +236,7 @@ function sanitizeFast(v: unknown): FastingSession | null {
     if (!isNum(v.end) || v.end < v.start) return null;
     s.end = v.end;
   }
+  if (isDay(v.scheduledFor)) s.scheduledFor = v.scheduledFor;
   return s;
 }
 
@@ -287,6 +292,9 @@ export function sanitizeProfile(v: unknown, now = new Date()): Profile | null {
   if (grams) p.macroGramsTarget = grams;
   if (v.macroMode === 'grams' && grams) p.macroMode = 'grams';
   else if (v.macroMode === 'percent') p.macroMode = 'percent';
+  const mealSplit = normalizeMealSplit(v.mealSplit);
+  if (mealSplit) p.mealSplit = mealSplit;
+  if (v.mealMacros === true) p.mealMacros = true;
   return p;
 }
 
@@ -353,6 +361,7 @@ export function parseBackupReport(input: string, now = new Date()): BackupReport
     appearance: isObj(raw.appearance) ? (raw.appearance as Partial<Appearance>) : undefined,
     layout: isObj(raw.layout) ? (raw.layout as Partial<LayoutPrefs>) : undefined,
     reminders: isObj(raw.reminders) ? normalizeReminders(raw.reminders) : undefined,
+    fastingSchedule: isObj(raw.fastingSchedule) ? normalizeSchedule(raw.fastingSchedule) : undefined,
     recipes: uniqueById(keep(raw.recipes, sanitizeRecipe, counter)),
     meals: uniqueById(keep(raw.meals, sanitizeMeal, counter)),
   };

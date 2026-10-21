@@ -302,6 +302,7 @@ export function NumField({
   suffix,
   decimals = true,
   hint,
+  accessibilityLabel,
 }: {
   label?: string;
   value: number | null;
@@ -309,6 +310,8 @@ export function NumField({
   suffix?: string;
   decimals?: boolean;
   hint?: string;
+  /** Name for screen readers when the field has no visible label. */
+  accessibilityLabel?: string;
 }) {
   const { lang } = useT();
   const [text, setText] = React.useState(formatNumberInput(value, lang));
@@ -331,10 +334,10 @@ export function NumField({
           }}
           keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
           selectionColor={c.accent}
-          style={{ flex: 1, paddingVertical: 13, fontSize: 17, color: c.text, fontFamily: fonts.bodySemi }}
+          style={{ flex: 1, minWidth: 0, paddingVertical: 13, fontSize: 17, color: c.text, fontFamily: fonts.bodySemi }}
           placeholderTextColor={c.sub}
           placeholder="0"
-          accessibilityLabel={label}
+          accessibilityLabel={label ?? accessibilityLabel}
         />
         {suffix ? <Txt v="sub">{suffix}</Txt> : null}
       </View>

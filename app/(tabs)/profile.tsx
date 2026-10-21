@@ -15,6 +15,7 @@ import { daysSinceBackup } from '../../src/lib/backupReminder';
 import { dayKey, locale } from '../../src/lib/dates';
 import { cancelNotification, canPickFiles } from '../../src/lib/device';
 import { goalsFor } from '../../src/lib/hooks';
+import { mealSplitOf } from '../../src/lib/mealSplit';
 import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
 import { clearAllKeys } from '../../src/lib/secure';
 import { useStore } from '../../src/lib/store';
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
   const state = useStore();
   const profile = state.profile!;
   const goals = goalsFor(profile, state.weights, dayKey());
+  const split = mealSplitOf(profile);
   const chevron = <Ionicons name="chevron-forward" size={18} color={c.sub} />;
 
   const exportData = () => exportBackupFlow();
@@ -101,6 +103,14 @@ export default function ProfileScreen() {
 
       <Card>
         <ListRow icon="person-outline" title={t('edit_profile')} subtitle={t('edit_profile_sub')} right={chevron} onPress={() => router.push('/edit-profile')} />
+        <Divider />
+        <ListRow
+          icon="pie-chart-outline"
+          title={t('meal_split')}
+          subtitle={t('meal_split_row', { b: split.breakfast, l: split.lunch, d: split.dinner, s: split.snack })}
+          right={chevron}
+          onPress={() => router.push('/meal-split')}
+        />
         <Divider />
         <ListRow icon="sparkles-outline" title={t('ai_settings')} subtitle={aiLabel} right={chevron} onPress={() => router.push('/ai-settings')} />
       </Card>

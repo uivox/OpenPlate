@@ -33,7 +33,38 @@ import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { formatNumberInput, parseNumber } from '../src/lib/numbers';
 import { averageOfLogged, weekSummary } from '../src/lib/weekly';
-import { activeFastingDays, isFastingDay, stageFor } from '../src/lib/fasting';
+import {
+  activeFastingDays,
+  closesAt,
+  DEFAULT_SCHEDULE,
+  fastCheck,
+  handledFromNow,
+  isFastingDay,
+  minutesInsideFast,
+  normalizeSchedule,
+  planFastNotices,
+  scheduledFast,
+  scheduledFastAt,
+  scheduleActive,
+  stageFor,
+  syncSchedule,
+  upcomingFasts,
+  type FastingSchedule,
+} from '../src/lib/fasting';
+import {
+  DEFAULT_MEAL_SPLIT,
+  draftToSplit,
+  isValidMealSplit,
+  kcalFromPercent,
+  mealMacroTargets,
+  mealSplitOf,
+  mealTarget,
+  moveShares,
+  normalizeMealSplit,
+  percentFromKcal,
+  presetOf,
+  splitLeft,
+} from '../src/lib/mealSplit';
 import { searchGeneric, genericFoods } from '../src/lib/genericFoods';
 import { ALL_KEYS, _dicts, translate, type TKey } from '../src/lib/i18n';
 import { dayGoal, weightOn } from '../src/lib/goals';
@@ -127,7 +158,7 @@ import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { buildBars, daysBetween, fastingByDay, foodByDay, formatDateInput, macroKcal, macroPercents, normalizeInsights, parseDateInput, periods, rangeBounds, summarize, weekStart } from '../src/lib/insights';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
-import { MEALS, type AISettings, type DiaryEntry, type Food, type MealType, type Profile } from '../src/lib/types';
+import { MEALS, type AISettings, type DiaryEntry, type FastingSession, type Food, type MealType, type Profile } from '../src/lib/types';
 
 const profile: Profile = {
   sex: 'female',
@@ -2437,4 +2468,278 @@ test('reminders: settings travel with backups and come back normalised', () => {
   assert.equal(back.meals.lunch.time, DEFAULT_REMINDERS.meals.lunch.time);
   delete tampered.reminders;
   assert.equal(parseBackup(JSON.stringify(tampered)).reminders, undefined); // older exports: the device keeps its settings
+});
+
+
+/* ---------- Meal split ---------- */
+
+test('meal split: validation, presets and targets', () => {
+  assert.ok(isValidMealSplit(DEFAULT_MEAL_SPLIT));
+  assert.ok(isValidMealSplit({ breakfast: 20, lunch: 40, dinner: 40, snack: 0 }));
+  assert.ok(!isValidMealSplit({ breakfast: 20, lunch: 40, dinner: 40, snack: 10 })); // 110 %
+  assert.ok(!isValidMealSplit({ breakfast: 20.5, lunch: 39.5, dinner: 40, snack: 0 })); // whole percent only
+  assert.ok(!isValidMealSplit({ breakfast: -10, lunch: 50, dinner: 50, snack: 10 }));
+  assert.ok(!isValidMealSplit({ breakfast: 50, lunch: 50 }));
+  assert.equal(normalizeMealSplit('x'), null);
+  assert.deepEqual(normalizeMealSplit({ breakfast: 20, lunch: 40, dinner: 40, snack: 0, extra: 1 }), { breakfast: 20, lunch: 40, dinner: 40, snack: 0 });
+  // Profiles without a split use the old fixed one.
+  assert.deepEqual(mealSplitOf({}), DEFAULT_MEAL_SPLIT);
+  assert.deepEqual(mealSplitOf({ mealSplit: { breakfast: 1, lunch: 1, dinner: 1, snack: 1 } }), DEFAULT_MEAL_SPLIT);
+  assert.equal(presetOf({ breakfast: 20, lunch: 40, dinner: 40, snack: 0 }), 'three');
+  assert.equal(presetOf({ breakfast: 10, lunch: 40, dinner: 40, snack: 10 }), 'custom');
+  const three = { breakfast: 20, lunch: 40, dinner: 40, snack: 0 };
+  assert.equal(mealTarget(2000, three, 'lunch'), 800);
+  assert.equal(mealTarget(2000, three, 'snack'), 0);
+  assert.equal(mealTarget(2000, DEFAULT_MEAL_SPLIT, 'breakfast'), 500);
+  // Macros follow the meal's calorie share.
+  assert.deepEqual(mealMacroTargets({ protein: 120, carbs: 250, fat: 70 }, three, 'lunch'), { protein: 48, carbs: 100, fat: 28 });
+  assert.deepEqual(mealMacroTargets({ protein: 120, carbs: 250, fat: 70 }, three, 'snack'), { protein: 0, carbs: 0, fat: 0 });
+});
+
+test('meal split: editing in percent or kcal', () => {
+  assert.equal(splitLeft({ breakfast: 20, lunch: 40, dinner: null, snack: 0 }), 40);
+  assert.equal(splitLeft({ breakfast: 50, lunch: 40, dinner: 40, snack: 0 }), -30);
+  assert.equal(draftToSplit({ breakfast: 20, lunch: 40, dinner: null, snack: 0 }), null);
+  assert.equal(draftToSplit({ breakfast: 20, lunch: 40, dinner: 30, snack: 0 }), null);
+  assert.deepEqual(draftToSplit({ breakfast: 20, lunch: 40, dinner: 40, snack: 0 }), { breakfast: 20, lunch: 40, dinner: 40, snack: 0 });
+  // A typed kcal amount is stored as percent of today's goal.
+  assert.equal(percentFromKcal(500, 2000), 25);
+  assert.equal(percentFromKcal(333, 2000), 17);
+  assert.equal(percentFromKcal(5000, 2000), 100);
+  assert.equal(percentFromKcal(500, 0), 0);
+  assert.equal(kcalFromPercent(17, 2000), 340);
+});
+
+test('meal split: moving a meal’s share to the others', () => {
+  // Breakfast inside the fast: its 25 % go to the other meals in proportion (35:30:10).
+  const moved = moveShares(DEFAULT_MEAL_SPLIT, ['breakfast']);
+  assert.equal(moved.breakfast, 0);
+  assert.ok(isValidMealSplit(moved));
+  assert.deepEqual(moved, { breakfast: 0, lunch: 47, dinner: 40, snack: 13 });
+  // Nothing else has a share: lunch and dinner split it.
+  assert.deepEqual(moveShares({ breakfast: 100, lunch: 0, dinner: 0, snack: 0 }, ['breakfast']), { breakfast: 0, lunch: 50, dinner: 50, snack: 0 });
+  assert.deepEqual(moveShares({ breakfast: 0, lunch: 40, dinner: 40, snack: 20 }, ['breakfast']), { breakfast: 0, lunch: 40, dinner: 40, snack: 20 });
+  assert.ok(isValidMealSplit(moveShares({ breakfast: 33, lunch: 33, dinner: 33, snack: 1 }, ['breakfast', 'snack'])));
+});
+
+test('reminders: figures follow the meal split; a 0 % meal gets the plain nudge', () => {
+  const d = '2026-10-20';
+  const three = { breakfast: 20, lunch: 40, dinner: 40, snack: 0 };
+  assert.deepEqual(reminderFigure('lunch', [], 2000, false, three), { kind: 'planned', kcal: 800 });
+  assert.deepEqual(reminderFigure('breakfast', [], 2000, false, three), { kind: 'planned', kcal: 400 });
+  assert.deepEqual(reminderFigure('snack', [], 2000, false, three), { kind: 'plain' });
+  assert.deepEqual(reminderFigure('breakfast', [], 2000, false, { breakfast: 0, lunch: 50, dinner: 50, snack: 0 }), { kind: 'plain' });
+  // Carry-over uses the split too: breakfast planned 400, eaten 600 → lunch 800 − 200.
+  assert.deepEqual(reminderFigure('lunch', [rmEntry(d, 'breakfast', 8, 0, 600)], 2000, true, three), { kind: 'planned', kcal: 600 });
+  const plan = planReminders({ prefs: onPrefs(), entries: [], goalFor: () => 2000, split: three, now: at(d, 6, 0) });
+  assert.deepEqual(plan.find((r) => r.id === `meal-reminder:${d}:lunch`)!.figure, { kind: 'planned', kcal: 800 });
+});
+
+/* ---------- Fixed eating window ---------- */
+
+const adult = { fastingPlanId: '16:8', birthYear: 1990 };
+const sched = (patch: Partial<FastingSchedule> = {}): FastingSchedule => ({ ...DEFAULT_SCHEDULE, enabled: true, ...patch });
+let fastSeq = 0;
+const fid = () => `fast${fastSeq++}`;
+
+test('fasting window: times, crossing midnight, which minutes are inside the fast', () => {
+  // 16:8 opening at 12:00 closes at 20:00; the fast that ends on the 21st runs from 20:00 on the 20th.
+  assert.equal(closesAt(12 * 60, 16), 20 * 60);
+  const f = scheduledFast('2026-10-21', 12 * 60, 16);
+  assert.equal(f.start, at('2026-10-20', 20));
+  assert.equal(f.end, at('2026-10-21', 12));
+  // Opening at 18:00: eating until 02:00, fasting 02:00–18:00 on the same day.
+  const late = scheduledFast('2026-10-21', 18 * 60, 16);
+  assert.equal(late.start, at('2026-10-21', 2));
+  assert.equal(late.end, at('2026-10-21', 18));
+  assert.equal(scheduledFastAt(at('2026-10-21', 1), 18 * 60, 16), null); // still eating at 01:00
+  assert.equal(scheduledFastAt(at('2026-10-21', 3), 18 * 60, 16)!.key, '2026-10-21');
+  assert.equal(scheduledFastAt(at('2026-10-21', 13), 12 * 60, 16), null);
+  assert.equal(scheduledFastAt(at('2026-10-21', 23), 12 * 60, 16)!.key, '2026-10-22');
+  // Breakfast at 8:00 is inside a 12:00–20:00 window's fast, lunch at 12:30 isn't.
+  assert.ok(minutesInsideFast(8 * 60, 12 * 60, 16));
+  assert.ok(!minutesInsideFast(12 * 60 + 30, 12 * 60, 16));
+  assert.ok(minutesInsideFast(20 * 60, 12 * 60, 16));
+  assert.ok(!minutesInsideFast(23 * 60, 18 * 60, 16)); // window 18:00–02:00
+  assert.ok(minutesInsideFast(10 * 60, 18 * 60, 16));
+  // Only daily plans, only adults, only when switched on.
+  assert.ok(scheduleActive(sched(), adult, new Date(2026, 9, 21)));
+  assert.ok(!scheduleActive(sched(), { ...adult, fastingPlanId: '5:2' }, new Date(2026, 9, 21)));
+  assert.ok(!scheduleActive(sched(), { ...adult, birthYear: 2012 }, new Date(2026, 9, 21)));
+  assert.ok(!scheduleActive(DEFAULT_SCHEDULE, adult, new Date(2026, 9, 21)));
+});
+
+test('fasting window: settings are normalised', () => {
+  assert.deepEqual(normalizeSchedule(undefined), DEFAULT_SCHEDULE);
+  const n = normalizeSchedule({ enabled: true, opensAt: 2000, closeLead: 2, doneNotice: false, strict: 'yes', handledUntil: -5 });
+  assert.equal(n.enabled, true);
+  assert.equal(n.opensAt, DEFAULT_SCHEDULE.opensAt);
+  assert.equal(n.closeLead, 30);
+  assert.equal(n.doneNotice, false);
+  assert.equal(n.strict, false);
+  assert.equal(n.handledUntil, 0);
+  assert.equal(normalizeSchedule({ closeLead: 45 }).closeLead, 45); // custom lead time
+});
+
+test('fasting window: fasts start, end and are filled in by themselves', () => {
+  const s = sched({ handledUntil: handledFromNow(at('2026-10-20', 13), 12 * 60, 16) });
+  // Switched on during the eating window: nothing yet.
+  let r = syncSchedule({ schedule: s, profile: adult, active: null, history: [], now: at('2026-10-20', 15), newId: fid });
+  assert.equal(r.active, null);
+  // 20:05: the fast is running, from 20:00, planned for 16 h.
+  r = syncSchedule({ schedule: { ...s, handledUntil: r.handledUntil }, profile: adult, active: null, history: [], now: at('2026-10-20', 20, 5), newId: fid });
+  assert.equal(r.active!.start, at('2026-10-20', 20));
+  assert.equal(r.active!.targetHours, 16);
+  assert.equal(r.active!.scheduledFor, '2026-10-21');
+  // The app wasn't opened again until the 23rd at 9:00: the fast of the 21st is finished at 12:00,
+  // the 22nd's is filled in, and the 23rd's is running.
+  const later = syncSchedule({ schedule: { ...s, handledUntil: r.handledUntil }, profile: adult, active: r.active, history: [], now: at('2026-10-23', 9), newId: fid });
+  assert.deepEqual(later.history.map((h) => [h.scheduledFor, h.end]), [
+    ['2026-10-22', at('2026-10-22', 12)],
+    ['2026-10-21', at('2026-10-21', 12)],
+  ]);
+  assert.equal(later.active!.scheduledFor, '2026-10-23');
+  assert.ok(later.changed);
+  // Running it again changes nothing (no doubles).
+  const again = syncSchedule({ schedule: { ...s, handledUntil: later.handledUntil }, profile: adult, active: later.active, history: later.history, now: at('2026-10-23', 9, 1), newId: fid });
+  assert.equal(again.changed, false);
+  assert.equal(again.history.length, 2);
+});
+
+test('fasting window: switched on during a fast, ended early, skipped, extended, manual fasts', () => {
+  // Switched on at 22:00: the fast that began at 20:00 still starts.
+  const hu = handledFromNow(at('2026-10-20', 22), 12 * 60, 16);
+  const r = syncSchedule({ schedule: sched({ handledUntil: hu }), profile: adult, active: null, history: [], now: at('2026-10-20', 22), newId: fid });
+  assert.equal(r.active!.start, at('2026-10-20', 20));
+  // Ended early at 8:00: it stays in the history and isn't started again.
+  const early: FastingSession = { ...r.active!, end: at('2026-10-21', 8) };
+  const r2 = syncSchedule({ schedule: sched({ handledUntil: r.handledUntil }), profile: adult, active: null, history: [early], now: at('2026-10-21', 9), newId: fid });
+  assert.equal(r2.active, null);
+  assert.equal(r2.history.length, 1);
+  // Skipped (removed without a history entry): also not started again.
+  const r3 = syncSchedule({ schedule: sched({ handledUntil: r.handledUntil }), profile: adult, active: null, history: [], now: at('2026-10-21', 9), newId: fid });
+  assert.equal(r3.active, null);
+  assert.equal(r3.history.length, 0);
+  // Extended by 2 h: runs until 14:00, then is recorded with its new length.
+  const ext = { ...r.active!, targetHours: 18 };
+  const r4 = syncSchedule({ schedule: sched({ handledUntil: r.handledUntil }), profile: adult, active: ext, history: [], now: at('2026-10-21', 13), newId: fid });
+  assert.equal(r4.active, ext);
+  const r5 = syncSchedule({ schedule: sched({ handledUntil: r.handledUntil }), profile: adult, active: ext, history: [], now: at('2026-10-21', 14, 30), newId: fid });
+  assert.equal(r5.active, null);
+  assert.equal(r5.history[0].end, at('2026-10-21', 14));
+  // A manual fast keeps running; the schedule takes over from the next window after it.
+  const manual: FastingSession = { id: 'm', start: at('2026-10-20', 19), targetHours: 18, planId: '16:8' };
+  const r6 = syncSchedule({ schedule: sched({ handledUntil: at('2026-10-20', 18) }), profile: adult, active: manual, history: [], now: at('2026-10-21', 10), newId: fid });
+  assert.equal(r6.active, manual);
+  assert.equal(r6.history.length, 0);
+  // Weekly plans, minors and a switched-off schedule leave everything alone.
+  for (const [schedule, profile] of [
+    [sched({ handledUntil: 0 }), { ...adult, fastingPlanId: '5:2' }],
+    [sched({ handledUntil: 0 }), { ...adult, birthYear: 2012 }],
+    [DEFAULT_SCHEDULE, adult],
+  ] as const) {
+    const x = syncSchedule({ schedule, profile, active: null, history: [], now: at('2026-10-21', 3), newId: fid });
+    assert.equal(x.changed, false);
+    assert.equal(x.active, null);
+  }
+});
+
+test('fasting window: catching up stops 30 days back', () => {
+  const r = syncSchedule({ schedule: sched({ handledUntil: at('2026-01-01', 0) }), profile: adult, active: null, history: [], now: at('2026-10-21', 13), newId: fid });
+  assert.ok(r.history.length <= 31 && r.history.length >= 29);
+  assert.ok(r.history.every((h) => h.end! <= at('2026-10-21', 13)));
+});
+
+test('fasting window: follows the wall clock across daylight saving', () => {
+  const tz = process.env.TZ;
+  process.env.TZ = 'Europe/Berlin';
+  try {
+    // Clocks go back on 25 Oct 2026: the night is an hour longer, so the fast is 17 h.
+    const f = scheduledFast('2026-10-25', 12 * 60, 16);
+    assert.equal(new Date(f.start).getHours(), 20);
+    assert.equal(new Date(f.end).getHours(), 12);
+    assert.equal((f.end - f.start) / 3600000, 17);
+    const r = syncSchedule({ schedule: sched({ handledUntil: at('2026-10-24', 13) }), profile: adult, active: null, history: [], now: at('2026-10-25', 13), newId: fid });
+    assert.equal(r.history[0].targetHours, 17);
+    assert.equal(r.history[0].end! - r.history[0].start, r.history[0].targetHours * 3600000); // counts as completed
+  } finally {
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
+  }
+});
+
+test('fasting window: logging food during a fast asks first, only for today', () => {
+  const fast: FastingSession = { id: 'x', start: at('2026-10-20', 20), targetHours: 16, planId: '16:8', scheduledFor: '2026-10-21' };
+  const now = at('2026-10-21', 9);
+  assert.deepEqual(fastCheck(fast, '2026-10-21', now, false), { until: at('2026-10-21', 12), reached: false, strict: false });
+  assert.equal(fastCheck(fast, '2026-10-21', now, true)!.strict, true);
+  assert.equal(fastCheck(fast, '2026-10-20', now, false), null); // yesterday's dinner
+  assert.equal(fastCheck(fast, '2026-10-22', now, false), null); // planning ahead
+  assert.equal(fastCheck(null, '2026-10-21', now, false), null);
+  // Past the planned end but not ended (manual fasts): still asks, marked as reached.
+  assert.equal(fastCheck(fast, '2026-10-21', at('2026-10-21', 13), false)!.reached, true);
+});
+
+test('fasting window: notices and held-back meal reminders', () => {
+  const now = at('2026-10-21', 13);
+  // Off by default for "closes soon", on for "fast done".
+  let n = planFastNotices({ schedule: sched(), profile: adult, active: null, now, days: 2 });
+  assert.ok(n.every((x) => x.kind === 'done'));
+  assert.equal(n[0].at, at('2026-10-22', 12));
+  assert.equal(n[0].value, 16);
+  n = planFastNotices({ schedule: sched({ closeNotice: true, closeLead: 45, doneNotice: false }), profile: adult, active: null, now, days: 2 });
+  assert.equal(n[0].kind, 'close');
+  assert.equal(n[0].at, at('2026-10-21', 19, 15));
+  assert.equal(n[0].fastStart, at('2026-10-21', 20));
+  assert.equal(new Set(n.map((x) => x.id)).size, n.length);
+  // The running scheduled fast's "done" follows an extension.
+  const running: FastingSession = { id: 'x', start: at('2026-10-20', 20), targetHours: 18, planId: '16:8', scheduledFor: '2026-10-21' };
+  n = planFastNotices({ schedule: sched(), profile: adult, active: running, now: at('2026-10-21', 9), days: 1 });
+  assert.equal(n[0].id, 'fast-notice:done:2026-10-21');
+  assert.equal(n[0].at, at('2026-10-21', 14));
+  assert.deepEqual(planFastNotices({ schedule: DEFAULT_SCHEDULE, profile: adult, active: null, now }), []);
+
+  // Meal reminders inside coming fasts are held back: breakfast at 8:00 + 30 min is inside 20:00–12:00.
+  const fasts = upcomingFasts({ schedule: sched(), profile: adult, active: null, now: at('2026-10-21', 6) });
+  const plan = planReminders({ prefs: onPrefs(), entries: [], goalFor: () => 2000, fasts, now: at('2026-10-21', 6) });
+  assert.ok(!plan.some((r) => r.meal === 'breakfast' && r.date === '2026-10-22'));
+  assert.ok(plan.some((r) => r.meal === 'lunch' && r.date === '2026-10-22')); // 13:00 is in the window
+  assert.ok(plan.some((r) => r.meal === 'dinner' && r.date === '2026-10-22')); // 19:30 too
+});
+
+test('backups: meal split, per-meal macros, eating window and scheduled fasts', () => {
+  const data = {
+    profile: { ...profile, mealSplit: { breakfast: 20, lunch: 40, dinner: 40, snack: 0 }, mealMacros: true },
+    language: 'en' as const,
+    entries: [],
+    customFoods: [],
+    recentFoods: [],
+    water: {},
+    weights: [],
+    fastingActive: null,
+    fastingHistory: [{ id: 'h1', start: 10, end: 20, targetHours: 16, planId: '16:8', scheduledFor: '2026-10-21' }],
+    fastingSchedule: { ...DEFAULT_SCHEDULE, enabled: true, opensAt: 18 * 60, closeNotice: true, closeLead: 45, strict: true },
+    ai: DEFAULT_AI_SETTINGS,
+    meals: [],
+    recipes: [],
+  };
+  const back = parseBackup(JSON.stringify(buildBackup(data, new Date(0))));
+  assert.deepEqual(back.profile?.mealSplit, { breakfast: 20, lunch: 40, dinner: 40, snack: 0 });
+  assert.equal(back.profile?.mealMacros, true);
+  assert.equal(back.fastingHistory[0].scheduledFor, '2026-10-21');
+  assert.deepEqual(back.fastingSchedule, data.fastingSchedule);
+  // Broken values are dropped: an invalid split falls back to the default, a bad schedule is normalised.
+  const raw = JSON.parse(JSON.stringify(buildBackup(data, new Date(0))));
+  raw.profile.mealSplit = { breakfast: 90, lunch: 90, dinner: 0, snack: 0 };
+  raw.fastingSchedule = { enabled: true, opensAt: 'noon', closeLead: 999 };
+  raw.fastingHistory[0].scheduledFor = 'tomorrow';
+  const messy = parseBackup(JSON.stringify(raw));
+  assert.equal(messy.profile?.mealSplit, undefined);
+  assert.deepEqual(mealSplitOf(messy.profile), DEFAULT_MEAL_SPLIT);
+  assert.equal(messy.fastingSchedule?.opensAt, DEFAULT_SCHEDULE.opensAt);
+  assert.equal(messy.fastingSchedule?.closeLead, DEFAULT_SCHEDULE.closeLead);
+  assert.equal(messy.fastingHistory[0].scheduledFor, undefined);
+  // Older exports have no schedule: the device keeps its own.
+  delete raw.fastingSchedule;
+  assert.equal(parseBackup(JSON.stringify(raw)).fastingSchedule, undefined);
 });

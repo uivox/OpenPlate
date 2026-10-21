@@ -11,6 +11,7 @@ import * as HealthConnect from 'react-native-health-connect';
 import { iconIdFromNative, nativeIconName, type AppIconId, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
+import { FAST_NOTICE_PREFIX } from './fasting';
 import { REMINDER_ID_PREFIX, reminderDiff, reminderTarget, type NotificationAccess, type ReminderNotice, type ScheduledReminder } from './reminders';
 import type { MealType } from './types';
 import { HEALTH_CONNECT_STORE_URLS, hasStepsPermission, healthConnectProblem, stepRange, stepsFromAggregate, type StepReading, type StepSource, type StepStatus } from './steps';
@@ -238,6 +239,40 @@ export function onReminderOpened(open: (target: { meal: MealType; date: string }
     return () => sub.remove();
   } catch {
     return () => {};
+  }
+}
+
+/* ---------- Eating-window notices (fasting.ts planFastNotices) ---------- */
+
+/**
+ * Keeps the phone's pending "window closes soon" and "fast done" notices for the fixed eating
+ * window in step with `wanted` (ids `fast-notice:…`), the same way as meal reminders. Never asks
+ * for permission; without it, the pending notices are removed.
+ */
+export async function syncFastNotices(wanted: ScheduledReminder[]): Promise<void> {
+  try {
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    const granted = (await Notifications.getPermissionsAsync()).granted;
+    const current: ScheduledReminder[] = all
+      .filter((n) => n.identifier.startsWith(FAST_NOTICE_PREFIX))
+      .map((n) => ({
+        id: n.identifier,
+        at: typeof n.content.data?.at === 'number' ? n.content.data.at : 0,
+        title: n.content.title ?? '',
+        body: n.content.body ?? '',
+      }));
+    const { cancel, add } = reminderDiff(current, granted ? wanted : []);
+    for (const id of cancel) await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    for (const w of add) {
+      if (w.at <= Date.now()) continue;
+      await Notifications.scheduleNotificationAsync({
+        identifier: w.id,
+        content: { title: w.title, body: w.body, data: { at: w.at } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(w.at) },
+      }).catch(() => {});
+    }
+  } catch {
+    /* notifications unavailable */
   }
 }
 

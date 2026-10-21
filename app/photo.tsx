@@ -20,6 +20,7 @@ import { useStore } from '../src/lib/store';
 import { fonts, useColors } from '../src/lib/theme';
 import { MEALS, type AIItem, type Food, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
+import { confirmLogging } from '../src/components/fastGuard';
 
 interface EditableItem {
   key: string;
@@ -138,6 +139,10 @@ export default function PhotoScreen() {
   const addAll = () => {
     const chosen = items.filter((i) => i.include && i.grams && i.grams > 0 && i.name.trim());
     if (!chosen.length) return;
+    confirmLogging(date, () => saveChosen(chosen));
+  };
+
+  const saveChosen = (chosen: typeof items) => {
     const entryIds = new Map<string, string>();
     for (const it of chosen) {
       const food: Food = {

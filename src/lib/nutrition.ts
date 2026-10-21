@@ -16,13 +16,6 @@ export const MACRO_PRESETS: { id: PresetId; split: MacroSplit }[] = [
   { id: 'keto', split: { carbs: 5, protein: 25, fat: 70 } },
 ];
 
-/** Share of the daily goal per meal. */
-export const MEAL_SHARE: Record<MealType, number> = {
-  breakfast: 0.25,
-  lunch: 0.35,
-  dinner: 0.3,
-  snack: 0.1,
-};
 
 const KCAL_PER_KG_FAT = 7700;
 

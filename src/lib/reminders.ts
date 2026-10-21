@@ -1,6 +1,7 @@
 import { addDays, dayKey, locale, parseDayKey } from './dates';
 import type { Lang, TKey } from './i18n';
-import { entryNutrients, MEAL_SHARE } from './nutrition';
+import { DEFAULT_MEAL_SPLIT, type MealSplit } from './mealSplit';
+import { entryNutrients } from './nutrition';
 import { MEALS, type DiaryEntry, type MealType } from './types';
 
 /*
@@ -211,19 +212,26 @@ const EARLIER: Record<MealType, MealType[]> = { breakfast: [], lunch: ['breakfas
  * The calorie figure in a reminder. Breakfast and lunch show their own share of the day's goal
  * ("about 700 kcal planned"), rounded to 10; with `adjust` the difference of earlier meals that
  * already have entries is carried over. Dinner and snacks show what is left of the day. Without
- * a goal, at 0 or below, the reminder is a plain nudge.
+ * a goal, at 0 or below, or for a meal with a 0 % share, the reminder is a plain nudge.
  */
-export function reminderFigure(meal: MealType, dayEntries: DiaryEntry[], goalKcal: number | null, adjust: boolean): ReminderFigure {
-  if (!goalKcal || goalKcal <= 0) return { kind: 'plain' };
+export function reminderFigure(
+  meal: MealType,
+  dayEntries: DiaryEntry[],
+  goalKcal: number | null,
+  adjust: boolean,
+  split: MealSplit = DEFAULT_MEAL_SPLIT,
+): ReminderFigure {
+  if (!goalKcal || goalKcal <= 0 || split[meal] <= 0) return { kind: 'plain' };
+  const share = (m: MealType) => split[m] / 100;
   const eaten = (m?: MealType) => dayEntries.filter((e) => !m || e.meal === m).reduce((s, e) => s + entryNutrients(e).kcal, 0);
   if (meal === 'dinner' || meal === 'snack') {
     const left = Math.round(goalKcal - eaten());
     return left > 0 ? { kind: 'left', kcal: left } : { kind: 'plain' };
   }
-  let kcal = goalKcal * MEAL_SHARE[meal];
+  let kcal = goalKcal * share(meal);
   if (adjust) {
     for (const m of EARLIER[meal]) {
-      if (dayEntries.some((e) => e.meal === m)) kcal += goalKcal * MEAL_SHARE[m] - eaten(m);
+      if (dayEntries.some((e) => e.meal === m)) kcal += goalKcal * share(m) - eaten(m);
     }
   }
   const rounded = Math.round(kcal / 10) * 10;
@@ -236,12 +244,16 @@ export interface PlanInput {
   /** The day's calorie goal, or null when there is none. */
   goalFor: (date: string) => number | null;
   fast?: ActiveFast | null;
+  /** Coming fasts of the fixed eating window (fasting.ts `upcomingFasts`); reminders inside them are held back. */
+  fasts?: { start: number; end: number }[];
+  /** The meal split for the calorie figures. */
+  split?: MealSplit;
   now: number;
   days?: number;
 }
 
 /** Every reminder that should be pending right now, sorted by time (at most 14 days × 4 meals). */
-export function planReminders({ prefs, entries, goalFor, fast, now, days = SCHEDULE_DAYS }: PlanInput): PlannedReminder[] {
+export function planReminders({ prefs, entries, goalFor, fast, fasts = [], split, now, days = SCHEDULE_DAYS }: PlanInput): PlannedReminder[] {
   if (!prefs.enabled) return [];
   const today = dayKey(new Date(now));
   const byDay = new Map<string, DiaryEntry[]>();
@@ -261,8 +273,8 @@ export function planReminders({ prefs, entries, goalFor, fast, now, days = SCHED
       const at = wallClock(date, r.time + prefs.delay);
       if (at <= now) continue;
       if (dayEntries.some((e) => e.meal === meal)) continue;
-      if (insideFast(at, fast)) continue;
-      out.push({ id: reminderId(date, meal), date, meal, at, figure: reminderFigure(meal, dayEntries, goalFor(date), prefs.adjust) });
+      if (insideFast(at, fast) || fasts.some((f) => at >= f.start && at < f.end)) continue;
+      out.push({ id: reminderId(date, meal), date, meal, at, figure: reminderFigure(meal, dayEntries, goalFor(date), prefs.adjust, split) });
     }
   }
   return out.sort((a, b) => a.at - b.at);

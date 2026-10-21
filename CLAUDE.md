@@ -52,10 +52,18 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 
 ## Where things are (meal reminders)
 
-- `src/lib/reminders.ts` (pure): settings and `normalizeReminders`, suggested times (`suggestTime`: median first log of the day over 21 days, ≥ 5 days, same-day entries only), `planReminders` (time + delay, only empty meals, not inside a running fast, 14 days ahead), `reminderFigure` / `reminderText` (meal share for breakfast and lunch, optionally adjusted; what's left for dinner and snacks), `reminderDiff`.
+- `src/lib/reminders.ts` (pure): settings and `normalizeReminders`, suggested times (`suggestTime`: median first log of the day over 21 days, ≥ 5 days, same-day entries only), `planReminders` (time + delay, only empty meals, not inside a running fast or a coming fast of the fixed eating window, 14 days ahead), `reminderFigure` / `reminderText` (meal share for breakfast and lunch, optionally adjusted; what's left for dinner and snacks), `reminderDiff`.
 - `src/lib/device.ts` / `device.web.ts`: `notificationAccess`, `askNotifications`, `openNotificationSettings`, `syncReminders` (expo-notifications with ids `meal-reminder:<date>:<meal>`; timers in the browser), `onReminderOpened`. Permission is only asked from the reminders switch, never by the sync.
 - `src/components/MealReminderSync.tsx`: rendered once in `app/_layout.tsx`; reschedules after store changes (entries, reminders, profile, weights, fasting, language), when the app comes to the front and hourly; a tap opens `/add-food` with `meal` and `date`. The service worker (`scripts/web-pwa.mjs`) passes web taps on as a `openplate-reminder` message.
 - `app/reminders.tsx` (Profile → *Meal reminders*) and the one-time card in the diary (`hintCardMeal`). Settings are part of backups.
+
+## Where things are (fasting window and meal split)
+
+- `src/lib/fasting.ts` (pure): the fixed eating window. `FastingSchedule` + `normalizeSchedule`, `scheduledFast` (a fast is named after the day whose window ends it; windows may cross midnight, times follow the wall clock across daylight saving), `syncSchedule` (finishes, starts and fills in scheduled fasts, at most 30 days back; never replaces a running fast; dedupes by `FastingSession.scheduledFor`), `fastCheck` (logging food to today during a running fast), `planFastNotices` (ids `fast-notice:close|done:<day>`), `upcomingFasts` (held-back meal reminders), `minutesInsideFast`.
+- `src/components/FastingSync.tsx`: rendered once in `app/_layout.tsx`; runs `syncSchedule` on start, every minute, on app focus and after changes, and keeps the notices scheduled (`syncFastNotices` in both `device` files).
+- `src/components/fastGuard.ts`: `confirmLogging(date, proceed)`. Every place that adds diary entries (`food.tsx`, `meal.tsx`, `add-food.tsx` quick log, `custom-food.tsx` quick add, `photo.tsx`, copy from yesterday in the diary) goes through it; a new one must too.
+- `src/lib/mealSplit.ts` (pure): `Profile.mealSplit` (whole percent per meal, exactly 100; the default 25/35/30/10 when missing), presets, `mealTarget`, `mealMacroTargets` (`Profile.mealMacros`), editing helpers, `moveShares`. Used by the diary cards and the reminder figures. Editor: `app/meal-split.tsx` (Profile → *Meal split*).
+- The window settings (`fastingSchedule` in the store) and the split are part of backups.
 
 ## Where things are (steps)
 

@@ -269,6 +269,30 @@ export function onReminderOpened(open: (target: { meal: MealType; date: string }
   };
 }
 
+/* ---------- Eating-window notices ---------- */
+
+const fastTimers = new Map<string, { timer: ReturnType<typeof setTimeout>; shown: ScheduledReminder }>();
+
+/** Same export as device.ts: timers while the web app is open. */
+export async function syncFastNotices(wanted: ScheduledReminder[]): Promise<void> {
+  const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  const { cancel, add } = reminderDiff([...fastTimers.values()].map((t) => t.shown), granted ? wanted : []);
+  for (const id of cancel) {
+    const t = fastTimers.get(id);
+    if (t) clearTimeout(t.timer);
+    fastTimers.delete(id);
+  }
+  for (const w of add) {
+    const delay = w.at - Date.now();
+    if (delay <= 0 || delay > MAX_DELAY) continue;
+    const timer = setTimeout(() => {
+      fastTimers.delete(w.id);
+      void show(w.title, w.body);
+    }, delay);
+    fastTimers.set(w.id, { timer, shown: w });
+  }
+}
+
 /* ---------- Steps ---------- */
 
 /** Same export as device.ts: browsers have no step counter. */
