@@ -435,7 +435,7 @@ async function run(scheme) {
     });
     await step('progress: decimal comma in the weight', async () => {
       await page.getByTestId('insight-weight').filter({ visible: true }).first().click();
-      await page.locator('input').filter({ visible: true }).first().fill('68,4');
+      await page.locator('input:not([type="checkbox"])').filter({ visible: true }).first().fill('68,4');
       await btn('Save').click();
       await text('68.4 kg', { exact: true }).waitFor();
       await text('Update today’s weight').waitFor();
