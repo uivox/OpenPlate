@@ -14,6 +14,7 @@ import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
+import { confirmLogging } from '../src/components/fastGuard';
 
 const FACTORS = [0.5, 1, 1.5, 2];
 
@@ -41,9 +42,12 @@ export default function MealScreen() {
   const total = mealTotals(saved.items, f);
 
   const log = () => {
-    logMeal(saved.id, params.date ?? dayKey(), slot, f);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    leaveToDiary();
+    const date = params.date ?? dayKey();
+    confirmLogging(date, () => {
+      logMeal(saved.id, date, slot, f);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      leaveToDiary();
+    });
   };
 
   const edit = () => {

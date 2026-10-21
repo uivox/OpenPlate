@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { DialogHost } from '../src/components/DialogHost';
+import { FastingSync } from '../src/components/FastingSync';
 import { MealReminderSync } from '../src/components/MealReminderSync';
 import { setupNotifications } from '../src/lib/device';
 import { ensurePackLoaded } from '../src/lib/packRuntime';
@@ -100,8 +101,10 @@ export default function RootLayout() {
         <Stack.Screen name="layout-settings" options={{ title: t('layout_title') }} />
         <Stack.Screen name="offline-data" options={{ title: t('pack_title') }} />
         <Stack.Screen name="reminders" options={{ title: t('reminders_title') }} />
+        <Stack.Screen name="meal-split" options={{ title: t('meal_split') }} />
       </Stack>
       <DialogHost />
+      <FastingSync />
       <MealReminderSync />
     </>
   );

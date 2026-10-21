@@ -105,6 +105,10 @@ export interface Profile {
   /** 'grams' uses `macroGramsTarget` instead of the percentage split. */
   macroMode?: 'percent' | 'grams';
   macroGramsTarget?: MacroGrams;
+  /** Whole percent of the day's calories per meal, adding up to 100 (mealSplit.ts); the default split when missing. */
+  mealSplit?: Record<MealType, number>;
+  /** Show protein, carbs and fat targets per meal (the meal's share of each daily macro). */
+  mealMacros?: boolean;
 }
 
 /** Profile fields as edited in onboarding and edit-profile (numbers may still be empty). */
@@ -140,6 +144,8 @@ export interface FastingSession {
   targetHours: number;
   planId: string;
   notificationId?: string;
+  /** Started by the fixed eating window: the day (YYYY-MM-DD) whose eating window ends this fast. */
+  scheduledFor?: string;
 }
 
 export type AIProviderId = 'anthropic' | 'openai' | 'gemini' | 'local';

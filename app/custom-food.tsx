@@ -15,6 +15,7 @@ import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
+import { confirmLogging } from '../src/components/fastGuard';
 
 /** Rounds values read by an AI to what a label prints, so the fields stay readable. */
 const tidy = (v: number | undefined) => (v === undefined ? null : Math.round(v * 10) / 10);
@@ -86,9 +87,11 @@ export default function CustomFoodScreen() {
         servings: [{ label: t('portion'), grams: 100 }],
         unit: 'g',
       };
-      addEntry({ date, meal, food, grams: 100 });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      leaveToDiary();
+      confirmLogging(date, () => {
+        addEntry({ date, meal, food, grams: 100 });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        leaveToDiary();
+      });
       return;
     }
     const per100 = {

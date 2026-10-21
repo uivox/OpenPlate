@@ -2,7 +2,9 @@ import { router, useRootNavigationState } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { onReminderOpened, syncReminders } from '../lib/device';
+import { upcomingFasts } from '../lib/fasting';
 import { dayGoal } from '../lib/goals';
+import { mealSplitOf } from '../lib/mealSplit';
 import { translate, type TKey } from '../lib/i18n';
 import { planReminders, reminderText, type ReminderNotice } from '../lib/reminders';
 import { useStore } from '../lib/store';
@@ -20,6 +22,8 @@ function wantedReminders(): { wanted: ReminderNotice[]; logNow: string } {
         entries: s.entries,
         goalFor: (date) => dayGoal(profile, s.weights, date).kcal,
         fast: s.fastingActive,
+        fasts: upcomingFasts({ schedule: s.fastingSchedule, profile, active: s.fastingActive, now: Date.now() }),
+        split: mealSplitOf(profile),
         now: Date.now(),
       })
     : [];
@@ -71,6 +75,7 @@ export function MealReminderSync() {
         s.profile !== prev.profile ||
         s.weights !== prev.weights ||
         s.fastingActive !== prev.fastingActive ||
+        s.fastingSchedule !== prev.fastingSchedule ||
         s.language !== prev.language
       )
         soon();

@@ -287,6 +287,80 @@ async function run(scheme) {
       await page.getByRole('tab', { name: 'Diary' }).click();
       await btn('Add food: Snacks').waitFor();
     });
+    await step('meal split: presets, own values in percent and kcal, macros per meal', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Meal split', { exact: true }).click();
+      await text('Adds up to 100 %').waitFor();
+      await btn('Three meals · 20/40/40/0').click();
+      const pct = (meal) => page.getByLabel(`${meal} in Percent`).filter({ visible: true }).first();
+      if ((await pct('Snacks').inputValue()) !== '0') throw new Error('preset not applied');
+      await pct('Breakfast').fill('30');
+      await text('10 % too much').waitFor();
+      if (!(await btn('Save').isDisabled())) throw new Error('Save allowed while the split adds up to 110 %');
+      await pct('Dinner').fill('30');
+      await text('Adds up to 100 %').waitFor();
+      // Typed in kcal, stored as percent of today's goal.
+      await btn('kcal').click();
+      const lunchKcal = page.getByLabel('Lunch in kcal').filter({ visible: true }).first();
+      const goal = Math.round(Number((await lunchKcal.inputValue()).replace(/\D/g, '')) / 0.4);
+      await lunchKcal.fill(String(Math.round(goal * 0.3)));
+      await text('10 % left to share').waitFor();
+      await page.getByLabel('Snacks in kcal').filter({ visible: true }).first().fill(String(Math.round(goal * 0.1)));
+      await text('Adds up to 100 %').waitFor();
+      await page.getByRole('switch', { name: 'Macro targets per meal' }).filter({ visible: true }).first().click();
+      await btn('Save').click();
+      await text('30 / 30 / 30 / 10 %').waitFor();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await text(/^P \d+\/\d+ · C \d+\/\d+ · F \d+\/\d+ g$/).waitFor();
+    });
+    await step('eating window: fasts start by themselves; logging asks first, strict mode, skip', async () => {
+      await page.getByRole('tab', { name: 'Fasting' }).click();
+      await page.getByTestId('window-switch').filter({ visible: true }).first().click();
+      // Window opens in an hour, so right now is inside the fast and it starts by itself.
+      const opens = new Date(Date.now() + 3600000);
+      const hhmm = `${String(opens.getHours()).padStart(2, '0')}:${String(opens.getMinutes()).padStart(2, '0')}`;
+      const opensField = page.getByTestId('window-opens').filter({ visible: true }).first();
+      await opensField.fill(hhmm);
+      await opensField.press('Enter');
+      await text('From your eating window').waitFor();
+      await btn('Skip today’s fast').waitFor();
+      // Strict mode: only "End fast & log".
+      await page.getByTestId('window-strict-switch').filter({ visible: true }).first().click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      const addApple = async () => {
+        await btn('Add food: Snacks').click();
+        await field('Search foods and products').fill('apple');
+        await text('Apple', { exact: true }).click();
+        await btn('Add').click();
+        await text(/^You’re fasting until /).waitFor();
+      };
+      await addApple();
+      await text('Strict mode is on: end your fast to log food.').waitFor();
+      if (await btn('Log anyway').count()) throw new Error('“Log anyway” offered in strict mode');
+      await btn('Cancel').click();
+      await page.goBack();
+      await page.goBack();
+      // Not strict: "Log anyway" keeps the fast running.
+      await page.getByRole('tab', { name: 'Fasting' }).click();
+      await page.getByTestId('window-strict-switch').filter({ visible: true }).first().click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await addApple();
+      await btn('Log anyway').click();
+      await btn('Add food: Snacks').waitFor();
+      await text('Apple', { exact: true }).waitFor();
+      await page.getByRole('tab', { name: 'Fasting' }).click();
+      await text('From your eating window').waitFor();
+      // Skip today's fast: gone, not in the history, and it doesn't start again.
+      await btn('Skip today’s fast').click();
+      await text('Skip today’s fast?').waitFor();
+      await page.getByRole('button', { name: /Skip$/ }).filter({ visible: true }).last().click();
+      await btn('Start fasting').waitFor();
+      await page.waitForTimeout(1500);
+      if (await text('From your eating window').count()) throw new Error('skipped fast started again');
+      // Logging food to another day never asks; switching the window off leaves manual fasting as before.
+      await page.getByTestId('window-switch').filter({ visible: true }).first().click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+    });
     await step('exact goal', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('kcal per day').click();

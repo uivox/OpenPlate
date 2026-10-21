@@ -22,6 +22,7 @@ import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type Food, type MealType, type SavedMeal } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
+import { confirmLogging } from '../src/components/fastGuard';
 
 type ListTab = 'recent' | 'meals' | 'recipes' | 'mine';
 
@@ -176,11 +177,12 @@ export default function AddFoodScreen() {
   };
 
   const openMeal = (m: SavedMeal) => router.push({ pathname: '/meal', params: { id: m.id, meal, date } });
-  const quickLogMeal = (m: SavedMeal) => {
-    logMeal(m.id, date, meal);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    leaveToDiary();
-  };
+  const quickLogMeal = (m: SavedMeal) =>
+    confirmLogging(date, () => {
+      logMeal(m.id, date, meal);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      leaveToDiary();
+    });
   const newMealFlow = () => {
     setMealDraft({ name: '', items: [] });
     router.push('/meal-edit');

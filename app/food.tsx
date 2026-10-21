@@ -15,6 +15,7 @@ import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
+import { confirmLogging } from '../src/components/fastGuard';
 
 export default function FoodScreen() {
   const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
@@ -83,9 +84,12 @@ export default function FoodScreen() {
       updateEntry(entry!.id, { grams, meal });
       router.back();
     } else {
-      addEntry({ date: params.date ?? dayKey(), meal, food, grams });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      leaveToDiary();
+      const date = params.date ?? dayKey();
+      confirmLogging(date, () => {
+        addEntry({ date, meal, food, grams });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        leaveToDiary();
+      });
     }
   };
 

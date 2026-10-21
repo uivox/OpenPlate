@@ -1,18 +1,38 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React from 'react';
-import { ScrollView, View } from 'react-native';
+import React, { useState } from 'react';
+import { ScrollView, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ring } from '../../src/components/Ring';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
-import { Banner, Button, Card, Chip, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
+import { TimeField } from '../../src/components/TimeField';
+import { Banner, Button, Card, Chip, ChipGroup, Divider, IconButton, ListRow, NumField, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { showAlert } from '../../src/lib/alert';
 import { dayKey, formatDuration, formatShortDate, formatTime, locale } from '../../src/lib/dates';
-import { cancelNotification, notifiesWhenClosed, scheduleAt } from '../../src/lib/device';
-import { activeFastingDays, completedFasts, FASTING_PLANS, isFastingDay, longestFastHours, planById, sessionHours, stageFor } from '../../src/lib/fasting';
+import { askNotifications, cancelNotification, notifiesWhenClosed, scheduleAt } from '../../src/lib/device';
+import {
+  activeFastingDays,
+  CLOSE_LEAD_MAX,
+  CLOSE_LEAD_MIN,
+  CLOSE_LEADS,
+  closesAt,
+  completedFasts,
+  FASTING_PLANS,
+  handledFromNow,
+  isFastingDay,
+  longestFastHours,
+  planById,
+  plannedEnd,
+  scheduledFastAt,
+  scheduledFastsBetween,
+  sessionHours,
+  stageFor,
+  windowFastHours,
+} from '../../src/lib/fasting';
 import { useNow } from '../../src/lib/hooks';
 import { fastingDayKcal, isAdult } from '../../src/lib/nutrition';
+import { clockText } from '../../src/lib/reminders';
 import { useStore } from '../../src/lib/store';
 import { useColors } from '../../src/lib/theme';
 import { useT } from '../../src/lib/useT';
@@ -31,6 +51,8 @@ export default function FastingScreen() {
   const endFast = useStore((s) => s.endFast);
   const updateActiveFast = useStore((s) => s.updateActiveFast);
   const removeFast = useStore((s) => s.removeFast);
+  const discardActiveFast = useStore((s) => s.discardActiveFast);
+  const schedule = useStore((s) => s.fastingSchedule);
   const now = useNow(1000);
 
   const plan = planById(profile.fastingPlanId);
@@ -65,10 +87,48 @@ export default function FastingScreen() {
   const shiftStart = async (minutes: number) => {
     if (!active) return;
     const newStart = Math.min(Date.now(), active.start + minutes * 60000);
+    if (active.scheduledFor) {
+      // The eating window's own "fast done" notice follows the change (FastingSync).
+      updateActiveFast({ start: newStart });
+      return;
+    }
     await cancelNotification(active.notificationId);
     const notificationId = await notify(newStart, active.targetHours);
     updateActiveFast({ start: newStart, notificationId });
   };
+
+  /** Today only: the schedule itself stays as it is. */
+  const extend = () => {
+    if (!active) return;
+    const end = plannedEnd(active);
+    showAlert(t('fast_extend_q'), undefined, [
+      ...[1, 2, 4].map((h) => ({
+        text: `+${h} h · ${t('fast_extend_to', { time: formatTime(end + h * 3600000, lang) })}`,
+        onPress: () => updateActiveFast({ targetHours: active.targetHours + h }),
+      })),
+      { text: t('cancel'), style: 'cancel' as const },
+    ]);
+  };
+
+  const skip = () =>
+    showAlert(t('fast_skip_q'), t('fast_skip_text'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('fast_skip_do'),
+        style: 'destructive',
+        onPress: () => {
+          void cancelNotification(active?.notificationId);
+          discardActiveFast();
+        },
+      },
+    ]);
+
+  const fastHours = windowFastHours(plan.id);
+  const windowOn = schedule.enabled && fastHours !== null;
+  const nextFastStart =
+    windowOn && !active && !scheduledFastAt(now, schedule.opensAt, fastHours)
+      ? scheduledFastsBetween(now, now + 86400000 * 2, schedule.opensAt, fastHours).find((f) => f.start > now)?.start
+      : undefined;
 
   const weekdayName = (d: number) => new Date(2024, 0, 7 + d).toLocaleDateString(locale(lang), { weekday: 'short' });
 
@@ -163,6 +223,11 @@ export default function FastingScreen() {
                 <Txt v="sub" color={c.nightText}>
                   {t('target_hours', { h: targetHours })}
                 </Txt>
+                {nextFastStart ? (
+                  <Txt v="small" color={c.nightText} center>
+                    {t('window_open_now', { time: formatTime(nextFastStart, lang) })}
+                  </Txt>
+                ) : null}
               </>
             )}
           </Ring>
@@ -184,6 +249,17 @@ export default function FastingScreen() {
                 </Txt>
               )}
               <Button title={t('end_fast')} icon="sunny" kind="night" onPress={stop} style={{ alignSelf: 'stretch' }} />
+              {active.scheduledFor ? (
+                <>
+                  <Txt v="small" color={c.nightText}>
+                    {t('window_from_schedule')}
+                  </Txt>
+                  <Row gap={8}>
+                    <Button small kind="night" icon="time-outline" title={t('fast_extend')} onPress={extend} />
+                    <Button small kind="night" icon="play-skip-forward-outline" title={t('fast_skip')} onPress={skip} />
+                  </Row>
+                </>
+              ) : null}
             </>
           ) : (
             <Button title={t('start_fast')} icon="moon" kind="night" onPress={start} style={{ alignSelf: 'stretch' }} />
@@ -201,6 +277,8 @@ export default function FastingScreen() {
           <Txt v="small">{t('stages_disclaimer')}</Txt>
         </Card>
       ) : null}
+
+      {fastHours !== null ? <EatingWindowCard fastHours={fastHours} /> : null}
 
       {plan.kind === 'weekly' ? (
         <Card style={{ gap: 12 }}>
@@ -245,7 +323,7 @@ export default function FastingScreen() {
                   {i > 0 ? <Divider /> : null}
                   <ListRow
                     title={`${formatShortDate(dayKey(new Date(s.start)), lang)} · ${formatTime(s.start, lang)}`}
-                    subtitle={`${formatDuration(hours * 3600000)} / ${s.targetHours} h`}
+                    subtitle={`${formatDuration(hours * 3600000)} / ${hoursText(s.targetHours, lang)} h`}
                     right={<Ionicons name={reached ? 'checkmark-circle' : 'close-circle-outline'} size={22} color={reached ? c.accent : c.sub} />}
                     onLongPress={() =>
                       showAlert(t('delete_fast_q'), undefined, [
@@ -262,5 +340,146 @@ export default function FastingScreen() {
         </>
       ) : null}
     </Screen>
+  );
+}
+
+const hoursText = (h: number, lang: 'de' | 'en') =>
+  Number.isInteger(h) ? String(h) : h.toFixed(1).replace('.', lang === 'de' ? ',' : '.');
+
+type LeadChoice = (typeof CLOSE_LEADS)[number] | 'custom';
+
+/** Fixed eating window (daily plans): opening time, notices and strict mode. Fasts then run by themselves. */
+function EatingWindowCard({ fastHours }: { fastHours: number }) {
+  const { t } = useT();
+  const c = useColors();
+  const schedule = useStore((s) => s.fastingSchedule);
+  const setSchedule = useStore((s) => s.setFastingSchedule);
+  const active = useStore((s) => s.fastingActive);
+  const [invalid, setInvalid] = useState(false);
+  const [leadChoice, setLeadChoice] = useState<LeadChoice>((CLOSE_LEADS as readonly number[]).includes(schedule.closeLead) ? (schedule.closeLead as LeadChoice) : 'custom');
+
+  const turn = async (on: boolean) => {
+    if (!on) {
+      setSchedule({ enabled: false });
+      return;
+    }
+    // The fast going on right now (by the new window) still starts, unless another fast is running.
+    setSchedule({ enabled: true, handledUntil: handledFromNow(Date.now(), schedule.opensAt, fastHours) });
+    if (schedule.doneNotice || schedule.closeNotice) await askNotifications();
+  };
+  const setOpens = (opensAt: number) => {
+    const m = ((opensAt % 1440) + 1440) % 1440;
+    setSchedule(active ? { opensAt: m } : { opensAt: m, handledUntil: handledFromNow(Date.now(), m, fastHours) });
+  };
+  const setNotice = async (patch: { closeNotice?: boolean; doneNotice?: boolean }) => {
+    setSchedule(patch);
+    if (patch.closeNotice || patch.doneNotice) await askNotifications();
+  };
+
+  const from = clockText(schedule.opensAt);
+  const to = clockText(closesAt(schedule.opensAt, fastHours));
+  return (
+    <Card style={{ gap: 12 }}>
+      <Row gap={12}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt v="h3">{t('window_title')}</Txt>
+          <Txt v="small">{t('window_sub')}</Txt>
+        </View>
+        <Switch
+          value={schedule.enabled}
+          onValueChange={(on) => void turn(on)}
+          trackColor={{ true: c.accent }}
+          accessibilityLabel={t('window_title')}
+          testID="window-switch"
+        />
+      </Row>
+      {schedule.enabled ? (
+        <>
+          <Row gap={6}>
+            <Txt v="label" style={{ flex: 1 }}>
+              {t('window_opens')}
+            </Txt>
+            <IconButton icon="remove" size={18} border={c.line} color={c.text} label={t('window_earlier')} onPress={() => setOpens(schedule.opensAt - 30)} />
+            <TimeField value={schedule.opensAt} label={t('window_time_of')} onChange={setOpens} onInvalid={setInvalid} testID="window-opens" />
+            <IconButton icon="add" size={18} border={c.line} color={c.text} label={t('window_later')} onPress={() => setOpens(schedule.opensAt + 30)} />
+          </Row>
+          {invalid ? (
+            <Txt v="small" color={c.danger}>
+              {t('reminders_time_invalid')}
+            </Txt>
+          ) : null}
+          <Banner icon="time-outline" text={t('window_range', { from, to })} />
+          {active && !active.scheduledFor ? <Txt v="small">{t('window_manual_running')}</Txt> : null}
+
+          <Divider />
+          <Row gap={12}>
+            <Txt v="body" style={{ flex: 1 }}>
+              {t('window_close_notice')}
+            </Txt>
+            <Switch
+              value={schedule.closeNotice}
+              onValueChange={(on) => void setNotice({ closeNotice: on })}
+              trackColor={{ true: c.accent }}
+              accessibilityLabel={t('window_close_notice')}
+              testID="window-close-switch"
+            />
+          </Row>
+          {schedule.closeNotice ? (
+            <>
+              <ChipGroup<LeadChoice>
+                options={[
+                  ...CLOSE_LEADS.map((n) => ({ value: n as LeadChoice, label: t('window_close_lead', { n }) })),
+                  { value: 'custom', label: t('window_close_custom') },
+                ]}
+                value={leadChoice}
+                onChange={(v) => {
+                  setLeadChoice(v);
+                  if (v !== 'custom') setSchedule({ closeLead: v });
+                }}
+              />
+              {leadChoice === 'custom' ? (
+                <NumField
+                  label={t('window_close_custom_label')}
+                  value={schedule.closeLead}
+                  decimals={false}
+                  suffix="min"
+                  onChange={(v) => {
+                    if (v !== null && v >= CLOSE_LEAD_MIN && v <= CLOSE_LEAD_MAX) setSchedule({ closeLead: v });
+                  }}
+                  hint={t('window_close_custom_invalid')}
+                />
+              ) : null}
+            </>
+          ) : null}
+          <Row gap={12}>
+            <Txt v="body" style={{ flex: 1 }}>
+              {t('window_done_notice')}
+            </Txt>
+            <Switch
+              value={schedule.doneNotice}
+              onValueChange={(on) => void setNotice({ doneNotice: on })}
+              trackColor={{ true: c.accent }}
+              accessibilityLabel={t('window_done_notice')}
+            />
+          </Row>
+          {notifiesWhenClosed ? null : <Txt v="small">{t('notif_open_only')}</Txt>}
+
+          <Divider />
+          <Row gap={12}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt v="body">{t('window_strict')}</Txt>
+              <Txt v="small">{t('window_strict_sub')}</Txt>
+            </View>
+            <Switch
+              value={schedule.strict}
+              onValueChange={(strict) => setSchedule({ strict })}
+              trackColor={{ true: c.accent }}
+              accessibilityLabel={t('window_strict')}
+              testID="window-strict-switch"
+            />
+          </Row>
+        </>
+      ) : null}
+    </Card>
   );
 }

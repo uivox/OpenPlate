@@ -18,13 +18,15 @@ import { dayGoal } from '../../src/lib/goals';
 import { goalsFor, useNow, useSteps, useToday } from '../../src/lib/hooks';
 import { toggle, visibleDiary } from '../../src/lib/layout';
 import { itemsFromEntries } from '../../src/lib/meals';
-import { entryNutrients, MEAL_SHARE, sumEntries } from '../../src/lib/nutrition';
+import { mealMacroTargets, mealSplitOf, mealTarget } from '../../src/lib/mealSplit';
+import { entryNutrients, sumEntries } from '../../src/lib/nutrition';
 import { clockText, hintCardMeal, suggestAll } from '../../src/lib/reminders';
 import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
 import { useStore } from '../../src/lib/store';
 import { radius, space, useColors } from '../../src/lib/theme';
-import { MEALS, type DiaryEntry, type MealType } from '../../src/lib/types';
+import { MEALS, type DiaryEntry, type MacroGrams, type MealType } from '../../src/lib/types';
 import { useT } from '../../src/lib/useT';
+import { confirmLogging } from '../../src/components/fastGuard';
 
 const MEAL_ICONS: Record<MealType, IconName> = {
   breakfast: 'sunny',
@@ -69,6 +71,7 @@ export default function DiaryScreen() {
   const burned = profile.addActivityCalories ? stepKcal : 0;
   const budget = goals.kcal + burned;
   const remaining = Math.round(budget - totals.kcal);
+  const split = mealSplitOf(profile);
   const shownRemaining = useCountUp(remaining);
   const layout = useStore((s) => s.layout);
   const lastBackupAt = useStore((s) => s.lastBackupAt);
@@ -227,7 +230,8 @@ export default function DiaryScreen() {
                     meal={meal}
                     date={date}
                     entries={entries.filter((e) => e.meal === meal)}
-                    target={Math.round(budget * MEAL_SHARE[meal])}
+                    target={mealTarget(budget, split, meal)}
+                    macros={profile.mealMacros && split[meal] > 0 ? mealMacroTargets(goals.macros, split, meal) : undefined}
                   />
                 ))}
               </View>
@@ -317,10 +321,25 @@ function FastingMini({ start, target }: { start: number; target: number }) {
   );
 }
 
-function MealCard({ meal, date, entries, target }: { meal: MealType; date: string; entries: DiaryEntry[]; target: number }) {
+function MealCard({
+  meal,
+  date,
+  entries,
+  target,
+  macros,
+}: {
+  meal: MealType;
+  date: string;
+  entries: DiaryEntry[];
+  /** 0 for a meal with a 0 % share: no target is shown. */
+  target: number;
+  /** Per-meal macro targets, when switched on (Profile → Meal split). */
+  macros?: MacroGrams;
+}) {
   const c = useColors();
   const { t } = useT();
-  const total = Math.round(sumEntries(entries).kcal);
+  const eaten = sumEntries(entries);
+  const total = Math.round(eaten.kcal);
   const add = () => router.push({ pathname: '/add-food', params: { meal, date } });
   // Folded meals show only this header row (name, kcal, add button); the choice holds on every day.
   const collapsed = useStore((s) => s.layout.collapsedMeals.includes(meal));
@@ -339,7 +358,7 @@ function MealCard({ meal, date, entries, target }: { meal: MealType; date: strin
           onPress={toggleCollapsed}
           accessibilityRole="button"
           accessibilityState={{ expanded: !collapsed }}
-          accessibilityLabel={`${t(`meal_${meal}`)}, ${total} / ${target} kcal`}
+          accessibilityLabel={`${t(`meal_${meal}`)}, ${target > 0 ? `${total} / ${target}` : total} kcal`}
           accessibilityHint={collapsed ? t('meal_expand') : t('meal_collapse')}
           testID={`meal-toggle-${meal}`}
         >
@@ -348,9 +367,18 @@ function MealCard({ meal, date, entries, target }: { meal: MealType; date: strin
             <Ionicons name={collapsed ? 'chevron-down' : 'chevron-up'} size={16} color={c.sub} />
           </Row>
           <Txt v="sub">
-            {total} / {target} kcal
+            {target > 0 ? `${total} / ${target}` : total} kcal
             {collapsed && entries.length > 0 ? ` · ${entries.length === 1 ? t('meal_items_one') : t('meal_items_n', { n: entries.length })}` : ''}
           </Txt>
+          {macros ? (
+            <Txt v="small">
+              {t('meal_macro_line', {
+                p: `${Math.round(eaten.protein)}/${macros.protein}`,
+                c: `${Math.round(eaten.carbs)}/${macros.carbs}`,
+                f: `${Math.round(eaten.fat)}/${macros.fat}`,
+              })}
+            </Txt>
+          ) : null}
         </Pressable>
         <IconButton icon="add" label={`${t('add_food')}: ${t(`meal_${meal}`)}`} bg={c.accentSoft} color={c.accent} size={22} onPress={add} />
       </Row>
@@ -402,10 +430,12 @@ function MealBody({ meal, date, entries }: { meal: MealType; date: string; entri
             icon="copy-outline"
             title={t('copy_yesterday')}
             style={{ alignSelf: 'flex-start' }}
-            onPress={() => {
-              copyMeal(addDays(date, -1), date, meal);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            }}
+            onPress={() =>
+              confirmLogging(date, () => {
+                copyMeal(addDays(date, -1), date, meal);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              })
+            }
           />
         </View>
       ) : null}

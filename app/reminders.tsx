@@ -1,14 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, Switch, TextInput, View } from 'react-native';
+import { AppState, Switch, View } from 'react-native';
 import { rescheduleReminders } from '../src/components/MealReminderSync';
+import { TimeField } from '../src/components/TimeField';
 import { Banner, Button, Card, ChipGroup, Divider, IconButton, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
 import { dayKey } from '../src/lib/dates';
+import { minutesInsideFast, scheduleActive, windowFastHours } from '../src/lib/fasting';
 import { askNotifications, notificationAccess, notifiesWhenClosed, openNotificationSettings } from '../src/lib/device';
 import {
   clockText,
   firstSetupTimes,
-  parseClock,
   REMINDER_DELAYS,
   suggestAll,
   suggestionHint,
@@ -16,7 +18,7 @@ import {
   type ReminderDelay,
 } from '../src/lib/reminders';
 import { useStore } from '../src/lib/store';
-import { fonts, radius, useColors } from '../src/lib/theme';
+import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
@@ -50,6 +52,12 @@ export default function RemindersScreen() {
   const entries = useStore((s) => s.entries);
   const suggestions = useMemo(() => suggestAll(entries, dayKey()), [entries]);
   const [access, refreshAccess] = useNotificationAccess();
+  // With a fixed eating window, reminders that would come during the fast are held back; say so.
+  const profile = useStore((s) => s.profile);
+  const schedule = useStore((s) => s.fastingSchedule);
+  const fastHours = profile && scheduleActive(schedule, profile) ? windowFastHours(profile.fastingPlanId) : null;
+  const insideFastUntil = (meal: MealType): string | null =>
+    fastHours !== null && minutesInsideFast(prefs.meals[meal].time + prefs.delay, schedule.opensAt, fastHours) ? clockText(schedule.opensAt) : null;
   const unavailable = access === 'needs_home_screen' || access === 'unsupported';
 
   const switchOn = async (on: boolean) => {
@@ -119,6 +127,7 @@ export default function RemindersScreen() {
                   on={prefs.meals[meal].on}
                   time={prefs.meals[meal].time}
                   suggestion={suggestionHint(prefs.meals[meal].time, suggestions[meal])}
+                  insideFastUntil={insideFastUntil(meal)}
                   onChange={(patch) => setMeal(meal, patch)}
                 />
               </View>
@@ -161,12 +170,15 @@ function MealRow({
   on,
   time,
   suggestion,
+  insideFastUntil,
   onChange,
 }: {
   meal: MealType;
   on: boolean;
   time: number;
   suggestion: number | null;
+  /** The reminder falls inside the fixed eating window's fast, which ends at this time. */
+  insideFastUntil: string | null;
   onChange: (patch: Partial<{ on: boolean; time: number }>) => void;
 }) {
   const { t } = useT();
@@ -207,6 +219,14 @@ function MealRow({
               {t('reminders_time_invalid')}
             </Txt>
           ) : null}
+          {insideFastUntil ? (
+            <Row gap={6} style={{ paddingLeft: 50 }}>
+              <Ionicons name="moon" size={14} color={c.sub} />
+              <Txt v="small" style={{ flex: 1 }}>
+                {t('reminder_inside_fast', { time: insideFastUntil })}
+              </Txt>
+            </Row>
+          ) : null}
           {suggestion !== null ? (
             <Row gap={4} style={{ paddingLeft: 50 }}>
               <Txt v="small" style={{ flex: 1 }}>
@@ -218,75 +238,5 @@ function MealRow({
         </>
       ) : null}
     </View>
-  );
-}
-
-/** HH:MM field that keeps the typing and only takes a valid time (on leaving the field or Enter). */
-function TimeField({
-  value,
-  label,
-  onChange,
-  onInvalid,
-  testID,
-}: {
-  value: number;
-  label: string;
-  onChange: (v: number) => void;
-  onInvalid: (invalid: boolean) => void;
-  testID?: string;
-}) {
-  const c = useColors();
-  const [text, setText] = useState(clockText(value));
-  const [invalid, setInvalidState] = useState(false);
-  const setInvalid = (v: boolean) => {
-    setInvalidState(v);
-    onInvalid(v);
-  };
-  useEffect(() => {
-    setText(clockText(value));
-    setInvalidState(false);
-    onInvalid(false);
-    // only react to outside changes of the time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-  const commit = () => {
-    const v = parseClock(text);
-    if (v === null) {
-      setInvalid(true);
-      return;
-    }
-    setInvalid(false);
-    setText(clockText(v));
-    if (v !== value) onChange(v);
-  };
-  return (
-    <TextInput
-      value={text}
-      onChangeText={(s) => {
-        setText(s);
-        setInvalid(false);
-      }}
-      onBlur={commit}
-      onSubmitEditing={commit}
-      keyboardType="numbers-and-punctuation"
-      returnKeyType="done"
-      maxLength={5}
-      selectTextOnFocus
-      accessibilityLabel={label}
-      testID={testID}
-      selectionColor={c.accent}
-      style={{
-        backgroundColor: c.cardAlt,
-        borderRadius: radius.s,
-        borderWidth: invalid ? 1.5 : 0,
-        borderColor: c.danger,
-        width: 84,
-        paddingVertical: 10,
-        textAlign: 'center',
-        fontSize: 18,
-        color: c.text,
-        fontFamily: fonts.bodySemi,
-      }}
-    />
   );
 }

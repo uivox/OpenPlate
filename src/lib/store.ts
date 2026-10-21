@@ -5,6 +5,7 @@ import { DEFAULT_AI_SETTINGS, sanitizeImportedAI } from './ai';
 import { snoozeEnd } from './backupReminder';
 import type { BackupData } from './backup';
 import { newId } from './id';
+import { DEFAULT_SCHEDULE, normalizeSchedule, type FastingSchedule, type SyncResult } from './fasting';
 import { DEFAULT_INSIGHTS, normalizeInsights, type InsightPrefs } from './insights';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
@@ -42,6 +43,8 @@ interface State {
   weights: WeightEntry[];
   fastingActive: FastingSession | null;
   fastingHistory: FastingSession[];
+  /** Fixed eating window (fasting.ts); part of backups. */
+  fastingSchedule: FastingSchedule;
   ai: AISettings;
   meals: SavedMeal[];
   /** Own recipes (community ones are bundled, see communityRecipes.ts). */
@@ -83,6 +86,11 @@ interface State {
   updateActiveFast: (patch: Partial<FastingSession>) => void;
   endFast: (end: number) => void;
   removeFast: (id: string) => void;
+  /** Drops the running fast without recording it (*Skip today's fast*). */
+  discardActiveFast: () => void;
+  setFastingSchedule: (patch: Partial<FastingSchedule>) => void;
+  /** Applies what syncSchedule worked out (running fast, history, handled-until). */
+  applyScheduleSync: (r: SyncResult) => void;
   setAI: (patch: Partial<AISettings>) => void;
   setAppearance: (patch: Partial<Appearance>) => void;
   setLayout: (patch: Partial<LayoutPrefs>) => void;
@@ -108,6 +116,7 @@ type Persisted = Pick<
   | 'weights'
   | 'fastingActive'
   | 'fastingHistory'
+  | 'fastingSchedule'
   | 'ai'
   | 'meals'
   | 'recipes'
@@ -129,6 +138,7 @@ const initial = {
   weights: [],
   fastingActive: null,
   fastingHistory: [],
+  fastingSchedule: DEFAULT_SCHEDULE,
   ai: DEFAULT_AI_SETTINGS,
   meals: [] as SavedMeal[],
   recipes: [] as Recipe[],
@@ -226,6 +236,21 @@ export const useStore = create<State>()(
             : {},
         ),
       removeFast: (id) => set((s) => ({ fastingHistory: s.fastingHistory.filter((f) => f.id !== id) })),
+      discardActiveFast: () =>
+        set((s) => ({
+          fastingActive: null,
+          // A skipped scheduled fast must not be started again by the next sync.
+          fastingSchedule: s.fastingActive
+            ? { ...s.fastingSchedule, handledUntil: Math.max(s.fastingSchedule.handledUntil, s.fastingActive.start + 1) }
+            : s.fastingSchedule,
+        })),
+      setFastingSchedule: (patch) => set((s) => ({ fastingSchedule: normalizeSchedule({ ...s.fastingSchedule, ...patch }) })),
+      applyScheduleSync: (r) =>
+        set((s) => ({
+          fastingActive: r.active,
+          fastingHistory: r.history,
+          fastingSchedule: { ...s.fastingSchedule, handledUntil: r.handledUntil },
+        })),
 
       setAI: (patch) => set((s) => ({ ai: { ...s.ai, ...patch } })),
       setAppearance: (patch) => set((s) => ({ appearance: normalizeAppearance({ ...s.appearance, ...patch }) })),
@@ -248,6 +273,7 @@ export const useStore = create<State>()(
           layout: d.layout ? normalizeLayout(d.layout) : s.layout,
           // Reminder settings come with the backup; scheduling is rebuilt from them (mealReminders.ts).
           reminders: d.reminders ? normalizeReminders(d.reminders) : s.reminders,
+          fastingSchedule: d.fastingSchedule ? normalizeSchedule(d.fastingSchedule) : s.fastingSchedule,
           insights: s.insights, // a choice on this device, not in backups
           // Only model names come from the file; providers and server addresses stay as set on this
           // device, so a backup can never redirect a saved API key (see sanitizeImportedAI).
@@ -276,6 +302,7 @@ export const useStore = create<State>()(
         weights: s.weights,
         fastingActive: s.fastingActive,
         fastingHistory: s.fastingHistory,
+        fastingSchedule: s.fastingSchedule,
         ai: s.ai,
         meals: s.meals,
         recipes: s.recipes,
@@ -299,6 +326,7 @@ export const useStore = create<State>()(
           appearance: normalizeAppearance(p.appearance),
           layout: normalizeLayout(p.layout),
           reminders: normalizeReminders(p.reminders),
+          fastingSchedule: normalizeSchedule(p.fastingSchedule),
           insights: normalizeInsights(p.insights),
           lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,
           backupSnoozedUntil: typeof p.backupSnoozedUntil === 'number' ? p.backupSnoozedUntil : null,
