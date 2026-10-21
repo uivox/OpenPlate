@@ -293,7 +293,17 @@ async function run(scheme) {
       await text('Adds up to 100 %').waitFor();
       await btn('Three meals · 20/40/40/0').click();
       const pct = (meal) => page.getByLabel(`${meal} in Percent`).filter({ visible: true }).first();
-      if ((await pct('Snacks').inputValue()) !== '0') throw new Error('preset not applied');
+      // Fields re-render after a tap; wait for the value instead of reading it once.
+      const valueOf = async (loc, ok, what) => {
+        for (let i = 0; i < 50; i++) {
+          const v = await loc.inputValue();
+          if (ok(v)) return v;
+          await page.waitForTimeout(100);
+        }
+        throw new Error(`${what}: ${await loc.inputValue()}`);
+      };
+      await valueOf(pct('Snacks'), (v) => v === '0', 'preset not applied');
+      await valueOf(pct('Lunch'), (v) => v === '40', 'preset not applied');
       await pct('Breakfast').fill('30');
       await text('10 % too much').waitFor();
       if (!(await btn('Save').isDisabled())) throw new Error('Save allowed while the split adds up to 110 %');
@@ -302,7 +312,8 @@ async function run(scheme) {
       // Typed in kcal, stored as percent of today's goal.
       await btn('kcal').click();
       const lunchKcal = page.getByLabel('Lunch in kcal').filter({ visible: true }).first();
-      const goal = Math.round(Number((await lunchKcal.inputValue()).replace(/\D/g, '')) / 0.4);
+      const lunchText = await valueOf(lunchKcal, (v) => Number(v.replace(/\D/g, '')) > 0, 'lunch kcal not shown');
+      const goal = Math.round(Number(lunchText.replace(/\D/g, '')) / 0.4);
       await lunchKcal.fill(String(Math.round(goal * 0.3)));
       await text('10 % left to share').waitFor();
       await page.getByLabel('Snacks in kcal').filter({ visible: true }).first().fill(String(Math.round(goal * 0.1)));
