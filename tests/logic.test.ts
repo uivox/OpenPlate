@@ -2769,7 +2769,9 @@ test('open food facts: sign-in check', async () => {
   assert.equal(parseOffLogin(JSON.stringify(login))?.user, 'louis');
   assert.equal(parseOffLogin('{"user":"x"}'), null);
   assert.equal(parseOffLogin('nope'), null);
-  assert.match(newAppUuid(), /^[0-9a-f]{32}$/);
+  assert.equal(newAppUuid(() => '1B4E28BA-2FA1-11D2-883F-0016D3CCA427'), '1b4e28ba2fa111d2883f0016d3cca427');
+  assert.match(newAppUuid(() => require('node:crypto').randomUUID()), /^[0-9a-f]{32}$/);
+  assert.throws(() => newAppUuid(() => 'not-random'));
 });
 
 test('open food facts: only what differs is sent; name and brand are only filled in', () => {

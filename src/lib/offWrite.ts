@@ -353,7 +353,13 @@ export function parseOffLogin(raw: string | null | undefined): OffLogin | null {
   }
 }
 
-/** A random id for app_uuid (not tied to the user's name or device). */
-export function newAppUuid(random: () => number = Math.random): string {
-  return Array.from({ length: 32 }, () => Math.floor(random() * 16).toString(16)).join('');
+/**
+ * The app_uuid for this install: a random UUID from the platform's secure generator (the caller passes
+ * expo's `uuid.v4`: iOS UUID(), Java UUID.randomUUID(), crypto.randomUUID() in browsers), written as
+ * 32 hex digits. Not tied to the user's name or device. Anything that isn't a UUID is refused.
+ */
+export function newAppUuid(randomUuid: () => string): string {
+  const hex = randomUuid().replace(/-/g, '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(hex)) throw new Error('not a UUID');
+  return hex;
 }
