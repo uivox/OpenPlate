@@ -29,7 +29,7 @@ import type { Food, Nutrients } from './types';
  * OFFLINE_PACK_PRIVATE_KEY secret of the `offline-pack` environment. A new key needs a new release with
  * its public half here (docs/CONTRIBUTING.md → "Offline product pack"). Empty: the app says the pack isn't available.
  */
-export const PACK_PUBLIC_KEY: string = 'x3/KQRLXewR6tGHgsQpvxQoxkYWLebZM404zbDheDH4=';
+export const PACK_PUBLIC_KEY: string = 'JOBYr/V8FeuFt8Cr8OO8LV1/Hcw6a49bCZQuWJzGmH8=';
 
 export const PACK_COUNTRY = 'de';
 /** Where the pack workflow publishes (the `offline-pack` branch). raw.githubusercontent.com allows browser requests (CORS). */
