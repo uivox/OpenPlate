@@ -1,6 +1,6 @@
 # Security policy
 
-OpenPlate has no server and no accounts: your diary, weights, recipes, settings and AI keys stay on your device. The things worth protecting are that data, the API keys you enter, and the code that reaches you through the apps and the web version.
+OpenPlate has no server and no accounts of its own: your diary, weights, recipes, settings, AI keys and (if you sign in) your Open Food Facts login stay on your device. The things worth protecting are that data, the API keys and the Open Food Facts password you enter, and the code that reaches you through the apps and the web version.
 
 ## Reporting a problem
 
@@ -13,7 +13,7 @@ Useful to include: what you found, how to reproduce it, which version (app relea
 ## In scope
 
 - The apps and the web version at <https://openplate-app.github.io/>.
-- Anything that could expose data stored by the app, send it somewhere it shouldn't go, or leak an API key: for example script injection in the web version, a crafted backup file or product data that does more than add food, or a way around the checks on AI server addresses.
+- Anything that could expose data stored by the app, send it somewhere it shouldn't go, or leak an API key or the Open Food Facts password (which must only ever go to Open Food Facts): for example script injection in the web version, a crafted backup file or product data that does more than add food, or a way around the checks on AI server addresses.
 - The build and release workflows in this repository.
 
 ## Out of scope

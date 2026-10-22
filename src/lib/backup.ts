@@ -168,6 +168,7 @@ export function sanitizeFood(v: unknown): Food | null {
   if (typeof v.imageUrl === 'string' && IMAGE_URL.test(v.imageUrl)) food.imageUrl = v.imageUrl;
   if (v.unit === 'g' || v.unit === 'ml') food.unit = v.unit;
   if (v.dataFrom === 'label' || v.dataFrom === 'robotoff') food.dataFrom = v.dataFrom;
+  if (typeof v.offCode === 'string' && /^\d{6,14}$/.test(v.offCode)) food.offCode = v.offCode;
   return food;
 }
 

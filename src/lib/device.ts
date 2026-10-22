@@ -413,3 +413,10 @@ export async function setAppIcon(id: AppIconId): Promise<boolean> {
     return false;
   }
 }
+
+/* ---------- Open Food Facts photo upload ---------- */
+
+/** Adds a photo from pickMealPhoto to a form upload (React Native sends files by their uri). */
+export function appendPhoto(form: FormData, field: string, photo: PreparedPhoto): void {
+  form.append(field, { uri: photo.uri, name: 'nutrition.jpg', type: 'image/jpeg' } as unknown as Blob);
+}

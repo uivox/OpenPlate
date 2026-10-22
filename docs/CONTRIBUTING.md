@@ -120,6 +120,21 @@ One-time setup (until it's done, the app shows *Not available yet* and the workf
 
 Never merge or base work on `offline-pack`; it holds only generated data. Check ignores it.
 
+## Sending foods to Open Food Facts
+
+Users sign in with their own Open Food Facts account (Profile → *Open Food Facts*); the app never ships a shared password. How it talks to Open Food Facts is described at the top of `src/lib/offWrite.ts`: sign-in is checked with `/cgi/auth.pl`, writes go to `/cgi/product_jqm2.pl` with the user's name and password on each request (plus `no_log=1`, so no extra login session is opened), photos to `/cgi/product_image_upload.pl`. Products without a barcode are created with `code=new`; Open Food Facts answers with its own code (starting with 2), which the app keeps as `Food.offCode`.
+
+**Testing without touching the real database:** build or run with `EXPO_PUBLIC_OFF_STAGING=1` (for example `EXPO_PUBLIC_OFF_STAGING=1 npx expo start`). Sign-in, product lookups for edits and sends then go to Open Food Facts' test server `world.openfoodfacts.net`, and the screens show a "Test build" banner. Accounts there are separate: create one at <https://world.openfoodfacts.net/cgi/user.pl> (the site first asks for its basic-auth login, `off` / `off`). Release builds never set the variable.
+
+**API usage form:** Open Food Facts asks every app that writes to the database to describe its use in their form <https://docs.google.com/forms/d/e/1FAIpQLSdIE3D8qvjC_zRJw1W8OmuHhsWJ_NSckiiniAHlfaVwUZCziQ/viewform>. Answers to give (adapt as needed):
+
+- App name: OpenPlate. Website: <https://github.com/uivox/OpenPlate>; web version <https://openplate-app.github.io/>. Contact: the maintainer's email.
+- What it is: a free, open-source (MIT) calorie tracker for iPhone, Android and the web, without accounts or a server of its own.
+- Reads: barcode lookups (`/api/v2/product`), search when the user submits (search-a-licious, fallback `/cgi/search.pl`, at most 8 a minute, pause after 429), Robotoff nutrient insights, and a weekly build from the data export for an offline pack.
+- Writes: only when a user taps *Send to Open Food Facts* on one of their own foods and confirms a preview. Each user signs in with their own Open Food Facts account; the app sends `app_name=OpenPlate`, `app_version` and a random per-install `app_uuid`. It only fills in name, brand and serving size when the product has none, sends nutrition values per 100 g/ml that differ from the product, and optionally one nutrition-table photo. Products without a barcode (bakery, market) are created with `code=new` and need the shop as brand.
+- Expected volume: low; a handful of edits per active user per month.
+- User-Agent: `OpenPlate/1.0 (open-source calorie tracker; https://github.com/uivox/OpenPlate)` from the apps; browsers don't allow setting it, so the web version is identified by `app_name`.
+
 ## Web version hosting
 
 The web app keeps everything in its site's browser storage, and every GitHub Pages site of one account or organisation shares that storage (one origin). So the web version is published to the Pages site of a separate organisation that hosts nothing else, not to this repository's own Pages.
