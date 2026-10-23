@@ -16,6 +16,8 @@ import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 import { confirmLogging } from '../src/components/fastGuard';
+import { AmountWheel, type AmountUnit } from '../src/components/AmountWheel';
+import { convertAmount } from '../src/lib/portions';
 
 export default function FoodScreen() {
   const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
@@ -67,10 +69,18 @@ export default function FoodScreen() {
   }
 
   const n = scaleNutrients(food.per100, grams);
-  const unitOptions = [
-    ...(food.source === 'quick' ? [] : [{ value: -1, label: unit }]),
-    ...food.servings.map((s, i) => ({ value: i, label: `${s.label} (${fmt(s.grams)} ${unit})` })),
+  // Servings first, then grams or millilitres (quick entries only have their one portion).
+  const units: AmountUnit[] = [
+    ...food.servings.map((s, i) => ({ value: i, label: `${s.label} (${fmt(s.grams)} ${unit})`, serving: true })),
+    ...(food.source === 'quick' ? [] : [{ value: -1, label: unit === 'ml' ? t('unit_ml') : t('unit_g'), serving: false }]),
   ];
+  // Switching the unit keeps the same amount of food.
+  const changeUnit = (v: number) => {
+    if (v === unitIdx) return;
+    const s = v >= 0 ? food.servings[v] : undefined;
+    if (qty !== null) setQty(convertAmount(grams, s ? s.grams : null));
+    setUnitIdx(v);
+  };
 
   const save = () => {
     if (!(grams > 0)) return;
@@ -154,16 +164,14 @@ export default function FoodScreen() {
 
       <Card style={{ gap: 12 }}>
         <Txt v="h3">{t('amount')}</Txt>
-        <NumField value={qty} onChange={setQty} suffix={unitIdx < 0 ? unit : '×'} />
-        {unitOptions.length > 1 ? <ChipGroup options={unitOptions} value={unitIdx} onChange={(v) => {
-          // keep the same total amount when switching between grams and servings
-          if (qty !== null) {
-            const newServing = v >= 0 ? food.servings[v] : undefined;
-            setQty(newServing ? Math.round((grams / newServing.grams) * 100) / 100 : Math.round(grams));
-          }
-          setUnitIdx(v);
-        }} /> : null}
-        {unitIdx >= 0 && food.source !== 'quick' ? <Txt v="small">= {fmt(grams)} {unit}</Txt> : null}
+        <NumField
+          value={qty}
+          onChange={setQty}
+          suffix={unitIdx < 0 ? unit : units.find((u) => u.value === unitIdx)?.label}
+          accessibilityLabel={t('amount')}
+        />
+        <AmountWheel qty={qty} onQty={setQty} units={units} unit={unitIdx} onUnit={changeUnit} />
+        {unitIdx >= 0 && food.source !== 'quick' ? <Txt v="small">= {fmt(grams, 1)} {unit}</Txt> : null}
         {!pick ? (
           <>
             <Txt v="h3">{t('meal')}</Txt>

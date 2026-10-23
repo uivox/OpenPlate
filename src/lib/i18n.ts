@@ -100,6 +100,11 @@ const en = {
   // Food detail
   edit_entry: 'Edit entry',
   amount: 'Amount',
+  amount_whole: 'Amount, whole number',
+  amount_fraction: 'Amount, fraction',
+  amount_unit: 'Unit',
+  unit_g: 'Grams',
+  unit_ml: 'Millilitres',
   per_100: 'Nutrition per 100 {unit}',
   food_missing: 'This food is no longer available. Please search for it again.',
   delete_entry_q: 'Delete this entry?',
@@ -922,6 +927,11 @@ const de: Record<TKey, string> = {
 
   edit_entry: 'Eintrag bearbeiten',
   amount: 'Menge',
+  amount_whole: 'Menge, ganze Zahl',
+  amount_fraction: 'Menge, Bruchteil',
+  amount_unit: 'Einheit',
+  unit_g: 'Gramm',
+  unit_ml: 'Milliliter',
   per_100: 'Nährwerte pro 100 {unit}',
   food_missing: 'Dieses Lebensmittel ist nicht mehr verfügbar. Bitte suche es erneut.',
   delete_entry_q: 'Eintrag löschen?',
