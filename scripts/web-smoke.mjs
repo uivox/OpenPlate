@@ -928,6 +928,14 @@ async function run(scheme) {
       await text('OpenPlate is locked', { exact: true }).waitFor({ state: 'hidden' });
       // Off again for the remaining steps.
       await page.getByTestId('lock-switch').filter({ visible: true }).first().click();
+      await text('Lock again after', { exact: true }).waitFor({ state: 'hidden' });
+      // Wait until "off" is saved, or the next page load would start locked again.
+      for (let i = 0; i < 50; i++) {
+        const main = JSON.parse((await idbGet('openplate-v1')) ?? '{}');
+        if (main.state?.security?.lock === false) break;
+        if (i === 49) throw new Error('turning the lock off was not saved');
+        await page.waitForTimeout(100);
+      }
       await cdp.send('WebAuthn.disable');
       await page.goto(url);
     });
