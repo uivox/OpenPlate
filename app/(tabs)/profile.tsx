@@ -3,22 +3,20 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { deleteAILog } from '../../src/components/aiLogging';
+import { deleteEverythingFlow } from '../../src/components/deleteEverything';
 import { exportBackupFlow } from '../../src/components/exportBackup';
 import { importBackupFlow } from '../../src/components/importBackup';
 import { Sprout } from '../../src/components/Sprout';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Card, ChipGroup, Divider, ListRow, Row, Screen, SectionTitle, Txt } from '../../src/components/ui';
 import { PROVIDER_NAMES } from '../../src/lib/ai';
-import { showAlert } from '../../src/lib/alert';
 import { daysSinceBackup } from '../../src/lib/backupReminder';
 import { dayKey, locale } from '../../src/lib/dates';
-import { cancelNotification, canPickFiles } from '../../src/lib/device';
+import { canPickFiles } from '../../src/lib/device';
 import { goalsFor } from '../../src/lib/hooks';
 import { mealSplitOf } from '../../src/lib/mealSplit';
-import { packAvailable, removePack, usePack } from '../../src/lib/packRuntime';
-import { clearAllKeys } from '../../src/lib/secure';
-import { forgetOffLogin, useOffLogin } from '../../src/components/offLogin';
+import { packAvailable, usePack } from '../../src/lib/packRuntime';
+import { useOffLogin } from '../../src/components/offLogin';
 import { useStore } from '../../src/lib/store';
 import { useColors } from '../../src/lib/theme';
 import { MEALS, type LanguagePref } from '../../src/lib/types';
@@ -47,24 +45,7 @@ export default function ProfileScreen() {
 
   const importData = () => importBackupFlow(t);
 
-  const resetAll = () =>
-    showAlert(t('delete_all_q'), t('delete_all_text'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete_all'),
-        style: 'destructive',
-        onPress: async () => {
-          await clearAllKeys();
-          forgetOffLogin();
-          await removePack().catch(() => {});
-          await deleteAILog().catch(() => {});
-          // A running fast's reminder must not fire after its data is gone.
-          await cancelNotification(useStore.getState().fastingActive?.notificationId).catch(() => {});
-          useStore.getState().resetAll();
-          router.replace('/onboarding');
-        },
-      },
-    ]);
+  const resetAll = () => deleteEverythingFlow(t);
 
   const offLogin = useOffLogin();
   const offWaiting = useStore((s) => s.offPending.length);
@@ -82,6 +63,8 @@ export default function ProfileScreen() {
   const onMeals = MEALS.filter((m) => state.reminders.meals[m].on);
   const remindersLabel =
     state.reminders.enabled && onMeals.length ? t('reminders_row_on', { meals: onMeals.map((m) => t(`meal_${m}`)).join(', ') }) : t('reminders_row_off');
+
+  const yourDataLabel = [state.security.lock ? t('your_data_row_locked') : null, t('your_data_row')].filter(Boolean).join(' · ');
 
   const aiLabel = state.ai.primary
     ? [state.ai.primary, state.ai.fallback].filter(Boolean).map((p) => PROVIDER_NAMES[p!]).join(' → ')
@@ -159,6 +142,8 @@ export default function ProfileScreen() {
 
       <SectionTitle>{t('data')}</SectionTitle>
       <Card>
+        <ListRow icon="shield-checkmark-outline" title={t('your_data_title')} subtitle={yourDataLabel} right={chevron} onPress={() => router.push('/your-data')} />
+        <Divider />
         <ListRow icon="cloud-download-outline" title={t('pack_title')} subtitle={packLabel} right={chevron} onPress={() => router.push('/offline-data')} />
         <Divider />
         <ListRow icon="cloud-upload-outline" title={t('off_title')} subtitle={offLabel} right={chevron} onPress={() => router.push('/off-account')} />

@@ -4,6 +4,7 @@
  * Checking happens in offlinePack.ts; this file only downloads, hashes and keeps files.
  */
 import { Directory, File, Paths } from 'expo-file-system';
+import { noteUrl } from './connectionLog';
 import { PackError, type DownloadFn } from './offlinePack';
 
 const folder = () => new Directory(Paths.document, 'offline-pack');
@@ -26,8 +27,10 @@ export const downloadPack: DownloadFn = async (url, onProgress, signal) => {
   let file: File;
   try {
     file = await File.downloadFileAsync(url, tmp, { idempotent: true, signal, onProgress: (p) => onProgress(p.bytesWritten) });
+    noteUrl(url, true); // the native download doesn't go through fetch, so the connection log is told here
   } catch (e) {
     remove(tmp);
+    if (!(e instanceof Error && e.name === 'AbortError')) noteUrl(url, false);
     if (e instanceof Error && e.name === 'AbortError') throw e;
     // A non-2xx answer names its status code; anything else is the connection.
     throw new PackError(/\b[45]\d\d\b/.test(String(e)) ? 'server' : 'offline');

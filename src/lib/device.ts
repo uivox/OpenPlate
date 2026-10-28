@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRandomBytes } from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
@@ -73,22 +75,23 @@ export async function pickTextFile(): Promise<string | null> {
   }
 }
 
-/** Writes the export to a JSON file and opens the share sheet (Files, AirDrop, mail, …). */
 /**
- * Hands the export file to the share sheet. Resolves false when the person visibly cancelled;
- * the iOS/Android share sheet for files doesn't report that, so it counts as done.
+ * Hands an export file (a backup's JSON, the CSV zip) to the share sheet: Files, AirDrop, mail, ….
+ * Resolves false when the person visibly cancelled; the iOS/Android share sheet for files doesn't
+ * report that, so it counts as done. The file is removed from the cache afterwards.
  */
-export async function shareExport(json: string, filename: string): Promise<boolean> {
+export async function shareExport(content: string | Uint8Array, filename: string, mime = 'application/json'): Promise<boolean> {
   if (!(await Sharing.isAvailableAsync())) {
-    const res = await Share.share({ message: json, title: filename });
+    if (typeof content !== 'string') return false;
+    const res = await Share.share({ message: content, title: filename });
     return res.action !== Share.dismissedAction;
   }
   const file = new File(Paths.cache, filename);
   try {
     if (file.exists) file.delete();
     file.create();
-    await file.write(json);
-    await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json', dialogTitle: filename });
+    await file.write(content);
+    await Sharing.shareAsync(file.uri, { mimeType: mime, UTI: mime === 'application/zip' ? 'public.zip-archive' : 'public.json', dialogTitle: filename });
     return true;
   } finally {
     try {
@@ -97,6 +100,11 @@ export async function shareExport(json: string, filename: string): Promise<boole
       /* already gone */
     }
   }
+}
+
+/** Random bytes from the system's secure generator (salts and nonces for encrypted backups). */
+export function randomBytes(n: number): Uint8Array {
+  return getRandomBytes(n);
 }
 
 /* ---------- Notifications ---------- */
@@ -420,3 +428,35 @@ export async function setAppIcon(id: AppIconId): Promise<boolean> {
 export function appendPhoto(form: FormData, field: string, photo: PreparedPhoto): void {
   form.append(field, { uri: photo.uri, name: 'nutrition.jpg', type: 'image/jpeg' } as unknown as Blob);
 }
+
+/* ---------- App lock ---------- */
+
+export type LockAvailability = 'ok' | 'not_set_up' | 'unsupported';
+
+/** Whether this device can lock the app: it needs Face ID, a fingerprint or at least a device PIN. */
+export async function lockAvailability(): Promise<LockAvailability> {
+  try {
+    const level = await LocalAuthentication.getEnrolledLevelAsync();
+    return level === LocalAuthentication.SecurityLevel.NONE ? 'not_set_up' : 'ok';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/** The phone's own unlock (Face ID / fingerprint, falling back to the device PIN). */
+export async function unlockApp(prompt: string, _credentialId?: string): Promise<boolean> {
+  try {
+    const res = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, disableDeviceFallback: false });
+    return res.success;
+  } catch {
+    return false;
+  }
+}
+
+/** Turning the lock on: one successful unlock first, so nobody locks themselves out by mistake. No passkey on phones. */
+export async function enableLock(prompt: string): Promise<{ ok: boolean; credentialId?: string }> {
+  return { ok: await unlockApp(prompt) };
+}
+
+/** Phones ask for Face ID / fingerprint by themselves when the lock screen shows; browsers wait for a tap (passkeys need one). */
+export const lockAutoPrompt = true;

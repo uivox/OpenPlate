@@ -111,6 +111,8 @@ async function run(scheme) {
     await step('onboarding', async () => {
       await page.goto(url);
       await btn('English').click();
+      await btn('Next').click();
+      await text('Your data stays yours', { exact: true }).waitFor();
       for (let i = 0; i < 5; i++) await btn('Next').click();
       await btn("Let's go").click();
       await text('Breakfast', { exact: true }).waitFor();
@@ -849,6 +851,85 @@ async function run(scheme) {
       if ('lastBackupAt' in data) throw new Error('device-only reminder state leaked into the export');
       if ('records' in data || JSON.stringify(data).includes('smoke note')) throw new Error('the AI answer log leaked into the backup');
       await text(/Last export: today/).waitFor();
+    });
+    await step('your data: what is stored, the servers, and the connection log of the lookups above', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Your data', { exact: true }).click();
+      await text('On this device', { exact: true }).waitFor();
+      await text('Where data can go', { exact: true }).waitFor();
+      await text('world.openfoodfacts.org · search.openfoodfacts.org · robotoff.openfoodfacts.org').waitFor();
+      await text(/^Last connection: /).waitFor();
+      await text('Connection log', { exact: true }).click();
+      await text('Product lookup (barcode)', { exact: true }).waitFor();
+      const body = await page.innerText('body');
+      if (/4006|search\?q=/.test(body)) throw new Error('the connection log shows what was looked up');
+      if (body.includes('Other server') || body.includes('localhost')) throw new Error('the app’s own files ended up in the connection log');
+      await page.goBack();
+    });
+    await step('your data: CSV export is a zip with a table per kind', async () => {
+      const download = page.waitForEvent('download');
+      await btn('Export CSV').click();
+      const file = await download;
+      const bytes = readFileSync(await file.path());
+      if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error('CSV export is not a zip file');
+      for (const name of ['diary.csv', 'weights.csv', 'water.csv', 'fasting.csv', 'own-foods.csv'])
+        if (!bytes.includes(Buffer.from(name))) throw new Error(`zip has no ${name}`);
+    });
+    let encrypted;
+    await step('encrypted backup: export asks for a password and the file is unreadable without it', async () => {
+      await page.getByTestId('encrypt-switch').filter({ visible: true }).first().click();
+      await page.goBack();
+      await text('Export data', { exact: true }).click();
+      await page.getByTestId('backup-pw').filter({ visible: true }).first().fill('smoke-pass-1');
+      await page.getByTestId('backup-pw-repeat').filter({ visible: true }).first().fill('smoke-pass-2');
+      await text('The passwords don’t match.').waitFor();
+      await page.getByTestId('backup-pw-repeat').filter({ visible: true }).first().fill('smoke-pass-1');
+      await btn('Encrypt backup').click();
+      await text('Backup is ready', { exact: true }).waitFor({ timeout: 60000 });
+      const download = page.waitForEvent('download');
+      await btn('Share backup').click();
+      const file = await download;
+      encrypted = readFileSync(await file.path(), 'utf8');
+      const data = JSON.parse(encrypted);
+      if (data.encrypted !== 1 || 'entries' in data || encrypted.includes('Apple')) throw new Error('backup is not encrypted');
+    });
+    await step('encrypted backup: import needs the right password', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      const chooser = page.waitForEvent('filechooser');
+      await text('Import data', { exact: true }).click();
+      await (await chooser).setFiles({ name: 'enc.json', mimeType: 'application/json', buffer: Buffer.from(encrypted) });
+      await page.getByTestId('backup-pw').filter({ visible: true }).first().fill('wrong-password');
+      await btn('Open backup').click();
+      await text('Wrong password, or the file was changed.').waitFor({ timeout: 60000 });
+      await page.getByTestId('backup-pw').filter({ visible: true }).first().fill('smoke-pass-1');
+      await btn('Open backup').click();
+      await btn('Replace').click({ timeout: 60000 });
+      await btn('OK').click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await text('Breakfast', { exact: true }).waitFor();
+    });
+    await step('app lock: a passkey locks the web app and unlocks it again', async () => {
+      // A virtual authenticator stands in for Face ID / Windows Hello.
+      const cdp = await ctx.newCDPSession(page);
+      await cdp.send('WebAuthn.enable');
+      await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+      });
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Your data', { exact: true }).click();
+      await text('App lock', { exact: true }).click();
+      await page.getByTestId('lock-switch').filter({ visible: true }).first().click();
+      await text('Encrypt backups too?').waitFor().catch(() => {});
+      if (await btn('Not now').count()) await btn('Not now').click();
+      await text('Lock again after', { exact: true }).waitFor();
+      await page.reload();
+      await text('OpenPlate is locked', { exact: true }).waitFor();
+      await btn('Unlock').click();
+      await text('OpenPlate is locked', { exact: true }).waitFor({ state: 'hidden' });
+      // Off again for the remaining steps.
+      await page.getByTestId('lock-switch').filter({ visible: true }).first().click();
+      await cdp.send('WebAuthn.disable');
+      await page.goto(url);
     });
     await step('hostile backup is neutralised', async () => {
       await page.getByRole('tab', { name: 'Profile' }).click();

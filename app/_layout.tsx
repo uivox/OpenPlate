@@ -1,3 +1,4 @@
+import '../src/components/connectionLogSetup';
 import { BricolageGrotesque_600SemiBold } from '@expo-google-fonts/bricolage-grotesque/600SemiBold';
 import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque/800ExtraBold';
 import { Figtree_400Regular } from '@expo-google-fonts/figtree/400Regular';
@@ -11,6 +12,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { AppLock } from '../src/components/AppLock';
 import { DialogHost } from '../src/components/DialogHost';
 import { FastingSync } from '../src/components/FastingSync';
 import { MealReminderSync } from '../src/components/MealReminderSync';
@@ -104,7 +106,12 @@ export default function RootLayout() {
         <Stack.Screen name="offline-data" options={{ title: t('pack_title') }} />
         <Stack.Screen name="reminders" options={{ title: t('reminders_title') }} />
         <Stack.Screen name="meal-split" options={{ title: t('meal_split') }} />
+        <Stack.Screen name="your-data" options={{ title: t('your_data_title') }} />
+        <Stack.Screen name="app-lock" options={{ title: t('lock_settings_title') }} />
+        <Stack.Screen name="connections" options={{ title: t('conn_title') }} />
+        <Stack.Screen name="backup-password" options={{ title: t('backup_pw_nav') }} />
       </Stack>
+      <AppLock />
       <DialogHost />
       <FastingSync />
       <MealReminderSync />

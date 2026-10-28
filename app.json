@@ -53,6 +53,12 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "OpenPlate uses Face ID only to unlock the app when you turn on the app lock."
+        }
+      ],
       "react-native-health-connect",
       "./plugins/withReleaseSigning",
       "./plugins/withAndroidStorageSize",

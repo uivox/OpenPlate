@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { View } from 'react-native';
@@ -16,7 +17,7 @@ import { useColors } from '../src/lib/theme';
 import type { LanguagePref } from '../src/lib/types';
 import { useT } from '../src/lib/useT';
 
-const STEPS = 6;
+const STEPS = 7;
 
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
@@ -45,16 +46,16 @@ export default function Onboarding() {
 
   const stepError = (): string | null => {
     const year = new Date().getFullYear();
-    if (step === 2) {
+    if (step === 3) {
       if (!draft.birthYear || draft.birthYear < year - 100 || draft.birthYear > year - 13) return t('err_birth_year');
       if (!draft.heightCm || draft.heightCm < 120 || draft.heightCm > 230) return t('err_height');
     }
-    if (step === 3 || step === 4) return draftErrors(draft, t);
+    if (step === 4 || step === 5) return draftErrors(draft, t);
     return null;
   };
   const error = stepError();
 
-  const preview = step === 5 && !draftErrors(draft, t) ? buildProfile(draft) : null;
+  const preview = step === 6 && !draftErrors(draft, t) ? buildProfile(draft) : null;
   const details = preview ? goalDetails(preview, preview.startWeightKg) : null;
   const kcal = details?.kcal ?? 0;
   const macros = preview ? macroTargets(preview, kcal) : null;
@@ -107,12 +108,33 @@ export default function Onboarding() {
 
       {step === 1 ? (
         <Card r="xl" style={{ gap: 14, padding: 22 }}>
+          <Txt v="title">{t('onb_privacy_title')}</Txt>
+          {(['yd_point_account', 'yd_point_device', 'yd_point_send'] as const).map((k) => (
+            <Row key={k} gap={10} style={{ alignItems: 'flex-start' }}>
+              <Ionicons name="checkmark-circle" size={22} color={c.accent} />
+              <Txt style={{ flex: 1 }}>{t(k)}</Txt>
+            </Row>
+          ))}
+          <Txt v="sub">{t('onb_privacy_more')}</Txt>
+          <Button
+            small
+            kind="ghost"
+            icon="shield-checkmark-outline"
+            title={t('your_data_title')}
+            onPress={() => router.push('/your-data')}
+            style={{ alignSelf: 'flex-start', paddingHorizontal: 0 }}
+          />
+        </Card>
+      ) : null}
+
+      {step === 2 ? (
+        <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_goal')}</Txt>
           <GoalField draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
-      {step === 2 ? (
+      {step === 3 ? (
         <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_body')}</Txt>
           <Txt v="sub">{t('q_body_text')}</Txt>
@@ -120,21 +142,21 @@ export default function Onboarding() {
         </Card>
       ) : null}
 
-      {step === 3 ? (
+      {step === 4 ? (
         <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_weight')}</Txt>
           <WeightFields draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
-      {step === 4 ? (
+      {step === 5 ? (
         <Card r="xl" style={{ gap: 14, padding: 22 }}>
           <Txt v="title">{t('q_activity')}</Txt>
           <ActivityField draft={draft} set={set} t={t} />
         </Card>
       ) : null}
 
-      {step === 5 && preview && macros ? (
+      {step === 6 && preview && macros ? (
         <Card r="xl" style={{ gap: 12, alignItems: 'center', padding: 22 }}>
           <Txt v="title" center>
             {t('your_plan')}

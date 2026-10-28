@@ -2,6 +2,14 @@
 
 OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md is for people using the app (features, install, platform differences, safety, privacy); docs/CONTRIBUTING.md has the dev setup, project layout, releases and web hosting; docs/DESIGN.md the palette, type and motion; docs/RECIPES.md the community recipe format; .github/SECURITY.md the security policy. Keep the README about using the app: anything only people working on the code need goes into docs/CONTRIBUTING.md.
 
+## Priorities
+
+Every change is checked against these three, and every pull request description has a short **priorities check** with one line per priority.
+
+1. **Customizability.** Every new automatic behaviour, animation or suggestion has a setting, including off. Defaults stay calm.
+2. **Transparency.** Every number the app works out can be opened to show how it was calculated and from which days. Nothing changes the user's data without them seeing it first.
+3. **Security.** No accounts, no analytics or tracking libraries, no new servers unless the user starts the connection. Data only leaves the device when the user starts it. As few permissions as possible; a pull request that adds one says why.
+
 ## How to work on this project
 
 - Every change goes on its own branch and into a pull request against `main`. Never push to `main` (it is protected anyway). Start each pull request from the current `main`; no stacked pull requests.
@@ -17,12 +25,13 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - **Logic:** anything that can be decided without React Native goes into a module in `src/lib/` without React Native imports, with tests in `tests/logic.test.ts` (node:test, run by `npm test`). Network code takes a `fetchImpl` parameter so tests can fake the server.
 - **Outside data** (Open Food Facts, Robotoff, AI answers, label photos, backups) goes through the plausibility checks in `labelScan.ts` / `openFoodFacts.ts` and is shown to the user before it is saved.
 - **Open Food Facts fair use:** search only when the user submits, at most 8 searches a minute, no second search endpoint after a 4xx answer. A 429 pauses searches and barcode lookups for at least a minute (`notePause`). A 404 for an unknown product is a normal answer ("not found"), never a failure and never a reason to pause.
+- **Network:** every request goes through the global `fetch` (or a `fetchImpl` that defaults to it), which the connection log wraps at start. A connection that can't use fetch (a native download, an image view) calls `noteUrl` / `noteRemoteImage`; a test fails on `XMLHttpRequest`, WebSockets and new native downloads. A new server also needs a purpose in `connectionLog.ts` (`purposeFor`, `SERVERS`) and a line on the *Your data* screen.
 - **Route params:** pass on only the params a screen actually has (`meal`, `date`, `pick`, `barcode`), never empty strings; `flowParams` in `barcodeFlow.ts` does that.
 
 ### Web version
 
 - **Same features everywhere.** iPhone, Android and the web app have the same features and behaviour. A platform may only lack a feature when the platform makes it impossible (no step counter in browsers, notifications only while the web app is open, no HealthKit with a free Apple ID). Every such gap is listed in README → *Differences between platforms* and explained in the app where the user meets it.
-- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `notificationAccess`, `canPickFiles`, `canChangeAppIcon`, `appIconNote`) are exported from both `device` files instead of checking `Platform.OS` in screens.
+- A `*.web.ts(x)` file replaces its twin in the web build (`device`, `storage`, `secure`, `aiLogStore`, `BarcodeScanner`). Both files must export the same names with the same signatures; a test in `tests/logic.test.ts` compares the exported names. Platform facts the screens need (`stepSource`, `notifiesWhenClosed`, `notificationAccess`, `canPickFiles`, `canChangeAppIcon`, `appIconNote`, `lockAutoPrompt`) are exported from both `device` files instead of checking `Platform.OS` in screens.
 - The Content Security Policy is written by `scripts/web-pwa.mjs`; a new server the app talks to has to be added there.
 - `scripts/web-smoke.mjs` clicks through the built web app in CI. Extend it when a flow changes that the browser can run; fake outside servers with `page.route`.
 
@@ -72,6 +81,16 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - `src/lib/secure.ts` / `secure.web.ts`: `getOffLogin` / `setOffLogin` (Keychain / Keystore; localStorage on the web). Never in the store or a backup; `clearAllKeys` removes it. `src/components/offLogin.ts` shares it between screens.
 - `app/off-account.tsx` (Profile → *Open Food Facts*: sign in/out, "Waiting to send"), `app/off-send.tsx` (preview, photo, send, save for later), the *Send to Open Food Facts* button on `app/food.tsx` for own foods. `offPending` in the store is per device and not in backups; nothing is ever sent without the user tapping *Send*.
 - `appendPhoto` in both `device` files puts the photo into the upload form.
+
+## Where things are (your data, app lock, encrypted backups)
+
+- `src/lib/security.ts` (pure): `SecurityPrefs` (`lock`, `lockAfter`, `lockShowNumbers`, `webCredentialId`, `encryptBackups`, `logConnections`), `lockDue`, `hideNotificationNumbers`. `security` and `connections` in the store are per device: `importBackup` keeps the current ones and `pickBackup` never exports them; *Delete all data* resets both.
+- `src/lib/connectionLog.ts` (pure): `purposeFor` (server + path → purpose; relative, data: and blob: addresses are never logged), `bodyHasPhoto`, `recordingFetch`, `noteUrl`, `noteRemoteImage`, `pruneLog` (7 days, at most 2000), `SERVERS`. Only host, purpose, photo yes/no, status: never paths, queries or bodies. `src/components/connectionLogSetup.ts` wraps the global fetch; it is the first import of `app/_layout.tsx`.
+- App lock: `lockAvailability`, `enableLock`, `unlockApp`, `lockAutoPrompt` in both `device` files (expo-local-authentication on phones; a WebAuthn platform passkey in the browser, its id in `security.webCredentialId`, nothing sent anywhere). `src/components/AppLock.tsx` covers everything (rendered in the root layout): locked at start and after `lockAfter` in the background, a cover while in the background/app switcher, *Can't unlock? Delete all data* as the way out. Meal reminder texts drop their figures while it's on (`reminderText(…, hideNumbers)`). Settings: `app/app-lock.tsx`.
+- `src/lib/backupCrypto.ts` (pure): `encryptBackup` / `decryptBackup` (scrypt N=2^16 r=8 p=1 → XChaCha20-Poly1305 from @noble, header as associated data, N accepted only from 2^14 to 2^20), `isEncryptedBackup`, `passwordProblem`, own UTF-8 and base64 (Hermes has no TextDecoder). Random bytes come from `randomBytes` in the `device` files. `app/backup-password.tsx` asks for the password (export: encrypt, then share from a second tap for Safari; import: `importBackup.ts` hands the file over in memory, never in route params).
+- `src/lib/csvExport.ts` (pure): `buildCsvTables`, `csvCell` (formula-safe, `;` and decimal comma in German), `zipTables` (fflate, UTF-8 BOM). `shareExport` in both `device` files takes text or bytes and a MIME type.
+- `app/your-data.tsx` (Profile → *Your data*), `app/connections.tsx`, the privacy step in `app/onboarding.tsx`, `src/components/deleteEverything.ts` (shared by Profile, Your data and the lock screen).
+- Tests run as CommonJS on Node 22, which can `require` the ESM-only @noble packages; `tests/tsconfig.json` uses `module: nodenext` for that.
 
 ## Where things are (steps)
 
