@@ -32,6 +32,8 @@ export interface Food {
   unit?: 'g' | 'ml';
   /** Where the values of an own food came from when they weren't typed: read off a label photo, or Open Food Facts' photo AI. */
   dataFrom?: 'label' | 'robotoff';
+  /** Code Open Food Facts gave this own food when it was sent there without a barcode (starts with 2). */
+  offCode?: string;
   /** Open Food Facts product without protein, carbs or fat (they count as 0); offers completing it from the label. Not stored in backups. */
   incomplete?: boolean;
 }

@@ -129,7 +129,6 @@ import {
   lookupFailure,
   lookupBarcodeDetailed,
   nutrientsFromOFF,
-  offContributeUrl,
   parseRetailer,
   rankHits,
   RateLimitedError,
@@ -158,6 +157,7 @@ import { APP_ICONS, iconIdFromNative, nativeIconName } from '../src/lib/appIcon'
 import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { buildBars, daysBetween, fastingByDay, foodByDay, formatDateInput, macroKcal, macroPercents, normalizeInsights, parseDateInput, periods, rangeBounds, summarize, weekStart } from '../src/lib/insights';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
+import { changesFor, checkForSending, checkOffLogin, codeFor, newAppUuid, normalizePending, OFF_STAGING, parseOffLogin, sendToOff, snapshotFromOff, uploadOffPhoto, writeFields } from '../src/lib/offWrite';
 import { goalStatus, minHealthyWeight } from '../src/lib/nutrition';
 import { MEALS, type AISettings, type DiaryEntry, type FastingSession, type Food, type MealType, type Profile } from '../src/lib/types';
 
@@ -1350,12 +1350,6 @@ test('Robotoff suggestion: values, source photo, rejected insights and failures'
   assert.equal(await fetchRobotoffNutrition('4006446005476', jsonFetch({}, 503)), null);
   assert.equal(await fetchRobotoffNutrition('4006446005476', async () => { throw new Error('offline'); }), null);
   assert.equal(await fetchRobotoffNutrition('12', jsonFetch({ insights: [insight] })), null);
-});
-
-test('contribute link: edit page for existing products, add page otherwise, never a password in the app', () => {
-  assert.equal(offContributeUrl('4006446005476', true, 'de'), 'https://de.openfoodfacts.org/cgi/product.pl?type=edit&code=4006446005476');
-  assert.equal(offContributeUrl('4099999991235', false, 'en'), 'https://world.openfoodfacts.org/cgi/product.pl');
-  assert.equal(offContributeUrl('40064460<b>05476', true, 'en'), 'https://world.openfoodfacts.org/cgi/product.pl?type=edit&code=4006446005476');
 });
 
 test('provider requests carry several photos in order', async () => {
@@ -2743,6 +2737,133 @@ test('backups: meal split, per-meal macros, eating window and scheduled fasts', 
   // Older exports have no schedule: the device keeps its own.
   delete raw.fastingSchedule;
   assert.equal(parseBackup(JSON.stringify(raw)).fastingSchedule, undefined);
+});
+
+/* ---------- Sending to Open Food Facts ---------- */
+
+/** A fake server: records requests and answers with the given status and body. */
+function fakeOff(status: number, body: string | object, record: { url: string; init: RequestInit }[] = []) {
+  const impl = async (url: string, init: RequestInit) => {
+    record.push({ url, init });
+    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+  };
+  return { impl, record };
+}
+const form = (init: RequestInit) => new URLSearchParams(String(init.body));
+const login = { user: 'louis', password: 'pä ss&=', uuid: 'abc' };
+
+test('open food facts: sign-in check', async () => {
+  const ok = fakeOff(200, { status: 1, status_verbose: 'user signed-in', user_id: 'louis' });
+  assert.deepEqual(await checkOffLogin(' louis@example.org ', 'pw', ok.impl), { ok: true, user: 'louis' });
+  const sent = form(ok.record[0].init);
+  assert.equal(ok.record[0].url, 'https://world.openfoodfacts.org/cgi/auth.pl');
+  assert.equal(sent.get('user_id'), 'louis@example.org');
+  assert.equal(sent.get('no_log'), '1'); // no extra login session per request
+  assert.deepEqual(await checkOffLogin('x', 'y', fakeOff(403, { status: 0, status_verbose: 'user not signed-in' }).impl), { ok: false, reason: 'wrong' });
+  assert.deepEqual(await checkOffLogin('x', 'y', async () => { throw new TypeError('Failed to fetch'); }), { ok: false, reason: 'offline' });
+  assert.deepEqual(await checkOffLogin('x', 'y', fakeOff(503, 'busy').impl), { ok: false, reason: 'busy' });
+  // the test server needs its basic auth
+  const staging = fakeOff(200, { status: 1, user_id: 'louis' });
+  await checkOffLogin('louis', 'pw', staging.impl, OFF_STAGING);
+  assert.equal(staging.record[0].url, 'https://world.openfoodfacts.net/cgi/auth.pl');
+  assert.equal((staging.record[0].init.headers as Record<string, string>).Authorization, 'Basic b2ZmOm9mZg==');
+  assert.equal(parseOffLogin(JSON.stringify(login))?.user, 'louis');
+  assert.equal(parseOffLogin('{"user":"x"}'), null);
+  assert.equal(parseOffLogin('nope'), null);
+  assert.equal(newAppUuid(() => '1B4E28BA-2FA1-11D2-883F-0016D3CCA427'), '1b4e28ba2fa111d2883f0016d3cca427');
+  assert.match(newAppUuid(() => require('node:crypto').randomUUID()), /^[0-9a-f]{32}$/);
+  assert.throws(() => newAppUuid(() => 'not-random'));
+});
+
+test('open food facts: only what differs is sent; name and brand are only filled in', () => {
+  const skyr: Food = { id: 'custom:s', source: 'custom', name: 'Skyr', brand: 'Milbona', barcode: '4056489123456', per100: { kcal: 63, protein: 11, carbs: 4, fat: 0.2, sugar: 4, salt: 0.1 }, servings: [{ label: 'Becher', grams: 150 }], unit: 'g' };
+  // new product: everything goes
+  const fresh = changesFor(skyr, null);
+  assert.deepEqual(fresh.map((c) => c.field), ['name', 'brand', 'serving', 'kcal', 'carbs', 'protein', 'fat', 'sugar', 'salt']);
+  assert.equal(fresh.find((c) => c.field === 'serving')!.to, 'Becher (150 g)');
+  // existing product with other values: name and brand stay, nutrition is corrected, equal values are left out
+  const off = snapshotFromOff({ product_name: 'Skyr Natur', brands: 'Lidl', serving_size: '150 g', nutriments: { 'energy-kj_100g': 264, proteins_100g: 11, carbohydrates_100g: 4.04, fat_100g: 0.5 } }, 'de');
+  assert.equal(Math.round(off!.per100.kcal!), 63); // read from kJ when there is no kcal field
+  const fix = changesFor(skyr, off);
+  assert.deepEqual(fix, [
+    { field: 'fat', from: 0.5, to: 0.2 },
+    { field: 'sugar', to: 4 },
+    { field: 'salt', to: 0.1 },
+  ]);
+  assert.deepEqual(changesFor({ ...skyr, per100: { kcal: 63, protein: 11, carbs: 4, fat: 0.5 } }, off), []);
+
+  const fields = writeFields('4056489123456', skyr, fix, 'de', '1.0.30');
+  const get = (k: string) => fields.find(([key]) => key === k)?.[1];
+  assert.equal(get('nutriment_fat'), '0.2');
+  assert.equal(get('nutriment_fat_unit'), 'g');
+  assert.equal(get('nutrition_data_per'), '100g');
+  assert.equal(get('product_name_de'), undefined);
+  assert.equal(get('lc'), undefined);
+  assert.equal(get('app_name'), 'OpenPlate');
+  assert.match(get('comment')!, /fat, sugar, salt/);
+  // drinks are per 100 ml; kcal goes with its unit
+  const juice = writeFields('new', { ...skyr, unit: 'ml', barcode: undefined }, [{ field: 'kcal', to: 45 }, { field: 'name', to: 'Saft' }], 'en', '1');
+  assert.deepEqual(juice.filter(([k]) => ['code', 'lc', 'nutrition_data_per', 'nutriment_energy-kcal_unit', 'product_name_en'].includes(k)), [
+    ['code', 'new'],
+    ['lc', 'en'],
+    ['nutriment_energy-kcal_unit', 'kcal'],
+    ['product_name_en', 'Saft'],
+    ['nutrition_data_per', '100ml'],
+  ]);
+});
+
+test('open food facts: what blocks sending, and which code is used', () => {
+  const bread: Food = { id: 'custom:b', source: 'custom', name: 'Laugenbrezel', per100: { kcal: 280, protein: 9, carbs: 55, fat: 2 }, servings: [] };
+  assert.deepEqual(checkForSending(bread, false).blockers, ['no_shop']); // without barcode the shop is needed
+  assert.deepEqual(checkForSending({ ...bread, brand: 'Bäckerei Müller' }, false).blockers, []);
+  assert.deepEqual(checkForSending(bread, true).blockers, []);
+  assert.deepEqual(checkForSending({ ...bread, per100: { kcal: 2000, protein: 0, carbs: 0, fat: 0 } }, true).blockers, ['implausible']);
+  assert.ok(checkForSending({ ...bread, per100: { ...bread.per100, sugar: 70 } }, true).issues.includes('sugar_over_carbs'));
+  assert.equal(codeFor(bread), 'new');
+  assert.equal(codeFor({ ...bread, offCode: '2000000012345' }), '2000000012345');
+  assert.equal(codeFor({ ...bread, barcode: '4006446005476' }), '4006446005476');
+});
+
+test('open food facts: sending and the answers', async () => {
+  const ok = fakeOff(200, { status: 1, status_verbose: 'fields saved' });
+  assert.deepEqual(await sendToOff([['code', '4006446005476']], login, ok.impl), { ok: true, code: '4006446005476' });
+  const sent = form(ok.record[0].init);
+  assert.equal(ok.record[0].url, 'https://world.openfoodfacts.org/cgi/product_jqm2.pl');
+  assert.equal(ok.record[0].init.method, 'POST');
+  assert.equal(sent.get('password'), 'pä ss&='); // encoded safely
+  assert.equal(sent.get('app_uuid'), 'abc');
+  assert.equal(sent.get('no_log'), '1');
+  // a product without barcode gets its code from the answer
+  assert.deepEqual(await sendToOff([['code', 'new']], login, fakeOff(200, { status: 1, code: '2000000004711' }).impl), { ok: true, code: '2000000004711' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(200, { status: 0, status_verbose: 'not modified' }).impl), { ok: true, code: '1' });
+  // a wrong password: the script answers with an HTML page
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(403, '<html>Incorrect user name or password</html>').impl), { ok: false, reason: 'login' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(200, { status: 0, status_verbose: 'no user credentials' }).impl), { ok: false, reason: 'login' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(200, { status: 0, status_verbose: 'Edit against edit rules' }).impl), { ok: false, reason: 'rejected', detail: 'Edit against edit rules' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(503, 'down').impl), { ok: false, reason: 'busy' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, fakeOff(500, '<html>oops</html>').impl), { ok: false, reason: 'server' });
+  assert.deepEqual(await sendToOff([['code', '1']], login, async () => { throw new TypeError('Network request failed'); }), { ok: false, reason: 'offline' });
+});
+
+test('open food facts: nutrition photo upload', async () => {
+  const up = fakeOff(200, { status: 'status ok', imagefield: 'nutrition_de' });
+  const files: string[] = [];
+  assert.deepEqual(await uploadOffPhoto('4006446005476', 'de', login, (f, field) => { files.push(field); f.append(field, new Blob(['x']), 'n.jpg'); }, up.impl), { ok: true });
+  assert.equal(up.record[0].url, 'https://world.openfoodfacts.org/cgi/product_image_upload.pl');
+  assert.deepEqual(files, ['imgupload_nutrition_de']);
+  const body = up.record[0].init.body as FormData;
+  assert.equal(body.get('imagefield'), 'nutrition_de');
+  assert.equal(body.get('code'), '4006446005476');
+  assert.equal((up.record[0].init.headers as Record<string, string>)['Content-Type'], undefined); // the form sets it
+  assert.deepEqual(await uploadOffPhoto('1', 'de', login, () => {}, fakeOff(200, { status: 'status not ok', error: 'image too small' }).impl), { ok: false, reason: 'rejected', detail: 'image too small' });
+});
+
+test('open food facts: sends kept for later', () => {
+  assert.deepEqual(normalizePending([{ foodId: 'a', savedAt: 1 }, { foodId: 'a', savedAt: 2 }, { foodId: '' }, 'x', { foodId: 'b' }]), [
+    { foodId: 'a', savedAt: 1 },
+    { foodId: 'b', savedAt: 0 },
+  ]);
+  assert.deepEqual(normalizePending(undefined), []);
 });
 
 test('portions: wheel positions for servings and grams', () => {

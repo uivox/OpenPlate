@@ -319,3 +319,13 @@ export function getAppIcon(): AppIconId {
 export async function setAppIcon(_id: AppIconId): Promise<boolean> {
   return false;
 }
+
+/* ---------- Open Food Facts photo upload ---------- */
+
+/** Adds a photo from pickMealPhoto to a form upload (as a JPEG file built from its base64). */
+export function appendPhoto(form: FormData, field: string, photo: PreparedPhoto): void {
+  const bin = atob(photo.base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  form.append(field, new Blob([bytes], { type: 'image/jpeg' }), 'nutrition.jpg');
+}

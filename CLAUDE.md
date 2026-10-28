@@ -65,6 +65,14 @@ OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that 
 - `src/lib/mealSplit.ts` (pure): `Profile.mealSplit` (whole percent per meal, exactly 100; the default 25/35/30/10 when missing), presets, `mealTarget`, `mealMacroTargets` (`Profile.mealMacros`), editing helpers, `moveShares`. Used by the diary cards and the reminder figures. Editor: `app/meal-split.tsx` (Profile → *Meal split*).
 - The window settings (`fastingSchedule` in the store) and the split are part of backups.
 
+## Where things are (sending to Open Food Facts)
+
+- `src/lib/offWrite.ts` (pure): `checkOffLogin` (`/cgi/auth.pl`), `snapshotFromOff` + `changesFor` (only what differs; name, brand and serving only when missing; empty values never sent), `checkForSending` (impossible values, no name, no shop without barcode), `codeFor` (barcode → `Food.offCode` → `new`), `writeFields`, `sendToOff` (`/cgi/product_jqm2.pl`; HTML/403 means a wrong login), `uploadOffPhoto`, `OffPending`. `OFF_SERVER` is the test server when built with `EXPO_PUBLIC_OFF_STAGING=1`.
+- `src/lib/openFoodFacts.ts`: `fetchProductForEdit` (the product as it is now; counts for the fair-use pause).
+- `src/lib/secure.ts` / `secure.web.ts`: `getOffLogin` / `setOffLogin` (Keychain / Keystore; localStorage on the web). Never in the store or a backup; `clearAllKeys` removes it. `src/components/offLogin.ts` shares it between screens.
+- `app/off-account.tsx` (Profile → *Open Food Facts*: sign in/out, "Waiting to send"), `app/off-send.tsx` (preview, photo, send, save for later), the *Send to Open Food Facts* button on `app/food.tsx` for own foods. `offPending` in the store is per device and not in backups; nothing is ever sent without the user tapping *Send*.
+- `appendPhoto` in both `device` files puts the photo into the upload form.
+
 ## Where things are (steps)
 
 - `src/lib/device.ts`: `stepsForDay` reads the iPhone motion sensor (expo-sensors) or Health Connect on Android (`react-native-health-connect`) and returns the steps or a status. Health Connect's permission sheet is shown once; after that the button under the steps card opens Health Connect. `device.web.ts` always answers "not available".

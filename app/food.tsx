@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Image, Linking, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { Banner, Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { flowParams } from '../src/lib/barcodeFlow';
@@ -10,7 +10,6 @@ import { addToMealDraft, getFood, setFoodDraft } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
 import { leaveToDiary } from '../src/lib/nav';
 import { scaleNutrients } from '../src/lib/nutrition';
-import { offContributeUrl } from '../src/lib/openFoodFacts';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
@@ -31,6 +30,7 @@ export default function FoodScreen() {
   const removeEntry = useStore((s) => s.removeEntry);
   const saveCustomFood = useStore((s) => s.saveCustomFood);
   const isSaved = useStore((s) => (entry || params.fid ? s.customFoods.some((f) => f.id === (entry?.food.id ?? params.fid)) : false));
+  const offWaiting = useStore((s) => s.offPending.some((p) => p.foodId === (entry?.food.id ?? params.fid)));
 
   // An own food is read from the store, so this screen shows the new values after editing it.
   const saved = useStore((s) => (params.fid ? s.customFoods.find((f) => f.id === params.fid) : undefined));
@@ -107,15 +107,6 @@ export default function FoodScreen() {
   const completeFromLabel = () => {
     setFoodDraft({ barcode: food.barcode, name: food.name, brand: food.brand, unit, servings: food.servings, issues: [] });
     router.push({ pathname: '/label', params: flowParams({ barcode: food.barcode, meal: params.meal, date: params.date, pick: params.pick }) });
-  };
-
-  /** Sends the user to Open Food Facts to add the product there; they sign in on that site, never in this app. */
-  const contribute = () => {
-    const code = food.barcode ?? '';
-    showAlert(t('contribute_off'), t('contribute_off_text', { code }), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('open_site'), onPress: () => Linking.openURL(offContributeUrl(code, food.dataFrom === 'robotoff' || food.source === 'off', lang)).catch(() => {}) },
-    ]);
   };
 
   const remove = () =>
@@ -206,8 +197,13 @@ export default function FoodScreen() {
       {isSaved && !pick && !editing ? (
         <Button kind="ghost" icon="create-outline" title={t('edit_food')} onPress={() => router.push({ pathname: '/custom-food', params: { edit: food.id } })} />
       ) : null}
-      {food.source === 'custom' && food.barcode && !pick ? (
-        <Button kind="ghost" icon="globe-outline" title={t('contribute_off')} onPress={contribute} />
+      {isSaved && !pick ? (
+        <>
+          <Button kind="ghost" icon="cloud-upload-outline" title={t('off_send_button')} onPress={() => router.push({ pathname: '/off-send', params: { fid: food.id } })} />
+          {offWaiting ? (
+            <Button small kind="ghost" icon="time-outline" title={t('off_waiting_food')} style={{ alignSelf: 'center' }} onPress={() => router.push('/off-account')} />
+          ) : null}
+        </>
       ) : null}
       {food.dataFrom === 'label' ? <Txt v="small">{t('label_note')}</Txt> : null}
       {food.dataFrom === 'robotoff' ? <Txt v="small">{t('robotoff_note')}</Txt> : null}
