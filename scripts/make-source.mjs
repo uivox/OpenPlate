@@ -20,7 +20,7 @@ const source = {
       developerName: 'OpenPlate contributors',
       subtitle: 'Food diary, AI photo, fasting',
       localizedDescription:
-        'Food diary with calories and macros, barcode scanner, AI photo logging with your own AI, intermittent fasting, water, weight and steps. German and English.',
+        'Food diary with calories and macros, barcode scanner, AI photo logging with your own AI, intermittent fasting, water, weight and steps. German and English.\n\nNo account: OpenPlate doesn’t know who you are. Your diary, weights and settings stay on your device; there is no OpenPlate server. Nothing is sent unless you start it, and Profile → Your data shows every server the app can talk to and a log of its connections.',
       iconURL: `${raw}/assets/icon.png`,
       tintColor: '#9C2F62',
       category: 'lifestyle',

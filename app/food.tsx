@@ -17,6 +17,7 @@ import { useT } from '../src/lib/useT';
 import { confirmLogging } from '../src/components/fastGuard';
 import { AmountWheel, type AmountUnit } from '../src/components/AmountWheel';
 import { convertAmount } from '../src/lib/portions';
+import { noteRemoteImage } from '../src/lib/connectionLog';
 
 export default function FoodScreen() {
   const params = useLocalSearchParams<{ fid?: string; meal?: string; date?: string; entryId?: string; pick?: string }>();
@@ -127,7 +128,7 @@ export default function FoodScreen() {
       <Stack.Screen options={{ title: pick ? t('add_ingredient') : editing ? t('edit_entry') : t('add_food') }} />
       <Row gap={12}>
         {food.imageUrl ? (
-          <Image source={{ uri: food.imageUrl }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.card }} />
+          <Image source={{ uri: food.imageUrl }} onLoadStart={() => noteRemoteImage(food.imageUrl)} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: c.card }} />
         ) : null}
         <View style={{ flex: 1 }}>
           <Txt v="title">{food.name}</Txt>

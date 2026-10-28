@@ -77,12 +77,11 @@ export async function pickTextFile(): Promise<string | null> {
   return file.text();
 }
 
-/** Share sheet with the file where supported (iPhone: "Save to Files"), otherwise a download. */
-/** Shares or downloads the export file. Resolves false when the person cancelled the share sheet. */
-export async function shareExport(json: string, filename: string): Promise<boolean> {
-  const blob = new Blob([json], { type: 'application/json' });
+/** Shares or downloads an export file (share sheet where supported, iPhone: "Save to Files"). Resolves false when the person cancelled the share sheet. */
+export async function shareExport(content: string | Uint8Array, filename: string, mime = 'application/json'): Promise<boolean> {
+  const blob = new Blob([content as BlobPart], { type: mime });
   try {
-    const file = new File([blob], filename, { type: 'application/json' });
+    const file = new File([blob], filename, { type: mime });
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title: filename });
       return true;
@@ -99,6 +98,11 @@ export async function shareExport(json: string, filename: string): Promise<boole
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
+}
+
+/** Random bytes from the browser's secure generator (salts and nonces for encrypted backups). */
+export function randomBytes(n: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(n));
 }
 
 /* ---------- Notifications ---------- */
@@ -329,3 +333,72 @@ export function appendPhoto(form: FormData, field: string, photo: PreparedPhoto)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   form.append(field, new Blob([bytes], { type: 'image/jpeg' }), 'nutrition.jpg');
 }
+
+/* ---------- App lock ---------- */
+/*
+ * In the browser the lock uses a passkey on this device (WebAuthn with the device's own unlock:
+ * Face ID, fingerprint, Windows Hello, the device PIN). Nothing goes to a server: the passkey only
+ * proves that the person in front of the screen can unlock this device.
+ */
+
+export type LockAvailability = 'ok' | 'not_set_up' | 'unsupported';
+
+export async function lockAvailability(): Promise<LockAvailability> {
+  try {
+    if (typeof PublicKeyCredential === 'undefined' || !navigator.credentials) return 'unsupported';
+    return (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()) ? 'ok' : 'not_set_up';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+const b64url = (b: ArrayBuffer) =>
+  btoa(String.fromCharCode(...new Uint8Array(b)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+
+/** Makes the passkey (the browser shows its own sheet) and returns its id. */
+export async function enableLock(prompt: string): Promise<{ ok: boolean; credentialId?: string }> {
+  try {
+    const cred = (await navigator.credentials.create({
+      publicKey: {
+        rp: { name: 'OpenPlate', id: location.hostname },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: prompt, displayName: 'OpenPlate' },
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        pubKeyCredParams: [
+          { type: 'public-key', alg: -7 },
+          { type: 'public-key', alg: -257 },
+        ],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+        timeout: 60000,
+        attestation: 'none',
+      },
+    })) as PublicKeyCredential | null;
+    return cred ? { ok: true, credentialId: b64url(cred.rawId) } : { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function unlockApp(_prompt: string, credentialId?: string): Promise<boolean> {
+  if (!credentialId) return false;
+  try {
+    const got = await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials: [{ type: 'public-key', id: fromB64url(credentialId) }],
+        userVerification: 'required',
+        timeout: 60000,
+        rpId: location.hostname,
+      },
+    });
+    return !!got;
+  } catch {
+    return false;
+  }
+}
+
+/** Browsers only show the passkey sheet after a tap, so the lock screen waits for one. */
+export const lockAutoPrompt = false;

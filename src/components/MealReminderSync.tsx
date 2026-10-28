@@ -7,6 +7,7 @@ import { dayGoal } from '../lib/goals';
 import { mealSplitOf } from '../lib/mealSplit';
 import { translate, type TKey } from '../lib/i18n';
 import { planReminders, reminderText, type ReminderNotice } from '../lib/reminders';
+import { hideNotificationNumbers } from '../lib/security';
 import { useStore } from '../lib/store';
 import { resolveLang } from '../lib/useT';
 
@@ -16,6 +17,7 @@ function wantedReminders(): { wanted: ReminderNotice[]; logNow: string } {
   const lang = resolveLang(s.language);
   const t = (k: TKey, p?: Record<string, string | number>) => translate(lang, k, p);
   const profile = s.profile;
+  const hideNumbers = hideNotificationNumbers(s.security);
   const plan = profile
     ? planReminders({
         prefs: s.reminders,
@@ -27,7 +29,7 @@ function wantedReminders(): { wanted: ReminderNotice[]; logNow: string } {
         now: Date.now(),
       })
     : [];
-  return { wanted: plan.map((r) => ({ id: r.id, at: r.at, meal: r.meal, date: r.date, ...reminderText(r, t, lang) })), logNow: t('reminder_log_now') };
+  return { wanted: plan.map((r) => ({ id: r.id, at: r.at, meal: r.meal, date: r.date, ...reminderText(r, t, lang, hideNumbers) })), logNow: t('reminder_log_now') };
 }
 
 let running: Promise<void> = Promise.resolve();
@@ -76,7 +78,8 @@ export function MealReminderSync() {
         s.weights !== prev.weights ||
         s.fastingActive !== prev.fastingActive ||
         s.fastingSchedule !== prev.fastingSchedule ||
-        s.language !== prev.language
+        s.language !== prev.language ||
+        hideNotificationNumbers(s.security) !== hideNotificationNumbers(prev.security)
       )
         soon();
     });

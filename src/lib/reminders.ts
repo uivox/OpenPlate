@@ -285,7 +285,9 @@ export function planReminders({ prefs, entries, goalFor, fast, fasts = [], split
 type Translate = (key: TKey, params?: Record<string, string | number>) => string;
 
 /** Title and body of a reminder in the user's language. */
-export function reminderText(r: Pick<PlannedReminder, 'meal' | 'figure'>, t: Translate, lang: Lang): { title: string; body: string } {
+/** `hideNumbers`: the app lock is on (security.ts), so the lock screen gets the plain nudge without calories. */
+export function reminderText(r: Pick<PlannedReminder, 'meal' | 'figure'>, t: Translate, lang: Lang, hideNumbers = false): { title: string; body: string } {
+  if (hideNumbers) return { title: t(`reminder_title_${r.meal}`), body: t('reminder_body_plain') };
   const kcal = r.figure.kind === 'plain' ? '' : r.figure.kcal.toLocaleString(locale(lang));
   return {
     title: t(`reminder_title_${r.meal}`),

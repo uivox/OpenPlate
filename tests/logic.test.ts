@@ -22,6 +22,10 @@ import {
   type MealLogRecord,
 } from '../src/lib/aiLog';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
+import { addRecord, bodyHasPhoto, normalizeLog, noteRemoteImage, pruneLog, purposeFor, recordingFetch as connRecordingFetch, SERVERS, setConnectionSink, type ConnectionRecord } from '../src/lib/connectionLog';
+import { decryptBackup, encryptBackup, fromBase64, isEncryptedBackup, passwordProblem, toBase64, utf8Decode, utf8Encode } from '../src/lib/backupCrypto';
+import { buildCsvTables, csvCell, presetRange, rowCounts, tableToCsv, zipTables } from '../src/lib/csvExport';
+import { DEFAULT_SECURITY, hideNotificationNumbers, lockDue, normalizeSecurity } from '../src/lib/security';
 import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
 import { checkBarcode, expandUpcE, gtinCheckDigit, isValidBarcode, looksLikeBarcode, scannedBarcode } from '../src/lib/barcode';
 import { flowParams, resolveBarcode, sameBarcode } from '../src/lib/barcodeFlow';
@@ -2893,4 +2897,194 @@ test('portions: switching units keeps the amount of food', () => {
   assert.equal(convertAmount(43.75, null), 44);
   assert.equal(convertAmount(0, 25), 0);
   assert.equal(convertAmount(NaN, null), 0);
+});
+
+/* ---------- Connection log, app lock, encrypted backups, CSV export (PR F) ---------- */
+
+test('connection log: every request the app makes is recognised, and nothing else leaves unnoticed', async () => {
+  const seen: string[] = [];
+  const fake = (async (url: string) => {
+    seen.push(url);
+    return new Response('{}', { status: 404 });
+  }) as unknown as typeof fetch;
+  await lookupBarcodeDetailed('4006381333931', 'de', fake, 0).catch(() => {});
+  await searchOFF('quark', 'de', 10, fake, 10_000_000).catch(() => {});
+  await fetchRobotoffNutrition('4006381333931', fake).catch(() => {});
+  await checkOffLogin('u', 'p', fake).catch(() => {});
+  await sendToOff([['code', '1']], { user: 'u', password: 'p', uuid: 'x' }, fake).catch(() => {});
+  await fetchRemoteManifest('key', fake).catch(() => {});
+  for (const provider of ['anthropic', 'gemini', 'openai', 'local'] as const)
+    await callProvider(
+      { provider, config: { model: 'm', baseUrl: provider === 'local' ? 'http://192.168.1.5:11434/v1' : undefined }, apiKey: 'k', prompt: 'p', imageBase64: 'AAAA' },
+      fake,
+    ).catch(() => {});
+  assert.ok(seen.length >= 10, seen.join('\n'));
+  for (const url of seen) assert.notEqual(purposeFor(url), 'other', url);
+  const served = new Set(SERVERS.flatMap((x) => x.purposes));
+  for (const url of seen) assert.ok(served.has(purposeFor(url)!), `${url} isn't listed on the Your data screen`);
+
+  // Other ways to reach the network would bypass the fetch wrapper: only the noted native download may use one.
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const f of fs.readdirSync(path.join(root, d), { withFileTypes: true })) {
+      const rel = `${d}/${f.name}`;
+      if (f.isDirectory()) walk(rel);
+      else if (/\.tsx?$/.test(f.name)) files.push(rel);
+    }
+  };
+  walk('src');
+  walk('app');
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    if (/XMLHttpRequest|new WebSocket|EventSource\(|sendBeacon|downloadAsync\(/.test(text)) assert.fail(`${f} opens a connection outside fetch`);
+    if (/downloadFileAsync\(/.test(text)) assert.equal(f, 'src/lib/packStore.ts');
+  }
+  assert.match(fs.readFileSync(path.join(root, 'src/lib/packStore.ts'), 'utf8'), /noteUrl\(url, true\)/);
+});
+
+test('connection log: purposes, photos, 7 days, no contents', async () => {
+  assert.equal(purposeFor('https://world.openfoodfacts.org/api/v2/product/123.json?fields=x'), 'off_product');
+  assert.equal(purposeFor('https://world.openfoodfacts.net/cgi/product_image_upload.pl'), 'off_photo_upload');
+  assert.equal(purposeFor('https://images.openfoodfacts.org/images/products/1.jpg'), 'off_image');
+  assert.equal(purposeFor('https://my-server.example/v1/chat/completions'), 'ai');
+  assert.equal(purposeFor('/_expo/static/js/web/entry.js'), null);
+  assert.equal(purposeFor('data:image/png;base64,AAAA'), null);
+  assert.equal(purposeFor('https://example.com/whatever'), 'other');
+  assert.equal(bodyHasPhoto('ai', JSON.stringify({ messages: [{ content: [{ type: 'image', source: {} }] }] })), true);
+  assert.equal(bodyHasPhoto('ai', JSON.stringify({ messages: [{ content: [{ type: 'text', text: 'hi' }] }] })), false);
+  assert.equal(bodyHasPhoto('off_photo_upload', undefined), true);
+  assert.equal(bodyHasPhoto('off_search', 'data:image/jpeg'), false);
+
+  const got: ConnectionRecord[] = [];
+  setConnectionSink((r) => got.push(r));
+  const f = connRecordingFetch(
+    (async (url: string) => (url.includes('fail') ? Promise.reject(new Error('offline')) : new Response('x', { status: url.includes('404') ? 404 : 500 }))) as unknown as typeof fetch,
+    () => 1000,
+  );
+  await f('https://world.openfoodfacts.org/api/v2/product/404.json?q=secret');
+  await f('https://search.openfoodfacts.org/search?q=secret');
+  await f('https://robotoff.openfoodfacts.org/fail').catch(() => {});
+  await f('/local/file');
+  await connRecordingFetch((async () => new Response('')) as unknown as typeof fetch, () => 1, 'https://openplate-app.github.io')('https://openplate-app.github.io/_expo/x.js');
+  noteRemoteImage('https://images.openfoodfacts.org/a.jpg', 5000);
+  noteRemoteImage('https://images.openfoodfacts.org/a.jpg', 6000); // the same picture again: noted once
+  setConnectionSink(null);
+  assert.deepEqual(
+    got.map((r) => [r.purpose, r.ok, r.status ?? null]),
+    [
+      ['off_product', true, 404],
+      ['off_search', false, 500],
+      ['off_robotoff', false, null],
+      ['off_image', true, null],
+    ],
+  );
+  assert.ok(got.every((r) => !JSON.stringify(r).includes('secret')), 'search words never end up in the log');
+  assert.equal(got[0].host, 'world.openfoodfacts.org');
+
+  const day = 24 * 3600 * 1000;
+  const now = 30 * day;
+  const old: ConnectionRecord = { at: now - 8 * day, host: 'a', purpose: 'pack', photo: false, ok: true };
+  const recent: ConnectionRecord = { at: now - day, host: 'b', purpose: 'pack', photo: false, ok: true };
+  assert.deepEqual(addRecord([old], recent, now), [recent]);
+  assert.equal(pruneLog(Array.from({ length: 2500 }, (_, i) => ({ ...recent, at: now - i })), now).length, 2000);
+  assert.deepEqual(normalizeLog([recent, { at: 'x' }, { ...recent, purpose: 'evil' }, null], now), [recent]);
+});
+
+test('app lock: when it locks again, and plain notification texts', () => {
+  const on = { ...DEFAULT_SECURITY, lock: true, lockAfter: 1 as const };
+  assert.equal(lockDue(on, null, 1000), false); // never left
+  assert.equal(lockDue(on, 0, 59_000), false);
+  assert.equal(lockDue(on, 0, 60_000), true);
+  assert.equal(lockDue({ ...on, lockAfter: 0 }, 1000, 1000), true);
+  assert.equal(lockDue(on, 100_000, 50_000), true); // clock set back: lock
+  assert.equal(lockDue({ ...on, lock: false }, 0, 10 ** 9), false);
+  assert.equal(hideNotificationNumbers(on), true);
+  assert.equal(hideNotificationNumbers({ ...on, lockShowNumbers: true }), false);
+  assert.equal(hideNotificationNumbers(DEFAULT_SECURITY), false);
+  assert.deepEqual(normalizeSecurity({ lock: true, lockAfter: 7, logConnections: 'no' }), { ...DEFAULT_SECURITY, lock: true });
+  assert.equal(normalizeSecurity(undefined).logConnections, true);
+  const t = (k: string, p?: Record<string, string | number>) => `${k}${p ? JSON.stringify(p) : ''}`;
+  const r = { meal: 'dinner' as const, figure: { kind: 'left' as const, kcal: 1240 } };
+  assert.match(reminderText(r, t as never, 'en').body, /1,240/);
+  assert.equal(reminderText(r, t as never, 'en', true).body, 'reminder_body_plain');
+});
+
+test('backups never carry the lock or the connection log', () => {
+  const base = { profile: null, language: 'en', entries: [], customFoods: [], recentFoods: [], water: {}, weights: [], fastingActive: null, fastingHistory: [], ai: DEFAULT_AI_SETTINGS, meals: [], recipes: [] };
+  const state = { ...base, security: { ...DEFAULT_SECURITY, lock: true, webCredentialId: 'abc' }, connections: [{ at: 1, host: 'x', purpose: 'pack', photo: false, ok: true }] };
+  const json = JSON.stringify(buildBackup(state as never));
+  assert.ok(!json.includes('"security"') && !json.includes('webCredentialId') && !json.includes('"connections"'));
+});
+
+test('encrypted backups: round trip, wrong password, tampering, limits', async () => {
+  const nodeCrypto = require('node:crypto') as typeof import('node:crypto');
+  const random = (n: number) => new Uint8Array(nodeCrypto.randomBytes(n));
+  const fast = { name: 'scrypt' as const, N: 2 ** 14, r: 8, p: 1 };
+  const json = JSON.stringify({ app: 'OpenPlate', entries: [{ name: 'Müsli „Bio“ 🍓' }] });
+  const file = await encryptBackup(json, 'correct horse', random, fast);
+  assert.ok(isEncryptedBackup(file));
+  assert.ok(!isEncryptedBackup(json));
+  assert.ok(!file.includes('Müsli') && !file.includes('entries'));
+  assert.equal(await decryptBackup(file, 'correct horse'), json);
+  await assert.rejects(decryptBackup(file, 'wrong horse'), /WRONG_PASSWORD/);
+  const o = JSON.parse(file);
+  await assert.rejects(decryptBackup(JSON.stringify({ ...o, kdf: { ...o.kdf, N: 2 ** 15 } }), 'correct horse'), /WRONG_PASSWORD/); // the header is authenticated
+  await assert.rejects(decryptBackup(JSON.stringify({ ...o, kdf: { ...o.kdf, N: 2 ** 8 } }), 'correct horse'), /INVALID_BACKUP/); // too weak
+  await assert.rejects(decryptBackup(JSON.stringify({ ...o, kdf: { ...o.kdf, N: 2 ** 24 } }), 'correct horse'), /INVALID_BACKUP/); // would exhaust memory
+  await assert.rejects(decryptBackup('{"app":"OpenPlate"}', 'x'), /INVALID_BACKUP/);
+  // Each file gets its own salt and nonce.
+  assert.notEqual(JSON.parse(await encryptBackup(json, 'correct horse', random, fast)).nonce, o.nonce);
+  assert.equal(passwordProblem('short', 'short'), 'short');
+  assert.equal(passwordProblem('longenough', 'longenouhg'), 'mismatch');
+  assert.equal(passwordProblem('longenough', 'longenough'), null);
+  for (const s of ['', 'a', 'ab', 'abc', 'äöü 🍓 „x“', 'x'.repeat(10001)]) assert.equal(utf8Decode(utf8Encode(s)), s);
+  assert.deepEqual([...utf8Encode('€🍓')], [...Buffer.from('€🍓', 'utf8')]);
+  for (const n of [0, 1, 2, 3, 4, 31]) {
+    const b = new Uint8Array(nodeCrypto.randomBytes(n));
+    assert.equal(toBase64(b), Buffer.from(b).toString('base64'));
+    assert.deepEqual([...fromBase64(toBase64(b))], [...b]);
+  }
+});
+
+test('CSV export: tables, range, separators and formula safety', () => {
+  const t = (k: string) => k;
+  const food = { id: 'f', source: 'custom', name: '=HYPERLINK("x")', brand: 'Hof; "Süd"', per100: { kcal: 100, protein: 3.33, carbs: 10, fat: 2 }, servings: [] };
+  const entries = [
+    { id: '1', date: '2026-10-01', meal: 'breakfast', grams: 150, createdAt: new Date(2026, 9, 1, 8, 5).getTime(), food },
+    { id: '2', date: '2026-09-01', meal: 'lunch', grams: 100, createdAt: 0, food: { id: 'g', source: 'generic', name: 'Apple', per100: { kcal: 52, protein: 0.3, carbs: 14, fat: 0.2 }, servings: [] } },
+  ];
+  const src = {
+    entries,
+    weights: [{ date: '2026-10-02', kg: 70.25 }],
+    water: { '2026-10-01': 500, '2026-10-03': 0 },
+    fastingHistory: [{ id: 'x', start: new Date(2026, 9, 1, 20).getTime(), end: new Date(2026, 9, 2, 12).getTime(), targetHours: 16, planId: '16:8' }],
+    customFoods: [food],
+  };
+  const shift = (k: string, n: number) => {
+    const d = new Date(`${k}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const range = presetRange('30', '2026-10-05', shift);
+  assert.deepEqual(range, { from: '2026-09-06', to: '2026-10-05' });
+  assert.deepEqual(presetRange('all', '2026-10-05', shift), {});
+  const tables = buildCsvTables(src as never, range, t as never);
+  assert.deepEqual(rowCounts(tables), [1, 1, 1, 1, 1]);
+  assert.equal(rowCounts(buildCsvTables(src as never, {}, t as never))[0], 2);
+  const en = tableToCsv(tables[0], 'en');
+  assert.ok(en.startsWith('csv_date,csv_logged_at,csv_meal,'), en);
+  assert.ok(en.includes(`2026-10-01,2026-10-01 08:05,meal_breakfast,"'=HYPERLINK(""x"")",`), en);
+  assert.ok(en.includes(',150,150,5,15,3,'), en);
+  assert.equal(tableToCsv(tables[1], 'de'), 'csv_date;csv_kg\r\n2026-10-02;70,3\r\n');
+  assert.equal(csvCell('Hof; "Süd"', 'de'), `"Hof; ""Süd"""`);
+  assert.equal(csvCell('Hof; Süd', 'en'), 'Hof; Süd');
+  assert.equal(csvCell('+49 123', 'en'), `'+49 123`);
+  assert.equal(csvCell('-5 kcal', 'de'), `'-5 kcal`);
+  assert.equal(csvCell(-1.5, 'de'), '-1,5');
+  assert.equal(csvCell(null, 'en'), '');
+  const zip = zipTables(tables, 'en');
+  assert.deepEqual([zip[0], zip[1]], [0x50, 0x4b]); // "PK"
 });
