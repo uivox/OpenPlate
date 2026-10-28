@@ -147,6 +147,35 @@ async function run(scheme) {
       await text(/Bundeslebensmittelschlüssel/).waitFor();
       await page.goBack();
     });
+    await step('amount wheel: fractions of a serving and switching units', async () => {
+      await btn('Add food: Lunch').click();
+      await field('Search foods and products').fill('apple');
+      await text('Apple', { exact: true }).click();
+      const amount = page.getByLabel('Amount', { exact: true }).filter({ visible: true }).first();
+      if ((await amount.inputValue()) !== '1') throw new Error(`default amount: ${await amount.inputValue()}`);
+      await text('94', { exact: true }).waitFor(); // 1 medium apple, 180 g
+      await page.getByText('½', { exact: true }).filter({ visible: true }).first().click();
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some((i) => i.value === '1.5'));
+      await text('140', { exact: true }).waitFor(); // 270 g
+      await text('= 270 g', { exact: true }).waitFor();
+      // The mouse wheel turns a column by one step per notch.
+      await page.getByRole('slider', { name: 'Amount, whole number' }).filter({ visible: true }).first().hover();
+      await page.mouse.wheel(0, 40);
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some((i) => i.value === '2.5'));
+      await text('234', { exact: true }).waitFor(); // 450 g
+      // Grams keep the same amount of food.
+      await page.getByText('Grams', { exact: true }).filter({ visible: true }).first().click();
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some((i) => i.value === '450'));
+      await text('234', { exact: true }).waitFor();
+      // Typing still works and moves the wheel.
+      await amount.fill('100');
+      await text('52', { exact: true }).waitFor();
+      await page.getByText('1 medium (180 g)', { exact: true }).filter({ visible: true }).first().click();
+      await page.waitForFunction(() => [...document.querySelectorAll('input')].some((i) => i.value === '0.56'));
+      await page.goBack();
+      await page.goBack();
+      await btn('Add food: Lunch').waitFor();
+    });
     await step('save as meal', async () => {
       await btn('Save as meal').click();
       await btn('Save meal').click();

@@ -32,6 +32,7 @@ import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleI
 import type { BlsRow } from '../src/lib/blsData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { formatNumberInput, parseNumber } from '../src/lib/numbers';
+import { amountSpoken, convertAmount, FRACTION_LABELS, FRACTIONS, joinAmount, splitAmount } from '../src/lib/portions';
 import { averageOfLogged, weekSummary } from '../src/lib/weekly';
 import {
   activeFastingDays,
@@ -2863,4 +2864,33 @@ test('open food facts: sends kept for later', () => {
     { foodId: 'b', savedAt: 0 },
   ]);
   assert.deepEqual(normalizePending(undefined), []);
+});
+
+test('portions: wheel positions for servings and grams', () => {
+  assert.deepEqual(splitAmount(1.75, true), { whole: 1, frac: FRACTION_LABELS.indexOf('¾') });
+  assert.deepEqual(splitAmount(1.6, true), { whole: 1, frac: FRACTION_LABELS.indexOf('⅔') });
+  assert.deepEqual(splitAmount(1.97, true), { whole: 2, frac: 0 });
+  assert.deepEqual(splitAmount(0.5, true), { whole: 0, frac: FRACTION_LABELS.indexOf('½') });
+  assert.deepEqual(splitAmount(null, true), { whole: 0, frac: 0 });
+  assert.deepEqual(splitAmount(-3, false), { whole: 0, frac: 0 });
+  assert.deepEqual(splitAmount(40.4, false), { whole: 40, frac: 0 });
+  assert.deepEqual(splitAmount(250, true), { whole: 99, frac: 0 });
+  assert.deepEqual(splitAmount(98.99, true), { whole: 99, frac: 0 });
+  assert.deepEqual(splitAmount(5000, false), { whole: 2000, frac: 0 });
+  assert.equal(joinAmount(1, FRACTION_LABELS.indexOf('¾'), true), 1.75);
+  assert.equal(joinAmount(1, FRACTION_LABELS.indexOf('⅓'), true), 1.33);
+  assert.equal(joinAmount(40, 3, false), 40); // grams have no fraction column
+  assert.equal(joinAmount(0, 0, true), 0);
+  // Every wheel position comes back to itself.
+  for (let w = 0; w <= 3; w++) for (let f = 0; f < FRACTIONS.length; f++) assert.deepEqual(splitAmount(joinAmount(w, f, true), true), { whole: w, frac: f });
+  assert.equal(amountSpoken(1, FRACTION_LABELS.indexOf('¾'), true), '1 ¾');
+  assert.equal(amountSpoken(40, 0, false), '40');
+});
+
+test('portions: switching units keeps the amount of food', () => {
+  assert.equal(convertAmount(43.75, 25), 1.75);
+  assert.equal(convertAmount(40, 25), 1.6);
+  assert.equal(convertAmount(43.75, null), 44);
+  assert.equal(convertAmount(0, 25), 0);
+  assert.equal(convertAmount(NaN, null), 0);
 });

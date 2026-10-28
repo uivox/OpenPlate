@@ -2,8 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
+  Keyboard,
+  Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleProp,
   StyleSheet,
   Text,
@@ -43,17 +47,58 @@ export function Screen({
     let i = 0;
     children = React.Children.map(children, (child) => (child ? <Appear index={i++}>{child}</Appear> : child));
   }
+  const keyboard = useAndroidKeyboard(scroll);
   if (!scroll) return <View style={[{ flex: 1, backgroundColor: c.bg }, inner]}>{children}</View>;
   return (
     <ScrollView
+      ref={keyboard.ref}
+      onScroll={keyboard.onScroll}
+      scrollEventThrottle={64}
       style={{ flex: 1, backgroundColor: c.bg }}
-      contentContainerStyle={[inner, { paddingBottom: bottomInset }]}
+      contentContainerStyle={[inner, { paddingBottom: bottomInset + keyboard.height }]}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
+      // iPhone: keeps the field being typed in above the keyboard (e.g. the serving size at the end of a form).
+      automaticallyAdjustKeyboardInsets
     >
       {children}
     </ScrollView>
   );
+}
+
+/**
+ * Android draws the app behind the keyboard (edge to edge), so the window doesn't shrink when it opens:
+ * add the keyboard's height below the content and scroll the focused field into view. The iPhone does
+ * this through `automaticallyAdjustKeyboardInsets`; browsers do it themselves.
+ */
+function useAndroidKeyboard(enabled: boolean) {
+  const ref = React.useRef<ScrollViewInstance>(null);
+  const offset = React.useRef(0);
+  const [height, setHeight] = React.useState(0);
+  React.useEffect(() => {
+    if (!enabled || Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      const kb = e.endCoordinates.height;
+      setHeight(kb);
+      const input = TextInput.State.currentlyFocusedInput();
+      // Wait a frame for the padding, then lift the field to just above the keyboard.
+      setTimeout(() => {
+        input?.measureInWindow((_x, y, _w, h) => {
+          const visibleBottom = Dimensions.get('window').height - kb - 16;
+          if (y + h > visibleBottom) ref.current?.scrollTo({ y: offset.current + (y + h - visibleBottom), animated: true });
+        });
+      }, 50);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [enabled]);
+  const onScroll = React.useCallback((e: { nativeEvent: { contentOffset: { y: number } } }) => {
+    offset.current = e.nativeEvent.contentOffset.y;
+  }, []);
+  return { ref, height, onScroll };
 }
 
 export function Card({
