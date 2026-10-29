@@ -135,6 +135,7 @@ export default function RootLayout() {
         <Stack.Screen name="app-lock" options={{ title: t('lock_settings_title') }} />
         <Stack.Screen name="connections" options={{ title: t('conn_title') }} />
         <Stack.Screen name="backup-password" options={{ title: t('backup_pw_nav') }} />
+        <Stack.Screen name="goal-check" options={{ title: t('gc_title') }} />
       </Stack>
       <AppLock />
       <DialogHost />

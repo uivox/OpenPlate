@@ -1,4 +1,5 @@
 import { MAX_KCAL_PER_100G } from './ai';
+import { normalizeGoalCheck, type GoalCheckPrefs } from './adaptiveGoal';
 import { normalizeSchedule, planById, type FastingSchedule } from './fasting';
 import { RECIPE_TAGS } from './recipes';
 import { normalizeReminders, type ReminderPrefs } from './reminders';
@@ -52,6 +53,8 @@ export interface BackupData {
   reminders?: ReminderPrefs;
   /** Fixed eating window; optional, normalised on import. */
   fastingSchedule?: FastingSchedule;
+  /** Weekly goal check-in settings and goal history; optional, normalised on import. */
+  goalCheck?: GoalCheckPrefs;
 }
 
 const BACKUP_KEYS: (keyof BackupData)[] = [
@@ -71,6 +74,7 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'layout',
   'reminders',
   'fastingSchedule',
+  'goalCheck',
 ];
 
 /** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
@@ -363,6 +367,7 @@ export function parseBackupReport(input: string, now = new Date()): BackupReport
     layout: isObj(raw.layout) ? (raw.layout as Partial<LayoutPrefs>) : undefined,
     reminders: isObj(raw.reminders) ? normalizeReminders(raw.reminders) : undefined,
     fastingSchedule: isObj(raw.fastingSchedule) ? normalizeSchedule(raw.fastingSchedule) : undefined,
+    goalCheck: isObj(raw.goalCheck) ? normalizeGoalCheck(raw.goalCheck) : undefined,
     recipes: uniqueById(keep(raw.recipes, sanitizeRecipe, counter)),
     meals: uniqueById(keep(raw.meals, sanitizeMeal, counter)),
   };

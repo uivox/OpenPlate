@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
-import { AccessibilityInfo, View } from 'react-native';
+import { AccessibilityInfo, Switch, View } from 'react-native';
 import { Tap } from '../src/components/motion';
 import { PlateRing } from '../src/components/PlateRing';
 import { Button, Card, ChipGroup, Field, MacroBar, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
@@ -163,6 +163,22 @@ export default function AppearanceScreen() {
         />
         <Txt v="small">{t(`motion_${appearance.motion}_desc`)}</Txt>
         {reduce ? <Txt v="small">{t('reduce_motion_note')}</Txt> : null}
+      </Card>
+
+      <Card style={{ gap: 8 }}>
+        <Row gap={12}>
+          <Txt v="h3" style={{ flex: 1 }}>
+            {t('celebrate')}
+          </Txt>
+          <Switch
+            value={appearance.celebrate !== false}
+            onValueChange={(on) => setAppearance({ celebrate: on })}
+            trackColor={{ true: c.accent }}
+            accessibilityLabel={t('celebrate')}
+            testID="celebrate-switch"
+          />
+        </Row>
+        <Txt v="small">{appearance.motion === 'off' || reduce ? t('celebrate_motion_off') : t(`celebrate_${appearance.motion}`)}</Txt>
       </Card>
 
       <AppIconCard />

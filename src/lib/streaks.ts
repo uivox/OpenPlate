@@ -3,26 +3,31 @@ import { entryNutrients } from './nutrition';
 import type { DiaryEntry, Goal } from './types';
 
 /**
- * Streaks and the calendar.
+ * Streaks, the calendar and the colours that follow the goal's direction.
  * - A day counts towards the streak as soon as anything is logged.
- * - "Goal hit" means eating close to the goal: 5 % either way, with a little more room in the
- *   direction of the goal (10 % under while losing, 10 % over while gaining). Eating far less than
- *   the goal is never a "hit": the app must not reward skipping meals or starving (it shows as
- *   "under", in a calm colour). Today is only judged once the day is over ("pending" until then).
+ * - How a finished day is judged depends on the goal (judgeDay):
+ *   - lose: up to 10 % under and 5 % over is a hit; clearly over is red; far under stays a calm
+ *     "under", never red, so a light day is never pushed further (and never rewarded as a hit);
+ *   - maintain: within 5 % is a hit, 5–15 % off is "a bit off" (calm), more than 15 % above or
+ *     below is red, as the goal wasn't kept;
+ *   - gain: every day from 5 % under the goal upwards is a hit; more than 20 % over shows a calm
+ *     "well above goal" colour but still counts; more than 5 % under is a calm "under".
+ * - Today is only judged once the day is over ("pending" until then).
  */
 
+/** Room around the goal that always counts as a hit. */
 export const GOAL_TOLERANCE = 0.05;
-/** Extra room in the direction of the goal. */
-export const GOAL_DIRECTION_TOLERANCE = 0.1;
+/** Extra room below the goal while losing. */
+export const LOSE_UNDER_TOLERANCE = 0.1;
+/** Maintaining: further off than this is red (not kept). */
+export const MAINTAIN_FAR = 0.15;
+/** Gaining: above this the day still counts, in a calm colour. */
+export const GAIN_WELL_ABOVE = 0.2;
 
-/** kcal range that counts as goal hit. */
-export function hitRange(goalKcal: number, goal: Goal): { low: number; high: number } {
-  const below = goal === 'lose' ? GOAL_DIRECTION_TOLERANCE : GOAL_TOLERANCE;
-  const above = goal === 'gain' ? GOAL_DIRECTION_TOLERANCE : GOAL_TOLERANCE;
-  return { low: goalKcal * (1 - below), high: goalKcal * (1 + above) };
-}
-
-export type DayStatus = 'empty' | 'hit' | 'over' | 'under' | 'pending' | 'future';
+export type Judgement = 'hit' | 'well_above' | 'off' | 'over' | 'too_low' | 'under';
+export type DayStatus = Judgement | 'empty' | 'pending' | 'future';
+/** good = green, calm = a quiet colour, bad = red. */
+export type Tone = 'good' | 'calm' | 'bad';
 
 /** kcal eaten per day, only for days with at least one entry. */
 export function dailyTotals(entries: DiaryEntry[]): Map<string, number> {
@@ -31,11 +36,54 @@ export function dailyTotals(entries: DiaryEntry[]): Map<string, number> {
   return m;
 }
 
-export function judgeDay(eaten: number, goalKcal: number, goal: Goal): 'hit' | 'over' | 'under' {
-  const { low, high } = hitRange(goalKcal, goal);
-  if (eaten > high) return 'over';
-  if (eaten < low) return 'under';
-  return 'hit';
+export function judgeDay(eaten: number, goalKcal: number, goal: Goal): Judgement {
+  if (!(goalKcal > 0)) return 'hit';
+  // Deviation from the goal as a share of it, rounded so 2100 of 2000 is exactly 5 %.
+  const d = Math.round(((eaten - goalKcal) / goalKcal) * 1e6) / 1e6;
+  if (goal === 'lose') return d > GOAL_TOLERANCE ? 'over' : d < -LOSE_UNDER_TOLERANCE ? 'under' : 'hit';
+  if (goal === 'gain') return d < -GOAL_TOLERANCE ? 'under' : d > GAIN_WELL_ABOVE ? 'well_above' : 'hit';
+  if (Math.abs(d) <= GOAL_TOLERANCE) return 'hit';
+  if (d > MAINTAIN_FAR) return 'over';
+  if (d < -MAINTAIN_FAR) return 'too_low';
+  return 'off';
+}
+
+/** Whether a judged day counts as the goal hit (streak of goal days, month summary). */
+export const countsAsHit = (j: DayStatus): boolean => j === 'hit' || j === 'well_above';
+
+export function judgementTone(j: Judgement): Tone {
+  if (j === 'hit') return 'good';
+  if (j === 'over' || j === 'too_low') return 'bad';
+  return 'calm';
+}
+
+/**
+ * Today's colour while the day is still running, for the diary's number and the plate's outer ring
+ * once the goal is passed. Losing: any amount over is red, as before. Maintaining and gaining
+ * follow the same bands as finished days, so being over while gaining is never red.
+ */
+export function todayOverTone(eaten: number, goalKcal: number, goal: Goal): Tone {
+  if (goal === 'lose') return eaten > goalKcal ? 'bad' : 'good';
+  return judgementTone(judgeDay(eaten, goalKcal, goal));
+}
+
+/**
+ * Colour of the weight change since the start: green in the goal's direction (down when losing,
+ * up when gaining), the normal text colour otherwise, never red. Maintaining: green within 1 kg,
+ * normal up to 2 kg, red beyond.
+ */
+export function weightChangeTone(changeKg: number, goal: Goal): Tone | 'neutral' {
+  if (goal === 'lose') return changeKg < 0 ? 'good' : 'neutral';
+  if (goal === 'gain') return changeKg > 0 ? 'good' : 'neutral';
+  const a = Math.abs(changeKg);
+  return a <= 1 ? 'good' : a <= 2 ? 'neutral' : 'bad';
+}
+
+/** The calendar's legend for a goal: the statuses that can appear, in order. */
+export function legendFor(goal: Goal): Judgement[] {
+  if (goal === 'lose') return ['hit', 'over', 'under'];
+  if (goal === 'gain') return ['hit', 'well_above', 'under'];
+  return ['hit', 'off', 'over', 'too_low'];
 }
 
 export type GoalForDay = (date: string) => { kcal: number; goal: Goal };
@@ -73,7 +121,7 @@ export function streakInfo(totals: Map<string, number>, today: string, goalFor: 
   d = addDays(today, -1);
   while (totals.has(d)) {
     const g = goalFor(d);
-    if (judgeDay(totals.get(d)!, g.kcal, g.goal) !== 'hit') break;
+    if (!countsAsHit(judgeDay(totals.get(d)!, g.kcal, g.goal))) break;
     goalStreak++;
     d = addDays(d, -1);
   }
@@ -109,7 +157,7 @@ export function monthSummary(grid: (string | null)[], today: string, totals: Map
     if (!d) continue;
     const s = dayStatus(d, today, totals, goalFor);
     if (s !== 'empty' && s !== 'future') logged++;
-    if (s === 'hit') hit++;
+    if (countsAsHit(s)) hit++;
   }
   return { logged, hit };
 }
@@ -118,4 +166,19 @@ export function monthSummary(grid: (string | null)[], today: string, totals: Map
 export const STREAK_MILESTONES = [3, 7, 14, 30, 50, 100, 150, 200, 365, 500, 1000];
 export function isMilestone(n: number): boolean {
   return STREAK_MILESTONES.includes(n);
+}
+
+export type Celebration = 'none' | 'roll' | 'full' | 'milestone';
+
+/**
+ * What the streak counter does when today's log changes (the first entry of the day makes the
+ * streak one longer). Only the change from "nothing logged today" to "logged" celebrates: not
+ * opening the app, not entries on other days. Motion *Lively* gets the full version (rolling number,
+ * flame burst, haptic tap; bigger on milestones), *Calm* only the rolling number, *Off* nothing;
+ * the user's switch (Appearance → Celebrate the first entry) turns it off altogether.
+ */
+export function streakCelebration(wasLogged: boolean, nowLogged: boolean, current: number, motion: 'lively' | 'calm' | 'off', enabled: boolean): Celebration {
+  if (!enabled || motion === 'off' || wasLogged || !nowLogged) return 'none';
+  if (motion === 'calm') return 'roll';
+  return isMilestone(current) ? 'milestone' : 'full';
 }

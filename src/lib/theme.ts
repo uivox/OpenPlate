@@ -59,3 +59,11 @@ export const fonts = {
 /** Radius follows hierarchy: the big hero surfaces are softest, small controls tighter. */
 export const radius = { s: 12, m: 20, l: 28, xl: 36 };
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24 };
+
+/**
+ * Colour for a goal tone (streaks.ts): green when the goal was kept, a quiet colour when a bit off
+ * or above while gaining, red only when the goal clearly wasn't kept.
+ */
+export function toneColor(tone: 'good' | 'calm' | 'bad', c: Colors): string {
+  return tone === 'good' ? c.leaf : tone === 'bad' ? c.coral : c.protein;
+}

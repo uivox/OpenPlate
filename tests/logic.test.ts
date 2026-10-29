@@ -22,6 +22,8 @@ import {
   type MealLogRecord,
 } from '../src/lib/aiLog';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
+import { usualMeal } from '../src/lib/usualMeal';
+import { applySuggestion, checkIn, DEFAULT_GOAL_CHECK, dueCheckIn, normalizeGoalCheck, undoPatch, weightSlope, type Calculation } from '../src/lib/adaptiveGoal';
 import { addRecord, bodyHasPhoto, normalizeLog, noteRemoteImage, pruneLog, purposeFor, recordingFetch as connRecordingFetch, SERVERS, setConnectionSink, type ConnectionRecord } from '../src/lib/connectionLog';
 import { decryptBackup, encryptBackup, fromBase64, isEncryptedBackup, passwordProblem, toBase64, utf8Decode, utf8Encode } from '../src/lib/backupCrypto';
 import { buildCsvTables, csvCell, presetRange, rowCounts, tableToCsv, zipTables } from '../src/lib/csvExport';
@@ -122,7 +124,7 @@ import {
   type StepSource,
   type StepStatus,
 } from '../src/lib/steps';
-import { dailyTotals, dayStatus, judgeDay, monthGrid, monthSummary, streakInfo } from '../src/lib/streaks';
+import { countsAsHit, streakCelebration, dailyTotals, dayStatus, judgeDay, judgementTone, legendFor, monthGrid, monthSummary, streakInfo, todayOverTone, weightChangeTone } from '../src/lib/streaks';
 import { buildColors, contrast, DEFAULT_APPEARANCE, ensureContrast, mix, normalizeAppearance, normalizeHex, THEMES } from '../src/lib/themes';
 import {
   _resetSearchState,
@@ -531,19 +533,50 @@ const oats: Food = { id: 'generic:oats', source: 'generic', name: 'Haferflocken'
 const entry = (date: string, food: Food, grams: number, createdAt = 0): DiaryEntry => ({ id: `${date}-${createdAt}`, date, meal: 'breakfast', food, grams, createdAt });
 
 test('streaks: logged days, goal judgement and calendar', () => {
-  // goal 2000: hit band 1900–2100, with 10 % room in the goal's direction
+  // goal 2000. Maintaining: hit within 5 %, a bit off up to 15 %, red beyond, both ways.
   assert.equal(judgeDay(1950, 2000, 'maintain'), 'hit');
-  assert.equal(judgeDay(1800, 2000, 'maintain'), 'under');
-  assert.equal(judgeDay(2200, 2000, 'maintain'), 'over');
+  assert.equal(judgeDay(2100, 2000, 'maintain'), 'hit');
+  assert.equal(judgeDay(1800, 2000, 'maintain'), 'off');
+  assert.equal(judgeDay(2200, 2000, 'maintain'), 'off');
+  assert.equal(judgeDay(2301, 2000, 'maintain'), 'over');
+  assert.equal(judgeDay(1699, 2000, 'maintain'), 'too_low');
+  // Losing: 10 % under to 5 % over is a hit; over is red; far under is a calm "under", never a hit
   assert.equal(judgeDay(1820, 2000, 'lose'), 'hit');
   assert.equal(judgeDay(2101, 2000, 'lose'), 'over');
-  assert.equal(judgeDay(2190, 2000, 'gain'), 'hit');
-  assert.equal(judgeDay(1890, 2000, 'gain'), 'under');
-  // eating far less (or far more) than the goal is never rewarded as a hit
   assert.equal(judgeDay(1200, 2000, 'lose'), 'under');
   assert.equal(judgeDay(300, 2000, 'lose'), 'under');
   assert.equal(judgeDay(0, 2000, 'lose'), 'under');
-  assert.equal(judgeDay(3000, 2000, 'gain'), 'over');
+  // Gaining: everything from 5 % under counts; beyond 20 % over it's calm but still a hit
+  assert.equal(judgeDay(1900, 2000, 'gain'), 'hit');
+  assert.equal(judgeDay(2400, 2000, 'gain'), 'hit');
+  assert.equal(judgeDay(2401, 2000, 'gain'), 'well_above');
+  assert.equal(judgeDay(3000, 2000, 'gain'), 'well_above');
+  assert.equal(judgeDay(1890, 2000, 'gain'), 'under');
+  assert.ok(countsAsHit('well_above') && !countsAsHit('off') && !countsAsHit('under'));
+  // Red only where the goal clearly wasn't kept, never for eating little while losing or a lot while gaining
+  assert.equal(judgementTone('under'), 'calm');
+  assert.equal(judgementTone('well_above'), 'calm');
+  assert.equal(judgementTone('off'), 'calm');
+  assert.equal(judgementTone('too_low'), 'bad');
+  assert.equal(judgementTone('over'), 'bad');
+  assert.equal(todayOverTone(2010, 2000, 'lose'), 'bad');
+  assert.equal(todayOverTone(2200, 2000, 'maintain'), 'calm');
+  assert.equal(todayOverTone(2400, 2000, 'maintain'), 'bad');
+  assert.equal(todayOverTone(2300, 2000, 'gain'), 'good');
+  assert.equal(todayOverTone(3500, 2000, 'gain'), 'calm');
+  assert.equal(weightChangeTone(-2, 'lose'), 'good');
+  assert.equal(weightChangeTone(1, 'lose'), 'neutral');
+  assert.equal(weightChangeTone(1, 'gain'), 'good');
+  assert.equal(weightChangeTone(-1, 'gain'), 'neutral');
+  assert.equal(weightChangeTone(0.8, 'maintain'), 'good');
+  assert.equal(weightChangeTone(-1.5, 'maintain'), 'neutral');
+  assert.equal(weightChangeTone(2.5, 'maintain'), 'bad');
+  assert.deepEqual(legendFor('gain'), ['hit', 'well_above', 'under']);
+  for (const g of ['lose', 'maintain', 'gain'] as const) for (const j of legendFor(g)) assert.ok(ALL_KEYS.includes(`legend_${j}_${g}` as never), `legend_${j}_${g}`);
+  // A gain day far over the goal keeps the goal streak going
+  const gainFor = () => ({ kcal: 100, goal: 'gain' as const });
+  const big = dailyTotals([entry('2026-10-12', oats, 100), entry('2026-10-13', oats, 100)]);
+  assert.equal(streakInfo(big, '2026-10-14', gainFor).goalStreak, 2);
 
   const goalFor = () => ({ kcal: 55, goal: 'lose' as const });
   const totals = dailyTotals([
@@ -3110,3 +3143,115 @@ test('web start: no BLS database or extra icon sets in the start bundle; BLS loa
   assert.ok(rows.length > 7000);
   assert.ok(searchBLS('haferflocken', 'de', 3).length > 0);
 });
+
+test('streak animation: only the first entry of the day, following the motion setting', () => {
+  assert.equal(streakCelebration(false, true, 5, 'lively', true), 'full');
+  assert.equal(streakCelebration(false, true, 7, 'lively', true), 'milestone');
+  assert.equal(streakCelebration(false, true, 7, 'calm', true), 'roll');
+  assert.equal(streakCelebration(false, true, 7, 'off', true), 'none');
+  assert.equal(streakCelebration(false, true, 7, 'lively', false), 'none'); // switched off
+  assert.equal(streakCelebration(true, true, 8, 'lively', true), 'none'); // second entry of the day
+  assert.equal(streakCelebration(true, false, 7, 'lively', true), 'none'); // last entry deleted
+  assert.equal(normalizeAppearance({ celebrate: false } as never).celebrate, false);
+  assert.equal(normalizeAppearance({}).celebrate, undefined); // on by default
+});
+
+test('usual meal: the same foods on 3 of the last 14 days, median amounts', () => {
+  const e = (date: string, food: Food, grams: number, meal: DiaryEntry['meal'] = 'breakfast', createdAt = 0): DiaryEntry => ({ id: `${date}-${food.id}-${meal}`, date, meal, food, grams, createdAt });
+  const today = '2026-10-20';
+  const days = ['2026-10-19', '2026-10-17', '2026-10-15', '2026-10-01'];
+  const entries = [
+    ...days.flatMap((d, i) => [e(d, oats, [50, 60, 70, 80][i], 'breakfast', 1), e(d, apple, 100, 'breakfast', 2)]),
+    e('2026-10-18', oats, 40), // only oats that day: a different set
+    e(today, apple, 999), // today never counts
+    e('2026-10-16', apple, 200, 'lunch'),
+  ];
+  const u = usualMeal(entries, 'breakfast', today)!;
+  assert.deepEqual(u.days, ['2026-10-19', '2026-10-17', '2026-10-15']); // the 1st is outside the 14 days
+  assert.deepEqual(u.items.map((i) => [i.food.id, i.grams]), [['generic:oats', 60], [apple.id, 100]]);
+  assert.equal(usualMeal(entries, 'lunch', today), null);
+  assert.equal(usualMeal(entries.filter((x) => x.date !== '2026-10-19'), 'breakfast', today), null); // only 2 days left
+  assert.equal(normalizeLayout({ usualMeal: false } as never).usualMeal, false);
+  assert.equal(normalizeLayout({}).usualMeal, undefined); // on by default
+});
+
+test('adaptive goal: data rules, trend, energy use, safety rules, apply and undo', () => {
+  const today = '2026-10-29';
+  const food = (kcal: number): Food => ({ id: `k${kcal}`, source: 'custom', name: 'x', per100: { kcal, protein: 0, carbs: 0, fat: 0 }, servings: [] });
+  const day = (i: number) => {
+    const d = new Date(Date.UTC(2026, 9, 29 - i));
+    return d.toISOString().slice(0, 10);
+  };
+  // 20 days of 2000 kcal, losing 0.5 kg a week from 72 kg
+  const entries: DiaryEntry[] = Array.from({ length: 20 }, (_, i) => ({ id: `e${i}`, date: day(i + 1), meal: 'lunch', food: food(2000), grams: 100, createdAt: 0 }));
+  const weights = [1, 8, 15, 22].map((i) => ({ date: day(i), kg: 72 - ((28 - i) / 7) * 0.5 }));
+  const p = { ...profile, startWeightKg: 74, targetWeightKg: 65 };
+  const at = new Date(2026, 9, 29);
+
+  // not enough data yet: says what's missing
+  const few = checkIn({ profile: p, entries: entries.slice(0, 10), weights: weights.slice(0, 3), excluded: [], today, now: at });
+  assert.deepEqual(few, { kind: 'missing', loggedDays: 10, weighIns: 3, needDays: 14, needWeighIns: 4 });
+
+  const r = checkIn({ profile: p, entries, weights, excluded: [], today, now: at });
+  assert.ok(r.kind === 'suggest' || r.kind === 'fits');
+  const calc = (r as { calc: Calculation }).calc;
+  assert.equal(calc.usedDays, 20);
+  assert.equal(calc.avgIntake, 2000);
+  assert.equal(calc.trendKgPerWeek, -0.5);
+  assert.equal(calc.energyUse, 2550); // 2000 + 0.5 kg × 7700 / 7
+  // losing 0.5 kg/week from 2550: 2000 (550 kcal less)
+  assert.equal(calc.suggestedGoal, 2000);
+
+  // incomplete and excluded days are left out, and shown as such
+  const withLight = [...entries, { id: 'light', date: day(25), meal: 'lunch' as const, food: food(300), grams: 100, createdAt: 0 }];
+  const r2 = checkIn({ profile: p, entries: withLight, weights, excluded: [day(1), day(2)], today, now: at });
+  const c2 = (r2 as { calc: Calculation }).calc;
+  assert.equal(c2.usedDays, 18);
+  assert.equal(c2.days.find((d) => d.date === day(25))!.use, 'incomplete');
+  assert.equal(c2.days.find((d) => d.date === day(1))!.use, 'excluded');
+  assert.ok(!c2.days.some((d) => d.date === today)); // today never counts
+
+  // a goal already close to the estimate: no suggestion
+  const close = checkIn({ profile: { ...p, customMaintenanceKcal: 2560 }, entries, weights, excluded: [], today, now: at });
+  assert.equal(close.kind, 'fits');
+
+  // safety rules win: an under-18 gets no deficit, whatever the data says
+  const minor = checkIn({ profile: { ...p, birthYear: 2012 }, entries, weights, excluded: [], today, now: at });
+  assert.equal((minor as { calc: Calculation }).calc.suggestedGoal, 2550);
+  // and the usual minimum holds: tiny energy use → floored goal
+  const lowEntries = entries.map((e) => ({ ...e, food: food(1250) }));
+  const low = checkIn({ profile: p, entries: lowEntries, weights: weights.map((w) => ({ ...w, kg: 72 })), excluded: [], today, now: at });
+  assert.equal((low as { calc: Calculation }).calc.suggestedGoal, 1200);
+  // step calories on: no estimate (they would count twice)
+  assert.equal(checkIn({ profile: { ...p, addActivityCalories: true }, entries, weights, excluded: [], today, now: at }).kind, 'step_calories');
+
+  // apply keeps the way the goal is set, and undo restores exactly
+  const auto = applySuggestion(p, calc, 5);
+  assert.deepEqual(auto.patch, { customMaintenanceKcal: 2550 });
+  assert.deepEqual(undoPatch(auto.change), { customMaintenanceKcal: undefined });
+  const exact = applySuggestion({ ...p, goalMode: 'custom', customKcal: 1800 }, calc, 5);
+  assert.deepEqual(exact.patch, { customKcal: 2000 });
+  assert.deepEqual(undoPatch(exact.change), { customKcal: 1800 });
+
+  assert.equal(weightSlope([{ date: '2026-10-01', kg: 70 }, { date: '2026-10-08', kg: 69 }]), -1 / 7);
+
+  // the card: due on the chosen weekday and until answered (2026-10-25 is a Sunday)
+  const prefs = { ...DEFAULT_GOAL_CHECK };
+  assert.equal(dueCheckIn(prefs, '2026-10-25'), '2026-10-25');
+  assert.equal(dueCheckIn(prefs, '2026-10-27'), '2026-10-25'); // missed Sunday still shows
+  assert.equal(dueCheckIn({ ...prefs, handled: '2026-10-25' }, '2026-10-27'), null);
+  assert.equal(dueCheckIn({ ...prefs, handled: '2026-10-25' }, '2026-11-01'), '2026-11-01');
+  assert.equal(dueCheckIn({ ...prefs, enabled: false }, '2026-10-25'), null);
+  assert.equal(dueCheckIn({ ...prefs, weekday: 1 }, '2026-10-27'), '2026-10-26');
+  for (const w of ['fast_pace', 'below_bmr', 'floored', 'below_minimum', 'minor', 'underweight', 'reached']) assert.ok(ALL_KEYS.includes(`gc_warn_${w}` as never), w);
+  for (const g of ['lose', 'maintain', 'gain']) assert.ok(ALL_KEYS.includes(`gc_step4_${g}` as never), g);
+  // the history travels with backups
+  const backed = parseBackup(JSON.stringify(buildBackup({ ...buildBackupBase(), goalCheck: { ...DEFAULT_GOAL_CHECK, history: [auto.change] } } as never)));
+  assert.deepEqual(backed.goalCheck?.history, [auto.change]);
+  const n = normalizeGoalCheck({ enabled: false, weekday: 9, excluded: ['2026-10-01', 'x', '2026-10-01'], history: [auto.change, { evil: 1 }] });
+  assert.deepEqual(n, { enabled: false, weekday: 0, excluded: ['2026-10-01'], history: [auto.change] });
+});
+
+function buildBackupBase() {
+  return { profile: null, language: 'en', entries: [], customFoods: [], recentFoods: [], water: {}, weights: [], fastingActive: null, fastingHistory: [], ai: DEFAULT_AI_SETTINGS, meals: [], recipes: [] };
+}

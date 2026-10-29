@@ -37,6 +37,27 @@ const HOSTILE_BACKUP = {
   layout: { hiddenTabs: 5 },
 };
 
+// Four weeks of a person gaining weight: the same breakfast most days, 2000 kcal a day, +0.25 kg a week.
+const dayBefore = (n) => {
+  const d = new Date(today);
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const oatsFood = { id: 'generic:oats', source: 'generic', name: 'Porridge oats', per100: { kcal: 370, protein: 13, carbs: 59, fat: 7 }, servings: [] };
+const stewFood = { id: 'smoke-stew', source: 'custom', name: 'Smoke stew', per100: { kcal: 100, protein: 5, carbs: 12, fat: 3 }, servings: [] };
+const MONTH_BACKUP = {
+  app: 'OpenPlate',
+  profile: { sex: 'male', birthYear: 1990, heightCm: 180, startWeightKg: 70, targetWeightKg: 78, activity: 'light', goal: 'gain', paceKgPerWeek: 0.25, macroSplit: { carbs: 50, protein: 25, fat: 25 }, waterGoalMl: 2500, glassMl: 250, stepGoal: 8000, addActivityCalories: false, fastingPlanId: '16:8', fastingDays: [], createdAt: 0 },
+  language: 'en',
+  entries: Array.from({ length: 20 }, (_, i) => [
+    { id: `b${i}`, date: dayBefore(i + 1), meal: 'breakfast', grams: 100, food: oatsFood, createdAt: i },
+    // a big day now and then: more than 20 % over a gain goal still counts, in a calm colour
+    { id: `l${i}`, date: dayBefore(i + 1), meal: 'lunch', grams: i === 2 ? 4000 : 1630, food: stewFood, createdAt: i },
+  ]).flat(),
+  weights: [22, 15, 8, 1].map((n) => ({ date: dayBefore(n), kg: 70 + ((28 - n) / 7) * 0.25 })),
+  goalCheck: { enabled: true, weekday: today.getDay(), excluded: [], history: [] },
+};
+
 // 1×1 PNG, as a photo from the camera would arrive through the file input.
 const PHOTO_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -966,6 +987,46 @@ async function run(scheme) {
       if (openai !== 'https://api.openai.com/v1') throw new Error(`OpenAI address changed by the import: ${openai}`);
       if (main.state?.ai?.primary === 'openai') throw new Error('provider choice taken from the import');
       if (trackerHits.length) throw new Error(`requests to the tracker: ${trackerHits.join(', ')}`);
+      await page.goBack();
+    });
+    await step('smarter: the usual breakfast is one tap away, and says what it is based on', async () => {
+      await page.goto(url);
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      const chooser = page.waitForEvent('filechooser');
+      await text('Import data', { exact: true }).click();
+      await (await chooser).setFiles({ name: 'month.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(MONTH_BACKUP)) });
+      await btn('Replace').click();
+      await btn('OK').click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Why this suggestion').click();
+      await text(/You logged exactly these foods for this meal on 14 of the last 14 days/).waitFor();
+      await btn('OK').click();
+      await btn('Your usual breakfast').click();
+      await text('Porridge oats', { exact: true }).waitFor();
+      if (await btn('Your usual breakfast').count()) throw new Error('the suggestion stayed after logging the meal');
+    });
+    await step('smarter: the weekly check-in suggests a goal from the data, and it can be undone', async () => {
+      await page.getByTestId('goal-check-card').filter({ visible: true }).first().waitFor();
+      await text(/You seem to use about [\d,]+ kcal a day\. That makes your goal [\d,]+ kcal instead of [\d,]+ kcal\./).waitFor();
+      await btn('Show calculation').click();
+      await text('How this is calculated', { exact: true }).waitFor();
+      await text(/Your weight trend: \+0\.25 kg a week/).waitFor();
+      await text(/20 days with food logged/).waitFor();
+      await btn('Use new goal').click();
+      await text('Undo', { exact: true }).waitFor();
+      await page.goBack();
+      if (await page.getByTestId('goal-check-card').filter({ visible: true }).count()) throw new Error('the check-in card stayed after answering');
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Weekly goal check-in', { exact: true }).click();
+      await btn('Undo').click();
+      await text('No changes from the check-in yet.').waitFor();
+      await page.goBack();
+    });
+    await step('smarter: when gaining, a big day is calm in the calendar, not red', async () => {
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await page.getByRole('button', { name: /^Streak/ }).filter({ visible: true }).first().click();
+      await text('Well above goal (more than 20 %, still counts)').waitFor();
+      if (await text('Over goal', { exact: true }).count()) throw new Error('a gain profile shows "Over goal"');
       await page.goBack();
     });
     console.log(`✓ ${scheme}: all steps passed`);

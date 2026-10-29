@@ -30,7 +30,9 @@ import {
   type RangeId,
 } from '../src/lib/insights';
 import { useStore, weightOn } from '../src/lib/store';
-import { useColors } from '../src/lib/theme';
+import { toneColor, useColors } from '../src/lib/theme';
+import { useCheckIn } from '../src/components/goalCheck';
+import { weightChangeTone } from '../src/lib/streaks';
 import { useT } from '../src/lib/useT';
 
 const MAX_LIST = 120;
@@ -90,6 +92,7 @@ export default function InsightScreen() {
       <Stack.Screen options={{ title: t(`insight_${metric}` as TKey) }} />
 
       {metric === 'weight' ? <WeightLog /> : null}
+      {metric === 'energy' ? <EnergyUseCard /> : null}
 
       <ChipGroup<Group>
         options={[
@@ -294,6 +297,8 @@ function WeightLog() {
   const loggedToday = weights.some((w) => w.date === today);
   const dec = (n: number) => n.toFixed(1).replace('.', lang === 'de' ? ',' : '.');
   const change = current - profile.startWeightKg;
+  const changeTone = weightChangeTone(change, profile.goal);
+  const changeColor = changeTone === 'neutral' ? c.text : toneColor(changeTone, c);
   const toGo = current - profile.targetWeightKg;
   const bmiValue = bmi(current, profile.heightCm);
   const save = () => {
@@ -309,7 +314,7 @@ function WeightLog() {
           <Txt v="big">{dec(current)} kg</Txt>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Txt v="sub" color={change <= 0 ? c.accent : c.coral}>
+          <Txt v="sub" color={changeColor}>
             {change > 0 ? '+' : change < 0 ? '−' : '±'}
             {dec(Math.abs(change))} kg {t('since_start')}
           </Txt>
@@ -344,3 +349,21 @@ function WeightLog() {
   );
 }
 
+
+/** Energy statistics: the weekly check-in's estimate of the real energy use, with a way to the calculation. */
+function EnergyUseCard() {
+  const { t, lang } = useT();
+  const check = useCheckIn();
+  if (!check) return null;
+  const text =
+    check.kind === 'missing'
+      ? t('gc_energy_missing', { days: Math.max(0, check.needDays - check.loggedDays), weighIns: Math.max(0, check.needWeighIns - check.weighIns) })
+      : check.kind === 'step_calories'
+        ? t('gc_card_steps')
+        : t('gc_energy', { kcal: check.calc.energyUse.toLocaleString(locale(lang)) });
+  return (
+    <Card style={{ gap: 4 }}>
+      <ListRow icon="flash-outline" title={t('gc_energy_title')} subtitle={text} onPress={() => router.push('/goal-check')} />
+    </Card>
+  );
+}
