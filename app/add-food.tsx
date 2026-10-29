@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,7 +13,7 @@ import { putFood, setFoodDraft, setMealDraft, type FoodDraft } from '../src/lib/
 import { foodSubtitle } from '../src/lib/format';
 import { searchBLS } from '../src/lib/bls';
 import { searchGeneric } from '../src/lib/genericFoods';
-import { useRecipes } from '../src/lib/hooks';
+import { useBlsReady, useRecipes } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
 import { lookupFailure, RateLimitedError, searchOFF, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
@@ -52,6 +52,8 @@ export default function AddFoodScreen() {
   const requestId = useRef(0);
 
   const q = query.trim();
+  // The BLS database is loaded when this screen opens (usually already a few seconds after start).
+  const blsReady = useBlsReady();
   const local = useMemo(() => {
     if (!q) return [];
     const ql = q.toLowerCase();
@@ -61,9 +63,9 @@ export default function AddFoodScreen() {
     const generic = searchGeneric(q, lang, 5).filter((g) => !mine.some((m) => m.id === g.id));
     // the national nutrient database fills in everything unpackaged that the basics list lacks
     const taken = new Set([...mine, ...generic].map((f) => f.name.toLowerCase()));
-    const bls = searchBLS(q, lang, 10).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
+    const bls = (blsReady ? searchBLS(q, lang, 10) : []).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
     return [...mine.slice(0, 6), ...generic, ...bls];
-  }, [q, custom, recent, lang]);
+  }, [q, custom, recent, lang, blsReady]);
 
   // The offline pack is searched on the phone while typing (a short pause after the last key, it holds
   // hundreds of thousands of products); Open Food Facts itself only when the user submits.

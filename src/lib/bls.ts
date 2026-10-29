@@ -1,11 +1,33 @@
-import { BLS_ROWS, type BlsRow } from './blsData';
+import type { BlsRow } from './blsData';
 import type { Food } from './types';
 
 /**
  * Bundeslebensmittelschlüssel (BLS 4.0): Germany's national nutrient database, ~7,000 foods and
  * dishes, from the Max Rubner-Institut under CC BY 4.0. Bundled (scripts/import_bls.py), so it
  * works offline. Values are per 100 g of the edible part; there are no serving sizes.
+ *
+ * The rows (about 850 KB of code) are loaded the first time they're needed (`loadBls`: the add
+ * screen, or a few seconds after start), not with the app itself, so opening the app stays fast.
  */
+
+let loaded: BlsRow[] | null = null;
+let loading: Promise<BlsRow[]> | null = null;
+
+/** Loads the database once; later calls get the same promise. */
+export function loadBls(): Promise<BlsRow[]> {
+  if (!loading)
+    loading = import('./blsData').then(
+      (m) => (loaded = m.BLS_ROWS),
+      (e) => {
+        loading = null; // a failed load (e.g. an old cached app version) may be tried again
+        throw e;
+      },
+    );
+  return loading;
+}
+
+/** The rows when loaded, else null. */
+export const blsRows = (): BlsRow[] | null => loaded;
 
 const fold = (s: string) =>
   s
@@ -36,7 +58,7 @@ let index: Indexed[] | null = null;
 
 /** Built on first search so app start stays fast. */
 function getIndex(rows: BlsRow[]): Indexed[] {
-  if (index && rows === BLS_ROWS) return index;
+  if (index && rows === loaded) return index;
   const built = rows.map((row) => ({
     row,
     names: [row[1], row[2]].filter(Boolean).map((name) => {
@@ -45,11 +67,9 @@ function getIndex(rows: BlsRow[]): Indexed[] {
       return { full, head: full.split(',')[0].trim(), words: full.split(/[\s,()/-]+/).filter(Boolean), joined: full.replace(/[\s,()/-]+/g, '') };
     }),
   }));
-  if (rows === BLS_ROWS) index = built;
+  if (rows === loaded) index = built;
   return built;
 }
-
-export const BLS_COUNT = BLS_ROWS.length;
 
 /** Everyday words → the wording the BLS uses (both are accepted). */
 const SYNONYMS: Record<string, string[]> = {
@@ -75,7 +95,9 @@ const SYNONYMS: Record<string, string[]> = {
  * name. Exact and leading matches of the main name (before the first comma) rank first, shorter
  * names before longer ones ("Apfel, roh" before "Apfelkuchen, Rührteig").
  */
-export function searchBLS(query: string, lang: 'de' | 'en', limit = 12, rows: BlsRow[] = BLS_ROWS): Food[] {
+/** Searches the loaded database; empty until `loadBls` has finished. */
+export function searchBLS(query: string, lang: 'de' | 'en', limit = 12, rows: BlsRow[] | null = loaded): Food[] {
+  if (!rows) return [];
   const q = fold(query.trim());
   if (q.length < 2) return [];
   const qWords = q.split(/[\s,]+/).filter(Boolean);

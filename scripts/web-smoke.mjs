@@ -110,6 +110,8 @@ async function run(scheme) {
   try {
     await step('onboarding', async () => {
       await page.goto(url);
+      // The start screen shows from the first paint and goes once the first screen is there.
+      await page.locator('#op-splash').waitFor({ state: 'detached', timeout: 20000 });
       await btn('English').click();
       await btn('Next').click();
       await text('Your data stays yours', { exact: true }).waitFor();
@@ -832,6 +834,15 @@ async function run(scheme) {
       if (JSON.stringify(data).includes('sk-ant-smoke-test')) throw new Error('the API key is in the export');
       await page.goBack();
       await page.unrouteAll({ behavior: 'ignoreErrors' });
+    });
+    await step('start: the installed app opens from its cache without waiting for the network', async () => {
+      await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 30000 });
+      await ctx.setOffline(true);
+      await page.reload();
+      await page.locator('#op-splash').waitFor({ state: 'detached', timeout: 20000 });
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await text('Breakfast', { exact: true }).waitFor();
+      await ctx.setOffline(false);
     });
     await step('reload keeps data (diary stored per month)', async () => {
       await page.reload();

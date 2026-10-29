@@ -29,7 +29,7 @@ import { DEFAULT_SECURITY, hideNotificationNumbers, lockDue, normalizeSecurity }
 import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
 import { checkBarcode, expandUpcE, gtinCheckDigit, isValidBarcode, looksLikeBarcode, scannedBarcode } from '../src/lib/barcode';
 import { flowParams, resolveBarcode, sameBarcode } from '../src/lib/barcodeFlow';
-import { blsFood, searchBLS } from '../src/lib/bls';
+import { blsFood, blsRows, loadBls, searchBLS } from '../src/lib/bls';
 import { buildLabelPrompt, checkPer100, nutrientsFromRobotoff, parseLabelJson, readLabelNumber } from '../src/lib/labelScan';
 import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
 import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleItems, searchRecipes, validateCommunity } from '../src/lib/recipes';
@@ -748,7 +748,8 @@ test('BLS search: both languages, word prefixes, main name first', () => {
   assert.equal(blsFood(rows[1], 'en').name, 'Apple, raw');
 });
 
-test('community recipes are valid and plausible', () => {
+test('community recipes are valid and plausible', async () => {
+  await loadBls(); // ingredients may point into the BLS, which the app loads on demand
   assert.deepEqual(validateCommunity(COMMUNITY_RECIPES), []);
   for (const c of COMMUNITY_RECIPES) {
     for (const lang of ['de', 'en'] as const) {
@@ -3087,4 +3088,25 @@ test('CSV export: tables, range, separators and formula safety', () => {
   assert.equal(csvCell(null, 'en'), '');
   const zip = zipTables(tables, 'en');
   assert.deepEqual([zip[0], zip[1]], [0x50, 0x4b]); // "PK"
+});
+
+test('web start: no BLS database or extra icon sets in the start bundle; BLS loads once on demand', async () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  // Only a dynamic import may reach the data: a static one would put it back into the start bundle.
+  for (const f of ['src/lib/bls.ts', 'src/lib/recipes.ts', 'src/lib/hooks.ts', 'app/add-food.tsx']) {
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    assert.ok(!/^import \{[^}]*\bBLS_ROWS\b[^}]*\} from/m.test(text), `${f} imports BLS_ROWS statically`);
+  }
+  // The package root of @expo/vector-icons pulls every icon set (and its font) into the web app.
+  const walk = (d: string): string[] =>
+    fs.readdirSync(path.join(root, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${d}/${e.name}`] : []));
+  for (const f of [...walk('src'), ...walk('app')])
+    assert.ok(!/from '@expo\/vector-icons'/.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f}: import Ionicons from '@expo/vector-icons/Ionicons' instead`);
+  const rows = await loadBls();
+  assert.equal(await loadBls(), rows);
+  assert.equal(blsRows(), rows);
+  assert.ok(rows.length > 7000);
+  assert.ok(searchBLS('haferflocken', 'de', 3).length > 0);
 });

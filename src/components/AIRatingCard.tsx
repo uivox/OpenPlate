@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useState } from 'react';
 import { Pressable, Switch, View } from 'react-native';
 import { AI_RATING_TAGS, type AIRating, type AIRatingTag } from '../lib/aiLog';

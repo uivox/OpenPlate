@@ -1,5 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import React, { useEffect } from 'react';
+import { noteScreenShown } from './startScreen';
 import {
   ActivityIndicator,
   Dimensions,
@@ -42,6 +43,8 @@ export function Screen({
   appear?: boolean;
 }) {
   const c = useColors();
+  // The first screen that shows ends the browser's start screen (startScreen.ts).
+  useEffect(() => noteScreenShown(c), []); // eslint-disable-line react-hooks/exhaustive-deps
   const inner = [padded && { padding: space.l, gap: space.m }, style];
   if (appear) {
     let i = 0;

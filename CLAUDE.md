@@ -45,6 +45,12 @@ Every change is checked against these three, and every pull request description 
 - React Native's strict TypeScript API is on: no deep imports from `react-native/Libraries/*`.
 - The web build is split per route (expo-router's async routes); `scripts/web-pwa.mjs` precaches every file in `dist/`, so the installed web app still works offline.
 
+## Web start (keep it fast)
+
+- `scripts/web-pwa.mjs` adds a start screen to `index.html` (the Sprout bowl and a loading bar, CSS only, still with Reduce Motion or Motion → Off), `splash.js` (the last theme's colours from `localStorage`, before the first paint) and preloads for the root/tab layouts, the diary and the fonts. `startScreenDone` (both `device` files) fades it out once the first `Screen` has mounted and the fonts are loaded (`src/components/startScreen.ts`); the browser renders behind it meanwhile (`rendersBehindStartScreen`).
+- The service worker answers app starts from its cache straight away (never waits for the network); a new version installs in the background and is used from the next start. The previous version's cache is kept, so a page that started with it can still load its later chunks.
+- Keep the start bundle small: import icons as `import Ionicons from '@expo/vector-icons/Ionicons'` (the package root pulls in every icon set and its font); load big data or rarely used code with a dynamic `import()` (the BLS database: `loadBls` in `bls.ts`, loaded on the add screen or 3 s after start; the @noble code in `backupCrypto.ts`). A test fails on a static import of `BLS_ROWS`.
+
 ## Where things are (barcodes)
 
 - `app/scan.tsx`: the barcode scanner screen. Every scanned or typed code goes to `resolveBarcode`, and the screen shows one outcome:
@@ -90,7 +96,7 @@ Every change is checked against these three, and every pull request description 
 - `src/lib/backupCrypto.ts` (pure): `encryptBackup` / `decryptBackup` (scrypt N=2^16 r=8 p=1 → XChaCha20-Poly1305 from @noble, header as associated data, N accepted only from 2^14 to 2^20), `isEncryptedBackup`, `passwordProblem`, own UTF-8 and base64 (Hermes has no TextDecoder). Random bytes come from `randomBytes` in the `device` files. `app/backup-password.tsx` asks for the password (export: encrypt, then share from a second tap for Safari; import: `importBackup.ts` hands the file over in memory, never in route params).
 - `src/lib/csvExport.ts` (pure): `buildCsvTables`, `csvCell` (formula-safe, `;` and decimal comma in German), `zipTables` (fflate, UTF-8 BOM). `shareExport` in both `device` files takes text or bytes and a MIME type.
 - `app/your-data.tsx` (Profile → *Your data*), `app/connections.tsx`, the privacy step in `app/onboarding.tsx`, `src/components/deleteEverything.ts` (shared by Profile, Your data and the lock screen).
-- Tests run as CommonJS on Node 22, which can `require` the ESM-only @noble packages; `tests/tsconfig.json` uses `module: nodenext` for that.
+- Tests compile to CommonJS (`tests/tsconfig.json`: `module: commonjs`, `moduleResolution: node10`), so dynamic `import()`s become `require` calls; Node 22 can `require` the ESM-only @noble packages. Metro needs extensionless relative imports, which `nodenext` would refuse.
 
 ## Where things are (steps)
 

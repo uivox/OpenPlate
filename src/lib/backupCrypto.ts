@@ -10,8 +10,11 @@
  * The header (everything but `data`) is bound to the ciphertext as associated data, so changing
  * the key settings in the file makes decryption fail instead of weakening it.
  */
-import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
-import { scryptAsync } from '@noble/hashes/scrypt.js';
+// The @noble code is only loaded when a backup is encrypted or opened, so it doesn't slow down app start.
+const noble = async () => {
+  const [{ xchacha20poly1305 }, { scryptAsync }] = await Promise.all([import('@noble/ciphers/chacha.js'), import('@noble/hashes/scrypt.js')]);
+  return { xchacha20poly1305, scryptAsync };
+};
 
 export interface KdfParams {
   name: 'scrypt';
@@ -116,7 +119,8 @@ interface Header {
 const headerBytes = (h: Header) =>
   utf8Encode(JSON.stringify([h.app, h.encrypted, h.kdf.name, h.kdf.N, h.kdf.r, h.kdf.p, h.cipher, h.salt, h.nonce]));
 
-function deriveKey(password: string, salt: Uint8Array, kdf: KdfParams, onProgress?: (p: number) => void): Promise<Uint8Array> {
+async function deriveKey(password: string, salt: Uint8Array, kdf: KdfParams, onProgress?: (p: number) => void): Promise<Uint8Array> {
+  const { scryptAsync } = await noble();
   return scryptAsync(utf8Encode(password.normalize('NFC')), salt, {
     N: kdf.N,
     r: kdf.r,
@@ -140,6 +144,7 @@ export async function encryptBackup(
   const nonce = random(24);
   const header: Header = { app: 'OpenPlate', encrypted: 1, kdf, cipher: 'xchacha20poly1305', salt: toBase64(salt), nonce: toBase64(nonce) };
   const key = await deriveKey(password, salt, kdf, onProgress);
+  const { xchacha20poly1305 } = await noble();
   try {
     const data = xchacha20poly1305(key, nonce, headerBytes(header)).encrypt(utf8Encode(json));
     return JSON.stringify({ ...header, data: toBase64(data) });
@@ -195,6 +200,7 @@ export async function decryptBackup(text: string, password: string, onProgress?:
   const nonce = fromBase64(o.nonce);
   if (salt.length < 16 || nonce.length !== 24) throw new Error('INVALID_BACKUP');
   const key = await deriveKey(password, salt, kdf, onProgress);
+  const { xchacha20poly1305 } = await noble();
   try {
     const plain = xchacha20poly1305(key, nonce, headerBytes(header)).decrypt(fromBase64(o.data));
     return utf8Decode(plain);

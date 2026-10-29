@@ -402,3 +402,36 @@ export async function unlockApp(_prompt: string, credentialId?: string): Promise
 
 /** Browsers only show the passkey sheet after a tap, so the lock screen waits for one. */
 export const lockAutoPrompt = false;
+
+/* ---------- Start screen ---------- */
+/*
+ * index.html shows a start screen (the Sprout bowl and a loading bar, see scripts/web-pwa.mjs)
+ * from the very first paint, while the app's code starts and the stored data is read. It fades out
+ * here, and the current theme's colours are kept so the next start screen matches the app.
+ */
+
+export interface StartColors {
+  bg: string;
+  accent: string;
+  leaf: string;
+  face: string;
+  text: string;
+  track: string;
+  /** Motion is set to Off: the start screen doesn't move either. */
+  still: boolean;
+}
+
+export function startScreenDone(colors: StartColors): void {
+  try {
+    localStorage.setItem('openplate-start-colors', JSON.stringify(colors));
+  } catch {
+    // private mode or storage full: the next start screen uses the default colours
+  }
+  const el = typeof document !== 'undefined' ? document.getElementById('op-splash') : null;
+  if (!el) return;
+  el.classList.add('op-hide');
+  setTimeout(() => el.remove(), 260);
+}
+
+/** The browser renders behind the start screen while the fonts load (see startScreen.ts). */
+export const rendersBehindStartScreen = true;

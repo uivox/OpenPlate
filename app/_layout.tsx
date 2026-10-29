@@ -16,7 +16,9 @@ import { AppLock } from '../src/components/AppLock';
 import { DialogHost } from '../src/components/DialogHost';
 import { FastingSync } from '../src/components/FastingSync';
 import { MealReminderSync } from '../src/components/MealReminderSync';
-import { setupNotifications } from '../src/lib/device';
+import { finishStartScreen, noteFontsReady } from '../src/components/startScreen';
+import { rendersBehindStartScreen, setupNotifications } from '../src/lib/device';
+import { loadBls } from '../src/lib/bls';
 import { ensurePackLoaded } from '../src/lib/packRuntime';
 import { requestPersistentStorage } from '../src/lib/storage';
 import { useHydration } from '../src/lib/store';
@@ -43,8 +45,31 @@ export default function RootLayout() {
     requestPersistentStorage();
     // The offline product pack (if installed) is read a moment after start, so it doesn't slow the first screen.
     const id = setTimeout(() => ensurePackLoaded().catch(() => {}), 1500);
-    return () => clearTimeout(id);
+    // The food database (BLS) isn't part of the start; it's loaded a little later, so a search finds it ready.
+    const bls = setTimeout(() => loadBls().catch(() => {}), 3000);
+    return () => {
+      clearTimeout(id);
+      clearTimeout(bls);
+    };
   }, []);
+
+  // The browser shows a start screen (index.html) until the first screen and the fonts are there
+  // (startScreen.ts), so the app can already render behind it while the fonts load. Phones wait for
+  // the fonts before rendering, so text never shows in the wrong font.
+  const fontsDone = fontsLoaded || !!fontError;
+  const canRender = hydration.status === 'ready' && (fontsDone || rendersBehindStartScreen);
+  useEffect(() => {
+    if (fontsDone) noteFontsReady(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontsDone]);
+  // Fallback for the error message below and screens without `Screen` (the scanner).
+  useEffect(() => {
+    if (hydration.status === 'error') finishStartScreen(c);
+    if (!canRender) return;
+    const id = setTimeout(() => finishStartScreen(c), 4000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canRender, hydration.status]);
 
   // Stored data could not be read: say so instead of showing a blank screen forever. Nothing is
   // saved in this state, so the data on the device stays untouched for a retry.
@@ -67,7 +92,7 @@ export default function RootLayout() {
   }
 
   // If fonts fail to load the app still works with system fonts.
-  if (hydration.status !== 'ready' || (!fontsLoaded && !fontError)) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
+  if (!canRender) return <View style={{ flex: 1, backgroundColor: c.bg }} />;
 
   return (
     <>

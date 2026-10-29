@@ -61,6 +61,25 @@ const manifest = {
 };
 writeFileSync(join(dist, 'manifest.webmanifest'), JSON.stringify(manifest, null, 2));
 
+// The start screen's colours: the last theme the app used (saved by `startScreenDone` in
+// device.web.ts), else the default theme. A file, not an inline script, for the CSP; it runs before
+// the first paint, so the start screen never flashes in the wrong colours.
+writeFileSync(
+  join(dist, 'splash.js'),
+  `try {
+  var c = JSON.parse(localStorage.getItem('openplate-start-colors') || 'null');
+  if (c && typeof c === 'object') {
+    var r = document.documentElement.style;
+    ['bg', 'accent', 'leaf', 'face', 'text', 'track'].forEach(function (k) {
+      if (typeof c[k] === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c[k])) r.setProperty('--op-' + k, c[k]);
+    });
+    // Appearance → Motion → Off: the start screen keeps still too.
+    if (c.still === true) document.documentElement.classList.add('op-still');
+  }
+} catch (e) {}
+`,
+);
+
 // Registered from a file, not an inline script, so the CSP can forbid inline scripts.
 writeFileSync(
   join(dist, 'register-sw.js'),
@@ -88,14 +107,51 @@ const head = `
     <meta name="format-detection" content="telephone=no" />
     <link rel="manifest" href="${root}manifest.webmanifest" />
     <link rel="apple-touch-icon" href="${root}icons/apple-touch-icon.png" />
+    <script src="${root}splash.js"></script>
     <style>
-      html, body { background: ${LIGHT}; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
-      @media (prefers-color-scheme: dark) { html, body { background: ${DARK}; } }
+      :root { --op-bg: ${LIGHT}; --op-accent: #9C2F62; --op-leaf: #5E9A3B; --op-face: #FFF7FB; --op-text: #2A1F2D; --op-track: rgba(156, 47, 98, 0.16); }
+      @media (prefers-color-scheme: dark) { :root { --op-bg: ${DARK}; --op-accent: #E26A9E; --op-leaf: #8CC46A; --op-face: #1B1220; --op-text: #F6EEF4; --op-track: rgba(226, 106, 158, 0.2); } }
+      html, body { background: var(--op-bg); overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
       body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-text-size-adjust: 100%; }
       input, textarea { -webkit-user-select: text; user-select: text; }
+      /* Start screen: shown from the first paint until the app has read its data (startScreenDone). */
+      #op-splash { position: fixed; inset: 0; z-index: 2147483647; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: var(--op-bg); transition: opacity 220ms ease-out; }
+      #op-splash.op-hide { opacity: 0; pointer-events: none; }
+      #op-splash .op-name { font: 800 26px/1.1 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.02em; color: var(--op-text); }
+      #op-splash .op-bar { width: 120px; height: 4px; border-radius: 2px; overflow: hidden; background: var(--op-track); }
+      #op-splash .op-bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--op-accent); animation: op-slide 1.1s ease-in-out infinite; }
+      #op-splash .op-sprout { transform-origin: 60px 62px; animation: op-grow 700ms cubic-bezier(.2,.9,.3,1.3) both, op-sway 2.6s ease-in-out 700ms infinite; }
+      #op-splash .op-bowl { animation: op-pop 500ms cubic-bezier(.2,.9,.3,1.2) both; transform-origin: 60px 90px; }
+      @keyframes op-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+      @keyframes op-grow { from { transform: scale(0.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      @keyframes op-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+      @keyframes op-pop { from { transform: scale(0.85); } to { transform: scale(1); } }
+      @media (prefers-reduced-motion: reduce) { #op-splash * { animation: none !important; } #op-splash .op-bar span { width: 100%; opacity: 0.5; } }
+      .op-still #op-splash * { animation: none !important; } .op-still #op-splash .op-bar span { width: 100%; opacity: 0.5; }
     </style>
     <script src="${root}register-sw.js" defer></script>
 `;
+
+// The start screen itself, first thing in <body>. The same bowl as src/components/Sprout.tsx.
+const splash = `
+    <div id="op-splash" role="status" aria-live="polite" aria-label="OpenPlate is starting">
+      <svg width="112" height="112" viewBox="0 0 120 120" aria-hidden="true">
+        <g class="op-sprout">
+          <path d="M60 64 C60 50 57 42 60 30" stroke="var(--op-leaf)" stroke-width="4.5" stroke-linecap="round" fill="none" />
+          <path d="M59 42 C44 42 33 32 32 18 C47 18 58 27 59 42 Z" fill="var(--op-leaf)" />
+          <path d="M61 35 C73 33 85 22 88 9 C73 9 62 20 61 35 Z" fill="var(--op-leaf)" opacity="0.85" />
+        </g>
+        <g class="op-bowl">
+          <path d="M16 66 H104 A44 44 0 0 1 16 66 Z" fill="var(--op-accent)" />
+          <rect x="12" y="60" width="96" height="11" rx="5.5" fill="var(--op-accent)" />
+          <circle cx="48" cy="84" r="3.6" fill="var(--op-face)" />
+          <circle cx="72" cy="84" r="3.6" fill="var(--op-face)" />
+          <path d="M52 93 Q60 100 68 93" stroke="var(--op-face)" stroke-width="3" stroke-linecap="round" fill="none" />
+        </g>
+      </svg>
+      <div class="op-name">OpenPlate</div>
+      <div class="op-bar"><span></span></div>
+    </div>`;
 
 let html = readFileSync(join(dist, 'index.html'), 'utf8');
 // viewport-fit=cover gives safe-area insets on iPhone; maximum-scale stops Safari zooming into fields.
@@ -104,6 +160,27 @@ html = /<meta\s+name="viewport"[^>]*>/i.test(html) ? html.replace(/<meta\s+name=
 html = html.replace(/<html([^>]*)\slang="[^"]*"/i, '<html$1').replace(/<html/i, '<html lang="en"');
 html = html.replace(/<title>[^<]*<\/title>/i, '<title>OpenPlate</title>');
 if (!html.includes('rel="manifest"')) html = html.replace('</head>', `${head}</head>`);
+if (!html.includes('id="op-splash"')) html = html.replace(/<body([^>]*)>/i, (b) => `${b}${splash}`);
+
+// Start fetching what the first screen needs right away, in parallel with the main bundle, instead
+// of one after the other once each step has run: the root and tab layouts, the diary, and the
+// fonts the app waits for before it shows anything.
+const jsDir = join(dist, '_expo', 'static', 'js', 'web');
+const firstChunks = existsSync(jsDir) ? readdirSync(jsDir).filter((f) => /^(_layout|index)-[0-9a-f]+\.js$/.test(f)) : [];
+const fontFiles = [];
+const findFonts = (dir) => {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) findFonts(p);
+    else if (name.endsWith('.ttf')) fontFiles.push(p);
+  }
+};
+if (existsSync(join(dist, 'assets'))) findFonts(join(dist, 'assets'));
+const preloads = [
+  ...firstChunks.map((f) => `<link rel="preload" as="script" href="${root}_expo/static/js/web/${f}" />`),
+  ...fontFiles.map((f) => `<link rel="preload" as="font" type="font/ttf" crossorigin href="${root}${relative(dist, f).split(sep).join('/')}" />`),
+].join('\n    ');
+if (preloads && !html.includes('rel="preload"')) html = html.replace('</head>', `    ${preloads}\n</head>`);
 if (!html.includes('Content-Security-Policy')) {
   const charset = html.match(/<meta\s+charset=[^>]*>/i);
   html = charset ? html.replace(charset[0], `${charset[0]}${security}`) : html.replace(/<head[^>]*>/i, (h) => `${h}${security}`);
@@ -140,15 +217,34 @@ const CACHE = 'openplate-${version}';
 const ROOT = ${JSON.stringify(root)};
 const PRECACHE = ${JSON.stringify(urls)};
 
+// The version that was in use before this one keeps its files: a page that opened with it can
+// still load the parts it loads later (the food database, a screen), even after this one took over.
+const META = 'openplate-meta';
+const previousVersion = () =>
+  caches
+    .open(META)
+    .then((m) => m.match('active'))
+    .then((r) => (r ? r.text() : null))
+    .catch(() => null);
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(PRECACHE))
+      .then(previousVersion)
+      .then((prev) =>
+        caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('openplate-') && k !== CACHE && k !== META && k !== prev).map((k) => caches.delete(k)))),
+      )
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('openplate-') && k !== CACHE).map((k) => caches.delete(k))))
+      .open(META)
+      .then((m) => m.put('active', new Response(CACHE)))
       .then(() => self.clients.claim()),
   );
 });
@@ -161,16 +257,14 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || !url.pathname.startsWith(ROOT)) return;
 
   if (req.mode === 'navigate') {
-    // Network first so updates arrive; the cached app shell when offline.
+    // The app shell from this version's cache, straight away: opening the home-screen app never
+    // waits for the network. Updates still arrive: the browser checks sw.js on each start, and a
+    // new version installs in the background and is used from the next start.
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(ROOT, copy));
-          }
-          return res.ok ? res : caches.match(ROOT).then((r) => r || res);
-        })
+      caches
+        .open(CACHE)
+        .then((c) => c.match(ROOT))
+        .then((hit) => hit || fetch(req))
         .catch(() => caches.match(ROOT)),
     );
     return;

@@ -6,7 +6,8 @@ import { addDays, dayKey } from './dates';
 import { openStepSettings, stepSource, stepsForDay } from './device';
 import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
-import { resolveCommunity } from './recipes';
+import { needsBls, resolveCommunity } from './recipes';
+import { blsRows, loadBls } from './bls';
 import { stepsActionKey, stepsReasonKey, type StepReading } from './steps';
 import { useStore } from './store';
 import type { Profile, Recipe, WeightEntry } from './types';
@@ -100,11 +101,28 @@ export function useSteps(date: string, weightKg: number) {
   };
 }
 
+/** Whether the BLS database is loaded; starts loading it when `wanted` (see bls.ts). */
+export function useBlsReady(wanted = true): boolean {
+  const [ready, setReady] = useState(() => blsRows() !== null);
+  useEffect(() => {
+    if (!wanted || ready) return;
+    let alive = true;
+    loadBls()
+      .then(() => alive && setReady(true))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [wanted, ready]);
+  return ready;
+}
+
 /** Own recipes plus the community ones in the current language. Community ids start with "community:". */
 export function useRecipes(): Recipe[] {
   const own = useStore((s) => s.recipes);
   const { lang } = useT();
-  const community = useMemo(() => COMMUNITY_RECIPES.map((c) => resolveCommunity(c, lang).recipe), [lang]);
+  const bls = useBlsReady(COMMUNITY_RECIPES.some(needsBls));
+  const community = useMemo(() => COMMUNITY_RECIPES.map((c) => resolveCommunity(c, lang).recipe), [lang, bls]);
   return useMemo(() => [...own, ...community], [own, community]);
 }
 
