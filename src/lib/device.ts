@@ -460,3 +460,23 @@ export async function enableLock(prompt: string): Promise<{ ok: boolean; credent
 
 /** Phones ask for Face ID / fingerprint by themselves when the lock screen shows; browsers wait for a tap (passkeys need one). */
 export const lockAutoPrompt = true;
+
+/* ---------- Start screen ---------- */
+
+/** Colours for the browser's start screen; phones use the native splash screen, so nothing to do here. */
+export interface StartColors {
+  bg: string;
+  accent: string;
+  leaf: string;
+  face: string;
+  text: string;
+  track: string;
+  /** Motion is set to Off: the start screen doesn't move either. */
+  still: boolean;
+}
+
+/** The app is ready (data read, fonts loaded): phones hide their splash screen themselves. */
+export function startScreenDone(_colors: StartColors): void {}
+
+/** Whether the app may render before its fonts are loaded (only the browser, behind its start screen). */
+export const rendersBehindStartScreen = false;

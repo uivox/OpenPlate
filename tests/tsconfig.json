@@ -1,15 +1,23 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "lib": ["es2022", "dom"],
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "module": "commonjs",
+    "moduleResolution": "node10",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "../.test-build",
     "rootDir": "..",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "ignoreDeprecations": "6.0"
   },
-  "files": ["logic.test.ts"]
+  "files": [
+    "logic.test.ts"
+  ]
 }

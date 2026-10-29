@@ -1,5 +1,5 @@
-import { blsFood } from './bls';
-import { BLS_ROWS, type BlsRow } from './blsData';
+import { blsFood, blsRows } from './bls';
+import type { BlsRow } from './blsData';
 import { genericFoods } from './genericFoods';
 import { newId } from './id';
 import { mealTotals } from './meals';
@@ -36,11 +36,16 @@ export interface CommunityRecipe {
 
 let blsIndex: Map<string, BlsRow> | null = null;
 
-/** Looks up an ingredient reference; undefined when it doesn't exist (caught by the tests). */
+/** Whether a community recipe needs the BLS database (loaded on demand, see bls.ts). */
+export const needsBls = (c: CommunityRecipe) => c.ingredients.some((i) => i.ref.startsWith('bls:'));
+
+/** Looks up an ingredient reference; undefined when it doesn't exist (caught by the tests) or the BLS isn't loaded yet. */
 export function resolveRef(ref: string, lang: 'de' | 'en'): Food | undefined {
   if (ref.startsWith('generic:')) return genericFoods(lang).find((f) => f.id === ref);
   if (ref.startsWith('bls:')) {
-    if (!blsIndex) blsIndex = new Map(BLS_ROWS.map((r) => [r[0], r]));
+    const rows = blsRows();
+    if (!rows) return undefined;
+    if (!blsIndex) blsIndex = new Map(rows.map((r) => [r[0], r]));
     const row = blsIndex.get(ref.slice(4));
     return row ? blsFood(row, lang) : undefined;
   }
