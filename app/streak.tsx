@@ -5,9 +5,10 @@ import { Pressable, View } from 'react-native';
 import { Card, IconButton, Row, Screen, Txt } from '../src/components/ui';
 import { dayKey, locale, parseDayKey } from '../src/lib/dates';
 import { dayGoal } from '../src/lib/goals';
-import { dailyTotals, dayStatus, monthGrid, monthSummary, streakInfo, type DayStatus, type GoalForDay } from '../src/lib/streaks';
+import { dailyTotals, dayStatus, judgementTone, legendFor, monthGrid, monthSummary, streakInfo, type DayStatus, type GoalForDay } from '../src/lib/streaks';
 import { useStore } from '../src/lib/store';
-import { radius, useColors, type Colors } from '../src/lib/theme';
+import { radius, toneColor, useColors, type Colors } from '../src/lib/theme';
+import type { TKey } from '../src/lib/i18n';
 import { useT } from '../src/lib/useT';
 
 /** Streak numbers and a month calendar of tracked days and goal hits. */
@@ -111,23 +112,23 @@ export default function StreakScreen() {
       </Card>
 
       <Card style={{ gap: 8 }}>
-        <Legend color={c.leaf} label={t('legend_hit')} />
-        <Legend color={c.coral} label={t('legend_over')} />
-        <Legend color={c.water} label={t('legend_under')} />
+        {legendFor(profile.goal).map((j) => (
+          <Legend key={j} color={statusColor(j, c)!} label={t(`legend_${j}_${profile.goal}` as TKey)} />
+        ))}
         <Legend color={c.accent} label={t('legend_pending')} ring />
         <Txt v="small" style={{ marginTop: 4 }}>
-          {t('streak_rule')}
+          {t(`streak_rule_${profile.goal}`)}
         </Txt>
       </Card>
     </Screen>
   );
 }
 
+/** Calm "under" stays the water blue it always was; the other calm states use the quiet tone colour. */
 function statusColor(s: DayStatus, c: Colors): string | null {
-  if (s === 'hit') return c.leaf;
-  if (s === 'over') return c.coral;
+  if (s === 'empty' || s === 'pending' || s === 'future') return null;
   if (s === 'under') return c.water;
-  return null;
+  return toneColor(judgementTone(s), c);
 }
 
 function DayCell({

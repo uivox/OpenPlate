@@ -201,6 +201,8 @@ export interface Appearance {
   /** Own macro colours (hex); missing ones keep the theme's. */
   macroColors?: Partial<Record<'carbs' | 'protein' | 'fat', string>>;
   motion: MotionPref;
+  /** Animate the streak counter when the first entry of the day is added (follows `motion`). On when missing. */
+  celebrate?: boolean;
 }
 
 export type TabId = 'index' | 'fasting' | 'recipes' | 'progress' | 'profile';
@@ -215,6 +217,8 @@ export interface LayoutPrefs {
   hiddenDiary: DiarySection[];
   /** Meals folded down to their header row in the diary; the same on every day. */
   collapsedMeals: MealType[];
+  /** Offer "Your usual breakfast?" in today's empty meal cards (usualMeal.ts). On when missing. */
+  usualMeal?: boolean;
 }
 
 export type RecipeTag = 'breakfast' | 'main' | 'snack' | 'vegetarian' | 'vegan' | 'high_protein' | 'quick';

@@ -12,6 +12,7 @@ import { normalizePending, type OffPending } from './offWrite';
 import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
 import { migrateState, STORE_VERSION } from './migrations';
 import { DEFAULT_REMINDERS, normalizeReminders, type ReminderPrefs } from './reminders';
+import { DEFAULT_GOAL_CHECK, normalizeGoalCheck, type GoalCheckPrefs } from './adaptiveGoal';
 import { addRecord, normalizeLog, type ConnectionRecord } from './connectionLog';
 import { createShardedStorage } from './persistStorage';
 import { DEFAULT_SECURITY, normalizeSecurity, type SecurityPrefs } from './security';
@@ -60,6 +61,8 @@ interface State {
   insights: InsightPrefs;
   /** Sends to Open Food Facts kept for later (Profile → Open Food Facts). Per device, not in backups. */
   offPending: OffPending[];
+  /** Weekly goal check-in: settings, left-out days, answered check-ins and the goal history (adaptiveGoal.ts). Part of backups. */
+  goalCheck: GoalCheckPrefs;
   /** App lock, encrypted backups, connection log (security.ts). Per device, never in backups. */
   security: SecurityPrefs;
   /** The last 7 days of connections to outside servers (connectionLog.ts). Per device, never in backups. */
@@ -108,6 +111,7 @@ interface State {
   dropOffPending: (foodId: string) => void;
   setReminders: (patch: Partial<ReminderPrefs>) => void;
   setProviderConfig: (id: AIProviderId, patch: Partial<AIProviderConfig>) => void;
+  setGoalCheck: (patch: Partial<GoalCheckPrefs>) => void;
   setSecurity: (patch: Partial<SecurityPrefs>) => void;
   addConnection: (r: ConnectionRecord) => void;
   clearConnections: () => void;
@@ -139,6 +143,7 @@ type Persisted = Pick<
   | 'reminders'
   | 'insights'
   | 'offPending'
+  | 'goalCheck'
   | 'security'
   | 'connections'
   | 'lastBackupAt'
@@ -164,6 +169,7 @@ const initial = {
   reminders: DEFAULT_REMINDERS,
   insights: DEFAULT_INSIGHTS,
   offPending: [] as OffPending[],
+  goalCheck: DEFAULT_GOAL_CHECK,
   security: DEFAULT_SECURITY,
   connections: [] as ConnectionRecord[],
   lastBackupAt: null as number | null,
@@ -286,6 +292,7 @@ export const useStore = create<State>()(
       setProviderConfig: (id, patch) =>
         set((s) => ({ ai: { ...s.ai, providers: { ...s.ai.providers, [id]: { ...s.ai.providers[id], ...patch } } } })),
 
+      setGoalCheck: (patch) => set((s) => ({ goalCheck: normalizeGoalCheck({ ...s.goalCheck, ...patch }) })),
       setSecurity: (patch) => set((s) => ({ security: normalizeSecurity({ ...s.security, ...patch }) })),
       addConnection: (r) => set((s) => ({ connections: addRecord(s.connections, r, Date.now()) })),
       clearConnections: () => set({ connections: [] }),
@@ -304,6 +311,7 @@ export const useStore = create<State>()(
           // Reminder settings come with the backup; scheduling is rebuilt from them (mealReminders.ts).
           reminders: d.reminders ? normalizeReminders(d.reminders) : s.reminders,
           fastingSchedule: d.fastingSchedule ? normalizeSchedule(d.fastingSchedule) : s.fastingSchedule,
+          goalCheck: d.goalCheck ? normalizeGoalCheck(d.goalCheck) : s.goalCheck,
           insights: s.insights, // a choice on this device, not in backups
           offPending: s.offPending.filter((p) => (d.customFoods ?? []).some((f) => f.id === p.foodId)),
           // Only model names come from the file; providers and server addresses stay as set on this
@@ -342,6 +350,7 @@ export const useStore = create<State>()(
         reminders: s.reminders,
         insights: s.insights,
         offPending: s.offPending,
+        goalCheck: s.goalCheck,
         security: s.security,
         connections: s.connections,
         lastBackupAt: s.lastBackupAt,
@@ -363,6 +372,7 @@ export const useStore = create<State>()(
           fastingSchedule: normalizeSchedule(p.fastingSchedule),
           insights: normalizeInsights(p.insights),
           offPending: normalizePending(p.offPending),
+          goalCheck: normalizeGoalCheck(p.goalCheck),
           security: normalizeSecurity(p.security),
           connections: normalizeLog(p.connections, Date.now()),
           lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,

@@ -17,6 +17,7 @@ export default function LayoutSettingsScreen() {
   const { t } = useT();
   const layout = useStore((s) => s.layout);
   const setLayout = useStore((s) => s.setLayout);
+  const c = useColors();
 
   return (
     <Screen>
@@ -55,7 +56,23 @@ export default function LayoutSettingsScreen() {
       />
       <Txt v="small">{t('diary_order_hint')}</Txt>
 
-      <Button kind="ghost" icon="refresh" title={t('reset_layout')} onPress={() => setLayout(DEFAULT_LAYOUT)} />
+      <Card style={{ gap: 8 }}>
+        <Row gap={12}>
+          <Txt v="h3" style={{ flex: 1 }}>
+            {t('usual_setting')}
+          </Txt>
+          <Switch
+            value={layout.usualMeal !== false}
+            onValueChange={(on) => setLayout({ usualMeal: on })}
+            trackColor={{ true: c.accent }}
+            accessibilityLabel={t('usual_setting')}
+            testID="usual-switch"
+          />
+        </Row>
+        <Txt v="small">{t('usual_setting_text')}</Txt>
+      </Card>
+
+      <Button kind="ghost" icon="refresh" title={t('reset_layout')} onPress={() => setLayout({ ...DEFAULT_LAYOUT, usualMeal: true })} />
     </Screen>
   );
 }

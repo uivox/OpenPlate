@@ -102,6 +102,14 @@ export default function ProfileScreen() {
           onPress={() => router.push('/meal-split')}
         />
         <Divider />
+        <ListRow
+          icon="trending-down-outline"
+          title={t('gc_title')}
+          subtitle={state.goalCheck.enabled ? t('gc_row_on', { day: new Date(2024, 0, 7 + state.goalCheck.weekday).toLocaleDateString(locale(lang), { weekday: 'long' }) }) : t('gc_row_off')}
+          right={chevron}
+          onPress={() => router.push('/goal-check')}
+        />
+        <Divider />
         <ListRow icon="sparkles-outline" title={t('ai_settings')} subtitle={aiLabel} right={chevron} onPress={() => router.push('/ai-settings')} />
       </Card>
 

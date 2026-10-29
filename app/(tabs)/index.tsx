@@ -5,13 +5,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DaySwipe } from '../../src/components/DaySwipe';
+import { usualMeal } from '../../src/lib/usualMeal';
+import { StreakBadge } from '../../src/components/StreakBadge';
+import { GoalCheckCard } from '../../src/components/GoalCheckCard';
 import { exportBackupFlow } from '../../src/components/exportBackup';
-import { Burst, Tap, useCountUp } from '../../src/components/motion';
+import { useCountUp } from '../../src/components/motion';
 import { PlateRing } from '../../src/components/PlateRing';
 import { TAB_BAR_SPACE } from '../../src/components/TabBar';
 import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Screen, SectionTitle, Tile, Txt, type IconName } from '../../src/components/ui';
 import { backupDue } from '../../src/lib/backupReminder';
-import { addDays, formatDuration, formatShortDate } from '../../src/lib/dates';
+import { addDays, dayKey, formatDuration, formatShortDate, locale, parseDayKey } from '../../src/lib/dates';
+import { showAlert } from '../../src/lib/alert';
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
@@ -21,9 +25,9 @@ import { itemsFromEntries } from '../../src/lib/meals';
 import { mealMacroTargets, mealSplitOf, mealTarget } from '../../src/lib/mealSplit';
 import { entryNutrients, sumEntries } from '../../src/lib/nutrition';
 import { clockText, hintCardMeal, suggestAll } from '../../src/lib/reminders';
-import { dailyTotals, isMilestone, streakInfo } from '../../src/lib/streaks';
+import { dailyTotals, isMilestone, streakInfo, todayOverTone } from '../../src/lib/streaks';
 import { useStore } from '../../src/lib/store';
-import { radius, space, useColors } from '../../src/lib/theme';
+import { radius, space, toneColor, useColors } from '../../src/lib/theme';
 import { MEALS, type DiaryEntry, type MacroGrams, type MealType } from '../../src/lib/types';
 import { useT } from '../../src/lib/useT';
 import { confirmLogging } from '../../src/components/fastGuard';
@@ -71,6 +75,7 @@ export default function DiaryScreen() {
   const burned = profile.addActivityCalories ? stepKcal : 0;
   const budget = goals.kcal + burned;
   const remaining = Math.round(budget - totals.kcal);
+  const overTone = todayOverTone(totals.kcal, budget, profile.goal);
   const split = mealSplitOf(profile);
   const shownRemaining = useCountUp(remaining);
   const layout = useStore((s) => s.layout);
@@ -104,25 +109,12 @@ export default function DiaryScreen() {
               {profile.name ? `${greeting}, ${profile.name}` : greeting}
             </Txt>
           </View>
-          <Tap
+          <StreakBadge
+            current={streak.current}
+            todayLogged={streak.todayLogged}
             onPress={() => router.push('/streak')}
-            accessibilityRole="button"
-            accessibilityLabel={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
-            scaleTo={0.9}
-            rippleColor={c.coral}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              backgroundColor: c.card,
-              borderRadius: 999,
-              paddingHorizontal: 12,
-              paddingVertical: 7,
-            }}
-          >
-            <Ionicons name="flame" size={18} color={streak.todayLogged ? c.coral : c.sub} />
-            <Txt v="h3">{streak.current}</Txt>
-          </Tap>
+            label={`${t('streak')}: ${streak.current === 1 ? t('streak_days_one') : t('streak_days_n', { n: streak.current })}`}
+          />
         </Row>
 
         <Row gap={4} style={{ alignSelf: 'flex-start', backgroundColor: c.card, borderRadius: 999, paddingHorizontal: 4 }}>
@@ -144,11 +136,9 @@ export default function DiaryScreen() {
           <Banner icon={goals.status === 'reached' ? 'trophy' : 'information-circle'} tone="leaf" text={t(`warn_${goals.status}`)} />
         ) : null}
         {date === today && streak.todayLogged && isMilestone(streak.current) ? (
-          <View>
-            <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
-            <Burst trigger={streak.current} colors={[c.coral, c.carbs, c.accent, c.leaf]} size={260} />
-          </View>
+          <Banner icon="flame" tone="warn" text={t('streak_milestone', { n: streak.current })} />
         ) : null}
+        {date === today ? <GoalCheckCard /> : null}
         {showBackupReminder ? (
           <View style={{ gap: space.s }}>
             <Banner icon="save-outline" text={t('backup_reminder')} />
@@ -191,11 +181,12 @@ export default function DiaryScreen() {
                   carbsKcal={totals.carbs * 4}
                   proteinKcal={totals.protein * 4}
                   fatKcal={totals.fat * 9}
+                  overColor={toneColor(overTone, c)}
                 >
-                  <Txt v="hero" color={remaining < 0 ? c.coral : c.text}>
+                  <Txt v="hero" color={remaining < 0 && overTone === 'bad' ? c.coral : c.text}>
                     {Math.abs(Math.round(shownRemaining))}
                   </Txt>
-                  <Txt v="sub">{remaining < 0 ? t('kcal_over') : t('kcal_left')}</Txt>
+                  <Txt v="sub">{remaining < 0 ? (profile.goal === 'gain' ? t('kcal_above_goal') : t('kcal_over')) : t('kcal_left')}</Txt>
                 </PlateRing>
 
                 <Row style={{ alignSelf: 'stretch', justifyContent: 'space-around' }}>
@@ -388,9 +379,35 @@ function MealCard({
 }
 
 function MealBody({ meal, date, entries }: { meal: MealType; date: string; entries: DiaryEntry[] }) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const c = useColors();
   const copyMeal = useStore((s) => s.copyMeal);
   const yesterdayHas = useStore((s) => s.entries.some((e) => e.date === addDays(date, -1) && e.meal === meal));
+  // "Your usual breakfast?" only for today's empty meal (Diary layout → switch).
+  const allEntries = useStore((s) => s.entries);
+  const usualOn = useStore((s) => s.layout.usualMeal !== false);
+  const isToday = date === dayKey();
+  const usual = useMemo(
+    () => (usualOn && isToday && entries.length === 0 ? usualMeal(allEntries, meal, date) : null),
+    [usualOn, isToday, entries.length, allEntries, meal, date],
+  );
+  const logUsual = () =>
+    usual &&
+    confirmLogging(date, () => {
+      const add = useStore.getState().addEntry;
+      for (const it of usual.items) add({ date, meal, food: it.food, grams: it.grams });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    });
+  const explainUsual = () =>
+    usual &&
+    showAlert(
+      t('usual_info_title', { meal: t(`meal_${meal}`) }),
+      t('usual_info_text', {
+        foods: usual.items.map((i) => `${i.food.name} (${Math.round(i.grams)} ${i.food.unit === 'ml' ? 'ml' : 'g'})`).join(', '),
+        n: usual.days.length,
+        days: usual.days.map((d) => parseDayKey(d).toLocaleDateString(locale(lang), { weekday: 'short', day: 'numeric', month: 'short' })).join(', '),
+      }),
+    );
   return (
     <>
       {entries.length > 0 ? <View style={{ height: 6 }} /> : null}
@@ -421,6 +438,19 @@ function MealBody({ meal, date, entries }: { meal: MealType; date: string; entri
             }}
           />
         </View>
+      ) : null}
+      {usual ? (
+        <Row gap={0} style={{ paddingLeft: 50 }}>
+          <Button
+            small
+            kind="ghost"
+            icon="repeat-outline"
+            title={t(`usual_${meal}`)}
+            style={{ alignSelf: 'flex-start' }}
+            onPress={logUsual}
+          />
+          <IconButton icon="information-circle-outline" size={18} label={t('usual_info_label')} onPress={explainUsual} color={c.sub} />
+        </Row>
       ) : null}
       {entries.length === 0 && yesterdayHas ? (
         <View style={{ paddingLeft: 50 }}>

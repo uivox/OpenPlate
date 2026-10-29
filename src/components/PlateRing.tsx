@@ -37,7 +37,8 @@ export function useTween(target: number, duration = 700): number {
 /**
  * The calorie "plate": a top-down plate whose rim fills with one arc per macro
  * (carbs, protein, fat — in the order you'd see them on a nutrition label).
- * Going over budget draws a thin tomato ring outside the plate.
+ * Going over budget draws a thin ring outside the plate, in `overColor` (it follows the goal's
+ * direction, see todayOverTone: red when losing, calm or green when gaining).
  */
 export function PlateRing({
   size,
@@ -46,6 +47,7 @@ export function PlateRing({
   carbsKcal,
   proteinKcal,
   fatKcal,
+  overColor,
   children,
 }: {
   size: number;
@@ -54,6 +56,7 @@ export function PlateRing({
   carbsKcal: number;
   proteinKcal: number;
   fatKcal: number;
+  overColor?: string;
   children?: React.ReactNode;
 }) {
   const c = useColors();
@@ -109,7 +112,7 @@ export function PlateRing({
             cx={cx}
             cy={cx}
             r={size / 2 - 2}
-            stroke={c.coral}
+            stroke={overColor ?? c.coral}
             strokeWidth={3}
             strokeLinecap="round"
             fill="none"

@@ -342,5 +342,5 @@ export function normalizeAppearance(a: Partial<Appearance> | undefined): Appeara
     const hex = own ? normalizeHex(own) : null;
     if (hex) macroColors[k] = hex;
   }
-  return { theme, scheme, motion, accent, macroColors: Object.keys(macroColors).length ? macroColors : undefined };
+  return { theme, scheme, motion, accent, macroColors: Object.keys(macroColors).length ? macroColors : undefined, ...(v.celebrate === false ? { celebrate: false } : {}) };
 }
