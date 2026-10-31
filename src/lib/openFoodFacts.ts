@@ -7,7 +7,7 @@ import type { Food, Nutrients, Serving } from './types';
  * Open Food Facts (https://world.openfoodfacts.org) — open database of packaged foods,
  * licensed under the Open Database License (ODbL). Attribution is shown in the app.
  */
-const USER_AGENT = 'OpenPlate/1.0 (open-source calorie tracker; https://github.com/uivox/OpenPlate)';
+const USER_AGENT = 'Tellerwerk/1.0 (open-source calorie tracker; https://github.com/uivox/Tellerwerk)';
 const FIELDS = [
   'code',
   'product_name',

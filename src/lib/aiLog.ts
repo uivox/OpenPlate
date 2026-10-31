@@ -1,3 +1,4 @@
+import { BACKUP_FORMAT_ID } from './appIdentity';
 import type { LabelResult } from './labelScan';
 import type { ProviderRequest } from './ai';
 import type { AIItem, AIProviderId, DiaryEntry, MealType, Nutrients, Serving } from './types';
@@ -220,7 +221,7 @@ export interface DiaryNow {
 export type ExportedRecord = AILogRecord & { diaryNow?: DiaryNow[]; photos: string[] };
 
 export interface AILogExport {
-  app: 'OpenPlate';
+  app: typeof BACKUP_FORMAT_ID;
   kind: 'ai-log';
   version: 1;
   exportedAt: string;
@@ -245,7 +246,7 @@ export function buildAILogExport(
   now = new Date(),
 ): AILogExport {
   return {
-    app: 'OpenPlate',
+    app: BACKUP_FORMAT_ID,
     kind: 'ai-log',
     version: 1,
     exportedAt: now.toISOString(),
@@ -258,7 +259,7 @@ export function buildAILogExport(
   };
 }
 
-export const aiLogFileName = (day: string) => `openplate-ai-log-${day}.json`;
+export const aiLogFileName = (day: string) => `tellerwerk-ai-log-${day}.json`;
 
 /** "12.3 MB" / "12,3 MB" for the settings screen. */
 export function logSizeLabel(bytes: number, lang: 'de' | 'en'): string {

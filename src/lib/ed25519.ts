@@ -1,7 +1,7 @@
 /**
  * Ed25519 signature verification (RFC 8032) and SHA-512, in plain TypeScript with BigInt.
  *
- * Used to check that a downloaded offline product pack was made by OpenPlate's own build: the pack
+ * Used to check that a downloaded offline product pack was made by Tellerwerk's own build: the pack
  * workflow signs it with a private key kept as a GitHub secret, and the app holds the public key.
  * Only verification lives here; nothing in the app can sign. Not constant-time, which is fine for
  * checking public data. Tested against Node's own Ed25519 and SHA-512 in tests/logic.test.ts.

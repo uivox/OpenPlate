@@ -1,3 +1,4 @@
+import { BACKUP_FORMAT_ID } from './appIdentity';
 import { MAX_KCAL_PER_100G } from './ai';
 import { normalizeGoalCheck, type GoalCheckPrefs } from './adaptiveGoal';
 import { normalizeSchedule, planById, type FastingSchedule } from './fasting';
@@ -85,7 +86,7 @@ export function pickBackup(state: BackupData): BackupData {
 }
 
 export function buildBackup(data: BackupData, now = new Date()) {
-  return { app: 'OpenPlate', exportedAt: now.toISOString(), ...pickBackup(data) };
+  return { app: BACKUP_FORMAT_ID, exportedAt: now.toISOString(), ...pickBackup(data) };
 }
 
 /* ---------- Reading a backup ----------
@@ -327,7 +328,7 @@ export interface BackupReport {
 }
 
 /**
- * Reads an OpenPlate export (from the app or the web version). Invalid rows are dropped rather
+ * Reads a Tellerwerk or OpenPlate export (from the app or the web version). Invalid rows are dropped rather
  * than failing the whole import. Throws `INVALID_BACKUP` when the text is not an export at all.
  */
 export function parseBackupReport(input: string, now = new Date()): BackupReport {
@@ -337,7 +338,7 @@ export function parseBackupReport(input: string, now = new Date()): BackupReport
   } catch {
     throw new Error('INVALID_BACKUP');
   }
-  if (!isObj(raw) || raw.app !== 'OpenPlate') throw new Error('INVALID_BACKUP');
+  if (!isObj(raw) || raw.app !== BACKUP_FORMAT_ID) throw new Error('INVALID_BACKUP');
   const counter = { skipped: 0 };
 
   const water: Record<string, number> = {};

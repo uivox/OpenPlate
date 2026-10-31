@@ -8,6 +8,7 @@ import { DaySwipe } from '../../src/components/DaySwipe';
 import { usualMeal } from '../../src/lib/usualMeal';
 import { StreakBadge } from '../../src/components/StreakBadge';
 import { GoalCheckCard } from '../../src/components/GoalCheckCard';
+import { MoveNotice } from '../../src/components/MoveNotice';
 import { exportBackupFlow } from '../../src/components/exportBackup';
 import { useCountUp } from '../../src/components/motion';
 import { PlateRing } from '../../src/components/PlateRing';
@@ -16,6 +17,7 @@ import { Banner, Button, Card, Divider, IconButton, ListRow, MacroBar, Row, Scre
 import { backupDue } from '../../src/lib/backupReminder';
 import { addDays, dayKey, formatDuration, formatShortDate, locale, parseDayKey } from '../../src/lib/dates';
 import { showAlert } from '../../src/lib/alert';
+import { oldAppCopy } from '../../src/lib/device';
 import { setMealDraft } from '../../src/lib/foodCache';
 import { amountText } from '../../src/lib/format';
 import { dayGoal } from '../../src/lib/goals';
@@ -132,6 +134,7 @@ export default function DiaryScreen() {
           <IconButton icon="calendar-outline" size={18} label={t('open_calendar')} onPress={() => router.push('/streak')} color={c.text} />
         </Row>
 
+        {oldAppCopy ? <MoveNotice /> : null}
         {goals.status === 'minor' || goals.status === 'underweight' || goals.status === 'reached' ? (
           <Banner icon={goals.status === 'reached' ? 'trophy' : 'information-circle'} tone="leaf" text={t(`warn_${goals.status}`)} />
         ) : null}

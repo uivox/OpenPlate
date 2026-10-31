@@ -139,6 +139,7 @@ async function run(scheme) {
       for (let i = 0; i < 5; i++) await btn('Next').click();
       await btn("Let's go").click();
       await text('Breakfast', { exact: true }).waitFor();
+      if (await page.getByTestId('move-notice').count()) throw new Error('the move notice shows in Tellerwerk itself');
     });
     await step('CSP is active and blocks injected scripts', async () => {
       const policy = await page.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content') ?? '');
@@ -267,7 +268,7 @@ async function run(scheme) {
     await step('parity: fasting says the notification needs the app open', async () => {
       await page.getByRole('tab', { name: 'Fasting' }).click();
       await btn('Start fasting').click();
-      await text(/notification only comes while OpenPlate is open/).waitFor();
+      await text(/notification only comes while Tellerwerk is open/).waitFor();
       await btn('End fast').click();
       await text('End your fast early?').waitFor();
       // the dialog's button, not the one on the timer card behind it
@@ -298,7 +299,7 @@ async function run(scheme) {
       });
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('Meal reminders', { exact: true }).click();
-      await text(/reminders only come while OpenPlate is open/).waitFor();
+      await text(/reminders only come while Tellerwerk is open/).waitFor();
       if (await page.getByTestId('reminder-time-dinner').filter({ visible: true }).count()) throw new Error('times shown while reminders are off');
       await page.getByTestId('reminders-switch').filter({ visible: true }).first().click();
       await text('Times', { exact: true }).waitFor();
@@ -852,7 +853,7 @@ async function run(scheme) {
       const download = page.waitForEvent('download');
       await page.getByRole('button', { name: /Share export \(/ }).filter({ visible: true }).first().click();
       const file = await download;
-      if (!/^openplate-ai-log-\d{4}-\d\d-\d\d\.json$/.test(file.suggestedFilename())) throw new Error(`file name ${file.suggestedFilename()}`);
+      if (!/^tellerwerk-ai-log-\d{4}-\d\d-\d\d\.json$/.test(file.suggestedFilename())) throw new Error(`file name ${file.suggestedFilename()}`);
       const data = JSON.parse(readFileSync(await file.path(), 'utf8'));
       const rec = data.records?.[0];
       if (data.kind !== 'ai-log' || data.records.length !== 1) throw new Error(`export has ${data.records?.length} records`);
@@ -964,9 +965,9 @@ async function run(scheme) {
       if (await btn('Not now').count()) await btn('Not now').click();
       await text('Lock again after', { exact: true }).waitFor();
       await page.reload();
-      await text('OpenPlate is locked', { exact: true }).waitFor();
+      await text('Tellerwerk is locked', { exact: true }).waitFor();
       await btn('Unlock').click();
-      await text('OpenPlate is locked', { exact: true }).waitFor({ state: 'hidden' });
+      await text('Tellerwerk is locked', { exact: true }).waitFor({ state: 'hidden' });
       // Off again for the remaining steps.
       await page.getByTestId('lock-switch').filter({ visible: true }).first().click();
       await text('Lock again after', { exact: true }).waitFor({ state: 'hidden' });
@@ -1053,5 +1054,54 @@ async function run(scheme) {
 await run('light');
 await run('dark');
 await browser.close();
+
+// The same build at OpenPlate's old address shows only the move notice. The old host name is
+// pointed at the local server, and treated as secure like the real https site.
+async function runOldAddress() {
+  const OLD = 'http://openplate-app.github.io/';
+  const old = await chromium.launch({
+    args: ['--host-resolver-rules=MAP openplate-app.github.io 127.0.0.1:4173', `--unsafely-treat-insecure-origin-as-secure=${OLD.slice(0, -1)}`],
+  });
+  const ctx = await old.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', acceptDownloads: true });
+  const page = await ctx.newPage();
+  const crashes = [];
+  page.on('pageerror', (e) => crashes.push(String(e)));
+  page.setDefaultTimeout(15000);
+  const btn = (name) => page.getByRole('button', { name: new RegExp(`(^|[^\\w ]\\s*)${name}$`) }).filter({ visible: true }).first();
+  const text = (t, opts) => page.getByText(t, opts).filter({ visible: true }).first();
+  let stage = 'start';
+  try {
+    stage = 'onboarding at the old address';
+    await page.goto(OLD);
+    await page.locator('#op-splash').waitFor({ state: 'detached', timeout: 20000 });
+    await btn('English').click();
+    for (let i = 0; i < 6; i++) await btn('Next').click();
+    await btn("Let's go").click();
+    stage = 'the move notice';
+    await text('OpenPlate is now Tellerwerk', { exact: true }).waitFor();
+    await text(/The web version has a new address: tellerwerk-app\.github\.io/).waitFor();
+    await btn('Open the new address').waitFor();
+    stage = 'export from the move notice';
+    const download = page.waitForEvent('download');
+    await page.getByTestId('move-notice').getByRole('button', { name: /Export data$/ }).click();
+    const file = await download;
+    if (!/^tellerwerk-export-\d{4}-\d\d-\d\d\.json$/.test(file.suggestedFilename())) throw new Error(`file name ${file.suggestedFilename()}`);
+    const data = JSON.parse(readFileSync(await file.path(), 'utf8'));
+    if (data.app !== 'OpenPlate') throw new Error(`backup format id is ${data.app}`);
+    stage = 'turning off the reminders here';
+    await btn('Turn off reminders here').click();
+    await text('Meal reminders and fasting notifications are off in OpenPlate.', { exact: true }).waitFor();
+    await page.screenshot({ path: 'smoke-shots/old-address-move-notice.png' });
+    if (crashes.length) throw new Error(`page error: ${crashes.join(' | ')}`);
+    console.log('✓ old address: move notice passed');
+  } catch (e) {
+    failed = true;
+    console.log('--- visible text ---\n' + (await page.innerText('body').catch(() => '')).slice(0, 1200));
+    console.log(`✗ old address: "${stage}" failed: ${String(e).slice(0, 600)}`);
+    await page.screenshot({ path: 'smoke-shots/old-address-FAILED.png' }).catch(() => {});
+  }
+  await old.close();
+}
+await runOldAddress();
 server.close();
 process.exit(failed ? 1 : 0);

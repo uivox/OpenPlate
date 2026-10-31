@@ -1,4 +1,6 @@
-# OpenPlate
+# Tellerwerk
+
+*Formerly OpenPlate. Coming from OpenPlate? See [Moving from OpenPlate](#moving-from-openplate).*
 
 A free, open-source calorie tracker for iPhone, Android and the browser, built with Expo (React Native).
 German and English, light and dark mode, all data stays on your device.
@@ -20,7 +22,7 @@ German and English, light and dark mode, all data stays on your device.
 - **Recipes tab**: your own recipes (photo, servings, steps, ingredients from the food search; nutrition calculated from the ingredients) and community recipes added through pull requests and marked as tested once someone else has cooked them ([how to add one](docs/RECIPES.md)). Scale the ingredients to any number of servings and log a serving with one tap.
 - **Streak and calendar**: a streak counter on the diary and a month calendar showing which days you logged and how they went. The colours follow your goal: when **losing**, up to 10 % under and 5 % over counts as hit and clearly over is red (eating far less is never a hit, but never red either); when **keeping** your weight, within 5 % is a hit, 5–15 % off is shown calmly and more than 15 % above or below in red; when **gaining**, every day from 5 % under the goal upwards counts, more than 20 % over in a calm colour. The diary's number, the plate's ring and the weight change follow the same rules. The first entry of the day makes the streak counter roll up (with a little flame burst on *Lively*, bigger on milestones); Appearance → *Celebrate the first entry of the day* turns it off.
 - **Your usual meal**: when today's breakfast (or any meal) is still empty and you logged the same foods for it on at least 3 of the last 14 days, one tap adds them with your usual amounts. The "i" next to it shows which days it's based on; Layout → *Suggest your usual meals* turns it off.
-- **Weekly goal check-in** (Profile → *Weekly goal check-in*, on Sundays by default): from what you ate and how your weight moved over the last 4 weeks, OpenPlate estimates your real energy use and suggests a goal from it. Nothing changes unless you tap *Use new goal*; *Show calculation* shows every step and the days used (leave out any day, e.g. a holiday you didn't log fully), and every change can be undone. The usual safety rules always apply (no deficit under 18 or at a BMI of 18.5 or below, never below the daily minimum).
+- **Weekly goal check-in** (Profile → *Weekly goal check-in*, on Sundays by default): from what you ate and how your weight moved over the last 4 weeks, Tellerwerk estimates your real energy use and suggests a goal from it. Nothing changes unless you tap *Use new goal*; *Show calculation* shows every step and the days used (leave out any day, e.g. a holiday you didn't log fully), and every change can be undone. The usual safety rules always apply (no deficit under 18 or at a BMI of 18.5 or below, never below the daily minimum).
 - **Make it yours**: seven themes in light and dark (including a glowing Neon one), your own button and macro colours, three animation levels, tab order and visibility, add button left/centre/right, diary section order, and the app icon on the home screen in four faces and six colours (in the apps)
 - **Intermittent fasting**: 12:12, 14:10, 16:8, 18:6, 20:4, 23:1 timers with phases, adjustable start time and a notification when you reach the goal; 5:2 and 6:1 with chosen fasting days that lower the calorie goal automatically. With a **fixed eating window** (daily plans, e.g. 16:8 with eating from 12:00 to 20:00) your fasts start and end by themselves, also while the app is closed; for today only you can end early, extend or skip. Logging food during a fast asks first (*Log anyway* or *End fast & log*; strict mode only allows the latter), an optional notice tells you before the window closes, and meal reminders inside the fast are held back.
 - **Meal reminders** (Profile → *Meal reminders*, off until you switch them on): if breakfast, lunch, dinner or snacks are still empty a while after their time (15, 30, 60 or 90 minutes, you choose), you get a notification. Logging the meal cancels it, a running fast holds it back, and a tap opens that meal's add screen. Breakfast and lunch reminders show the meal's planned calories, dinner and snacks what's left of the day. Set each time exactly, or take the app's suggestion from when you usually log that meal. Everything runs on your device; no server is involved.
@@ -28,9 +30,9 @@ German and English, light and dark mode, all data stays on your device.
 - **Weight log** with chart, progress towards the target
 - **Statistics** (Progress tab): energy, macros, water, weight, steps, fasting and other nutrients (sugar, fiber, saturated fat, salt), each by day, week or month over 7 days, 30 days, 3 months, a year or your own dates. Averages only count days you logged and leave out today until it's over; macros are shown as shares of the energy. Tap a day to open it in the diary; each screen explains how its numbers are calculated.
 - **Steps** from the iPhone motion sensor or, on Android, from Health Connect, optionally added to the calorie budget (not in the web version, see [Differences between platforms](#differences-between-platforms))
-- **Your data** (Profile → *Your data*): what is stored on this device, every server OpenPlate can talk to and what goes there, and a **connection log** of the last 7 days (when, which server, why, whether a photo went along; never what was sent). Also an optional **app lock** (Face ID, fingerprint or device PIN; a passkey in the browser), **encrypted backups** with a password you choose each time, a **CSV export** (one zip with a table each for diary, weights, water, fasts and your own foods, for any period) and *Delete all data*.
+- **Your data** (Profile → *Your data*): what is stored on this device, every server Tellerwerk can talk to and what goes there, and a **connection log** of the last 7 days (when, which server, why, whether a photo went along; never what was sent). Also an optional **app lock** (Face ID, fingerprint or device PIN; a passkey in the browser), **encrypted backups** with a password you choose each time, a **CSV export** (one zip with a table each for diary, weights, water, fasts and your own foods, for any period) and *Delete all data*.
 - **Export and import** all data as a JSON file, on the phone and in the web version (moving between them works too). Your data only lives on your device, so the diary reminds you to save a copy two weeks after you start and then once a month ("Later" hides it for a week).
-- **Offline product data** (Profile → *Offline product data*): download the products sold in Germany from Open Food Facts once (the size is shown first), and barcodes and product search work without a connection. Updated weekly; the app only downloads when you tap *Download* or *Update*, and every download is checked against OpenPlate's signature before it is used.
+- **Offline product data** (Profile → *Offline product data*): download the products sold in Germany from Open Food Facts once (the size is shown first), and barcodes and product search work without a connection. Updated weekly; the app only downloads when you tap *Download* or *Update*, and every download is checked against Tellerwerk's signature before it is used.
 - **Web version** that installs on the iPhone home screen, works offline and keeps everything in the browser on your device
 
 ---
@@ -54,17 +56,29 @@ The iPhone app, the Android app and the web version have the same features. Wher
 
 Everything else works the same everywhere: barcode scanner (camera or typed number), offline product data, label and meal photos, export and import (up to 100 MB), recipes, fasting plans, themes and layout, swiping between days.
 
+## Moving from OpenPlate
+
+OpenPlate is now called Tellerwerk. Tellerwerk is a new app (new app id, new web address), so your data moves with a backup file:
+
+1. In OpenPlate: Profile → *Export data*. Keep the file (and its password, if you encrypt backups).
+2. Install Tellerwerk (below), or open the web version at <https://tellerwerk-app.github.io/>.
+3. In Tellerwerk: Profile → *Import data* (or *Coming from OpenPlate?* on the first screen) and pick the file.
+4. Set up again what backups never contain: your AI key, Open Food Facts login, app lock and offline product data. Reminders need notifications allowed for Tellerwerk.
+5. Delete OpenPlate.
+
+The last OpenPlate version (on the releases page and in the SideStore source) and the web version at the old address `openplate-app.github.io` show these steps, with buttons to export and to turn off OpenPlate’s reminders, so you don’t get every reminder twice while both are installed.
+
 ## Install on your phone
 
-New versions of the apps are published under **[Releases](https://github.com/uivox/OpenPlate/releases/latest)**; the web version updates itself.
+New versions of the apps are published under **[Releases](https://github.com/uivox/Tellerwerk/releases/latest)**; the web version updates itself.
 
 ### iPhone or any phone, in the browser (no install tools needed)
 
 The web version runs in Safari and can be added to the home screen, where it opens full-screen like an app and works offline.
 
-1. On the iPhone, open **<https://openplate-app.github.io/>** in **Safari**.
+1. On the iPhone, open **<https://tellerwerk-app.github.io/>** in **Safari**.
 2. Tap the **Share** button → **Add to Home Screen** → **Add**.
-3. Open OpenPlate from the home screen icon.
+3. Open Tellerwerk from the home screen icon.
 
 Your data is stored only in that home-screen app on this phone (IndexedDB). It does not sync and is separate from Safari tabs and from the SideStore app. Use *Profile → Export data* now and then as a backup; *Import data* restores an export, including one from the native app.
 
@@ -72,7 +86,7 @@ The web version has the same features as the apps, apart from the few things bro
 
 ### Android
 
-1. On the phone (Android 8 or newer), open the latest release and download **OpenPlate.apk**.
+1. On the phone (Android 8 or newer), open the latest release and download **Tellerwerk.apk**.
 2. Open it and allow *Install unknown apps* for your browser when asked.
 3. Updates: download the newer APK and install it over the old one. Your data stays.
 
@@ -89,14 +103,14 @@ Apple only lets apps signed with a free Apple ID run for 7 days. **SideStore** r
 5. On the iPhone: *Settings → General → VPN & Device Management* → trust your Apple ID. Then *Settings → Privacy & Security → Developer Mode* → on (the phone restarts).
 6. Open SideStore and sign in with the same Apple ID.
 
-**Add OpenPlate**
+**Add Tellerwerk**
 
 1. In SideStore → *Sources* → **+**, add:
-   `https://github.com/uivox/OpenPlate/releases/latest/download/source.json`
-2. Tap **Get** next to OpenPlate.
+   `https://github.com/uivox/Tellerwerk/releases/latest/download/source.json`
+2. Tap **Get** next to Tellerwerk.
 3. New versions show up in SideStore with an **Update** button. Your data stays.
 
-Keep LocalDevVPN installed; SideStore uses it to renew apps in the background. If OpenPlate ever stops opening, open SideStore and tap *Refresh All*.
+Keep LocalDevVPN installed; SideStore uses it to renew apps in the background. If Tellerwerk ever stops opening, open SideStore and tap *Refresh All*.
 Limits set by Apple for free Apple IDs: 3 sideloaded apps at once (SideStore counts as one) and 10 installs per week.
 
 ## Set up the AI photo feature
@@ -131,7 +145,7 @@ API keys are stored in the phone's secure storage (expo-secure-store: iOS Keycha
 
 ## Safety
 
-OpenPlate counts calories, which can do harm to people who are still growing or who struggle with eating. So:
+Tellerwerk counts calories, which can do harm to people who are still growing or who struggle with eating. So:
 
 - Weight-loss goals and fasting plans are for adults (18+). Under 18 the goal is what keeps your weight.
 - No weight loss is planned at a BMI of 18.5 or below, and targets below a BMI of 18.5 can't be set.
@@ -142,13 +156,13 @@ OpenPlate counts calories, which can do harm to people who are still growing or 
 
 ## Privacy and security
 
-- **No OpenPlate accounts, no OpenPlate server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them. The same goes for the optional AI answer log (with its meal and label photos), which is kept apart from backups.
+- **No Tellerwerk accounts, no Tellerwerk server, no analytics.** Diary, weights, recipes and settings are stored only on your device (app storage; IndexedDB in the browser) and only leave it when you export them. The same goes for the optional AI answer log (with its meal and label photos), which is kept apart from backups.
 - **See it for yourself:** Profile → *Your data* lists what is stored and every server below, with the last connection to each. The connection log keeps the last 7 days of connections (time, server, purpose, whether a photo went along, whether it worked; never search words, barcodes or contents). It stays on your device, is never part of a backup and can be switched off, which deletes it.
-- **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. When you send a food to Open Food Facts, its values (and the photo you chose) go there with your Open Food Facts login and are published under your name there. When you download the offline product data, GitHub (which hosts it, and the web version) sees that request; searches in that data and barcodes found in it stay on your device. These services and GitHub see your IP address. Nothing is sent to the OpenPlate project.
+- **What goes over the network:** food searches and barcodes go to Open Food Facts (and its Robotoff service); product pictures are loaded from Open Food Facts' image servers when shown; meal and label photos go only to the AI provider you set up, with your own key. When you send a food to Open Food Facts, its values (and the photo you chose) go there with your Open Food Facts login and are published under your name there. When you download the offline product data, GitHub (which hosts it, and the web version) sees that request; searches in that data and barcodes found in it stay on your device. These services and GitHub see your IP address. Nothing is sent to the Tellerwerk project.
 - **Web version:** served from a site of its own, so no other website shares its storage. A Content Security Policy only lets the app's own code run there, and no referrer is sent to other servers. API keys and the Open Food Facts login are stored in that site's browser storage on your device.
 - **Backups are the only copy outside your device.** Deleting the app (or, for the web version, its home-screen icon) deletes the data, so the diary reminds you to save a copy now and then. On the iPhone, the home-screen web app has its own storage, separate from Safari.
 - **App lock** (off by default): asks for Face ID, a fingerprint or the device PIN when the app opens and after the time you choose in the background (immediately, 1, 5 or 15 minutes). While it's on, the app switcher shows a cover instead of your diary and meal reminders leave out calories (unless you choose to see them). In the browser it uses a passkey on your device; nothing goes to a server. The lock keeps out someone holding your unlocked phone; the data on the device is protected by the device's own encryption.
-- **Encrypted backups** (off by default, suggested when you turn on the lock): each backup asks for a password, which is never saved. The file is encrypted on your device (scrypt and XChaCha20-Poly1305, from the audited [@noble](https://paulmillr.com/noble/) libraries); without the password nobody can open it, including OpenPlate. Older backups without a password still import.
+- **Encrypted backups** (off by default, suggested when you turn on the lock): each backup asks for a password, which is never saved. The file is encrypted on your device (scrypt and XChaCha20-Poly1305, from the audited [@noble](https://paulmillr.com/noble/) libraries); without the password nobody can open it, including Tellerwerk. Older backups without a password still import.
 - **CSV export:** text that a spreadsheet would run as a formula (starting with `=`, `+`, `-` or `@`, e.g. a product name from Open Food Facts) gets a leading `'`, so opening the file can't run anything.
 - **The project itself:** `main` only changes through pull requests that pass the checks; GitHub scans the code (CodeQL), secrets and dependencies (Dependabot). Any dependency alerts still open are in build tools that never reach your device and have no fixed version yet.
 - Found a security problem? Please report it privately, see [SECURITY.md](.github/SECURITY.md).
@@ -172,4 +186,4 @@ Recipes, fixes and ideas are welcome. Setting up the code, the project layout an
 - Built-in basic foods: approximate averages compiled from public references such as USDA FoodData Central.
 - Bundeslebensmittelschlüssel (BLS) 4.0: Max Rubner-Institut, Karlsruhe, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), <https://doi.org/10.25826/Data20251217-134202-0>. Bundled with the app (energy, macros, fibre, sugar, saturated fat, salt), from the download at <https://blsdb.de>.
 
-OpenPlate is an independent project and is not affiliated with any commercial nutrition app. It is not medical advice.
+Tellerwerk is an independent project and is not affiliated with any commercial nutrition app. It is not medical advice.

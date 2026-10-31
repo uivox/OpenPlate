@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { getRandomBytes } from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
@@ -10,6 +11,7 @@ import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
 import { Linking, Platform, Share } from 'react-native';
 import * as HealthConnect from 'react-native-health-connect';
+import { isOldApp } from './appIdentity';
 import { DEFAULT_ICON, iconFromNative, nativeIconName, type AppIcon, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
@@ -112,6 +114,23 @@ export function randomBytes(n: number): Uint8Array {
 /** Scheduled notifications arrive even when the app is closed (not so in the browser, see device.web.ts). */
 export const notifiesWhenClosed = true;
 
+/**
+ * Whether this is the last OpenPlate build (the old app id), which only helps people move to
+ * Tellerwerk. The app id comes from the app config built into the app.
+ */
+export const oldAppCopy: boolean = isOldApp({
+  appId: Platform.OS === 'ios' ? Constants.expoConfig?.ios?.bundleIdentifier : Constants.expoConfig?.android?.package,
+});
+
+/** Cancels every notification this app has scheduled (meal reminders, fasting notices, a fast's end). */
+export async function cancelAllNotifications(): Promise<void> {
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch {
+    // nothing scheduled, or notifications unavailable: nothing to cancel
+  }
+}
+
 let handlerSet = false;
 export function setupNotifications() {
   if (handlerSet) return;
@@ -155,7 +174,7 @@ export async function cancelNotification(id?: string) {
 const REMINDER_CATEGORY = 'meal-reminder';
 const LOG_NOW_ACTION = 'log-now';
 
-/** Whether reminders can be shown: the phone's notification permission for OpenPlate. */
+/** Whether reminders can be shown: the phone's notification permission for Tellerwerk. */
 export async function notificationAccess(): Promise<NotificationAccess> {
   try {
     const perm = await Notifications.getPermissionsAsync();
@@ -178,7 +197,7 @@ export async function askNotifications(): Promise<boolean> {
   }
 }
 
-/** OpenPlate's page in the phone's settings, where notifications can be allowed again. */
+/** Tellerwerk's page in the phone's settings, where notifications can be allowed again. */
 export async function openNotificationSettings(): Promise<void> {
   try {
     await Linking.openSettings();
@@ -191,7 +210,7 @@ let categoryTitle = '';
 
 /**
  * Makes the phone's pending reminders match `wanted`: changed ones are replaced, ones no longer
- * wanted cancelled, unchanged ones left alone. Never asks for permission; without it, OpenPlate's
+ * wanted cancelled, unchanged ones left alone. Never asks for permission; without it, Tellerwerk's
  * pending reminders are removed and come back on the next sync once notifications are allowed.
  */
 export async function syncReminders(wanted: ReminderNotice[], logNowTitle: string): Promise<void> {

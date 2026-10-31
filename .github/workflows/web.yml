@@ -2,13 +2,17 @@ name: Web app
 
 # Builds the browser version (installable on the home screen) and publishes it to its own origin:
 # the GitHub Pages site of a separate repository, set in the repository variable WEB_SITE_REPO
-# (for example openplate-app/openplate-app.github.io → https://openplate-app.github.io/).
+# (for example tellerwerk-app/tellerwerk-app.github.io → https://tellerwerk-app.github.io/).
 #
 # Why a separate site: every Pages site of one account or organisation shares one origin, and so
 # one browser storage. Any other Pages site there could read the diary and the AI keys. The site
 # repository's owner must never host another Pages site.
 #
 # One-time setup: see "Web version hosting" in docs/CONTRIBUTING.md (site repository, deploy key, environment).
+#
+# Move from OpenPlate: the same build is also published to OpenPlate's old address (WEB_OLD_SITE_REPO,
+# key WEB_OLD_DEPLOY_KEY), where the app sees its old host name and shows only the move notice, so
+# people can still export the data their browser keeps there. Remove that step after the move period.
 on:
   push:
     branches: [main]
@@ -65,6 +69,32 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           cd dist
+          git init -q -b main
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Web app from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          # One commit per deploy (force push), so the site repository doesn't grow with every release.
+          git push -q --force "git@github.com:${SITE_REPO}.git" main
+          rm -f ~/.ssh/site_key
+          echo "Published ${GITHUB_SHA::7} to ${SITE_REPO}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish to OpenPlate's old address (move notice)
+        env:
+          DEPLOY_KEY: ${{ secrets.WEB_OLD_DEPLOY_KEY }}
+          SITE_REPO: ${{ vars.WEB_OLD_SITE_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SITE_REPO" ] || [ -z "$DEPLOY_KEY" ]; then
+            echo "::notice title=Old address not updated::Set WEB_OLD_SITE_REPO and WEB_OLD_DEPLOY_KEY to publish the move notice there."
+            exit 0
+          fi
+          # GitHub's SSH host keys from its API (over https), so the push can't go to a fake host.
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          curl -fsS https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/site_key && chmod 600 ~/.ssh/site_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/site_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          cd dist
+          rm -rf .git
           git init -q -b main
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             add -A
