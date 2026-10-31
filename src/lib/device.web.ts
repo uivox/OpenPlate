@@ -1,5 +1,6 @@
 /* Browser versions of the device helpers in device.ts. */
 
+import { isOldApp } from './appIdentity';
 import { DEFAULT_ICON, type AppIcon, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { reminderDiff, reminderTarget, type NotificationAccess, type ReminderNotice, type ScheduledReminder } from './reminders';
@@ -115,6 +116,18 @@ export function randomBytes(n: number): Uint8Array {
 /** Same export as device.ts: in the browser a notification only comes while the app is open. */
 export const notifiesWhenClosed = false;
 
+/**
+ * Whether this is the web app at OpenPlate's old address, which only helps people move to
+ * Tellerwerk's new address (browser data can't follow the address).
+ */
+export const oldAppCopy: boolean = typeof location !== 'undefined' && isOldApp({ host: location.hostname });
+
+/**
+ * Cancels every notification this app has scheduled. In the browser, reminders are timers that
+ * the reminder sync clears once reminders are off, so there is nothing else to cancel here.
+ */
+export async function cancelAllNotifications(): Promise<void> {}
+
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const MAX_DELAY = 2 ** 31 - 1;
 
@@ -169,7 +182,7 @@ export async function cancelNotification(id?: string) {
 /*
  * The same reminders as on the phone, held as timers while the web app is open (browsers have no
  * scheduled notifications). Shown through the service worker; a tap focuses the app and opens the
- * add screen, or opens it in a new window when OpenPlate was closed meanwhile.
+ * add screen, or opens it in a new window when Tellerwerk was closed meanwhile.
  */
 
 function isIPhoneBrowser(): boolean {
@@ -364,8 +377,8 @@ export async function enableLock(prompt: string): Promise<{ ok: boolean; credent
   try {
     const cred = (await navigator.credentials.create({
       publicKey: {
-        rp: { name: 'OpenPlate', id: location.hostname },
-        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: prompt, displayName: 'OpenPlate' },
+        rp: { name: 'Tellerwerk', id: location.hostname },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: prompt, displayName: 'Tellerwerk' },
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         pubKeyCredParams: [
           { type: 'public-key', alg: -7 },

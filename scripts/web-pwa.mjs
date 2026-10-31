@@ -1,7 +1,7 @@
 // Turns the `expo export --platform web` output into an installable web app (PWA):
 // iPhone home-screen tags, web manifest, an offline service worker, a 404.html for deep links and a
 // Content Security Policy (meta tag; GitHub Pages can't set headers).
-// Usage: node scripts/web-pwa.mjs <dist dir> [base path]   (base path defaults to $WEB_BASE_URL, e.g. /OpenPlate)
+// Usage: node scripts/web-pwa.mjs <dist dir> [base path]   (base path defaults to $WEB_BASE_URL, e.g. /Tellerwerk)
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -43,8 +43,8 @@ if (!existsSync(join(dist, 'index.html'))) {
 if (existsSync('public')) cpSync('public', dist, { recursive: true });
 
 const manifest = {
-  name: 'OpenPlate',
-  short_name: 'OpenPlate',
+  name: 'Tellerwerk',
+  short_name: 'Tellerwerk',
   description: 'Free, open-source calorie tracker. All data stays on your device.',
   id: root,
   start_url: root,
@@ -100,7 +100,7 @@ const security = `
 const head = `
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="OpenPlate" />
+    <meta name="apple-mobile-web-app-title" content="Tellerwerk" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="${LIGHT}" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="${DARK}" media="(prefers-color-scheme: dark)" />
@@ -134,7 +134,7 @@ const head = `
 
 // The start screen itself, first thing in <body>. The same bowl as src/components/Sprout.tsx and the app icon.
 const splash = `
-    <div id="op-splash" role="status" aria-live="polite" aria-label="OpenPlate is starting">
+    <div id="op-splash" role="status" aria-live="polite" aria-label="Tellerwerk is starting">
       <svg width="112" height="112" viewBox="0 0 120 120" aria-hidden="true">
         <g transform="translate(8.4 8) scale(0.86)">
           <g class="op-sprout">
@@ -151,7 +151,7 @@ const splash = `
           </g>
         </g>
       </svg>
-      <div class="op-name">OpenPlate</div>
+      <div class="op-name">Tellerwerk</div>
       <div class="op-bar"><span></span></div>
     </div>`;
 
@@ -160,7 +160,7 @@ let html = readFileSync(join(dist, 'index.html'), 'utf8');
 const viewport = '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />';
 html = /<meta\s+name="viewport"[^>]*>/i.test(html) ? html.replace(/<meta\s+name="viewport"[^>]*>/i, viewport) : html.replace('</head>', `${viewport}\n</head>`);
 html = html.replace(/<html([^>]*)\slang="[^"]*"/i, '<html$1').replace(/<html/i, '<html lang="en"');
-html = html.replace(/<title>[^<]*<\/title>/i, '<title>OpenPlate</title>');
+html = html.replace(/<title>[^<]*<\/title>/i, '<title>Tellerwerk</title>');
 if (!html.includes('rel="manifest"')) html = html.replace('</head>', `${head}</head>`);
 if (!html.includes('id="op-splash"')) html = html.replace(/<body([^>]*)>/i, (b) => `${b}${splash}`);
 

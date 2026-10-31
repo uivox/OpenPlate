@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           # About 1 GB compressed; streamed, never stored unpacked.
-          curl -fsSL --retry 3 --retry-delay 30 -A "OpenPlate offline pack builder (https://github.com/${GITHUB_REPOSITORY})" \
+          curl -fsSL --retry 3 --retry-delay 30 -A "Tellerwerk offline pack builder (https://github.com/${GITHUB_REPOSITORY})" \
             https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz \
             | gzip -dc | node scripts/build-offline-pack.mjs out
       - name: Publish to the offline-pack branch

@@ -26,6 +26,7 @@ import { usualMeal } from '../src/lib/usualMeal';
 import { applySuggestion, checkIn, DEFAULT_GOAL_CHECK, dueCheckIn, normalizeGoalCheck, undoPatch, weightSlope, type Calculation } from '../src/lib/adaptiveGoal';
 import { addRecord, bodyHasPhoto, normalizeLog, noteRemoteImage, pruneLog, purposeFor, recordingFetch as connRecordingFetch, SERVERS, setConnectionSink, type ConnectionRecord } from '../src/lib/connectionLog';
 import { decryptBackup, encryptBackup, fromBase64, isEncryptedBackup, passwordProblem, toBase64, utf8Decode, utf8Encode } from '../src/lib/backupCrypto';
+import { APP_ID, APP_NAME, BACKUP_FORMAT_ID, isOldApp, OLD_APP_ID, OLD_WEB_HOST } from '../src/lib/appIdentity';
 import { buildCsvTables, csvCell, presetRange, rowCounts, tableToCsv, zipTables } from '../src/lib/csvExport';
 import { DEFAULT_SECURITY, hideNotificationNumbers, lockDue, normalizeSecurity } from '../src/lib/security';
 import { backupDue, BACKUP_INTERVAL_DAYS, BACKUP_SNOOZE_DAYS, daysSinceBackup, FIRST_BACKUP_AFTER_DAYS, snoozeEnd } from '../src/lib/backupReminder';
@@ -792,7 +793,7 @@ test('community recipes are valid and plausible', async () => {
       assert.ok(kcal > 80 && kcal < 1200, `${c.id}: ${Math.round(kcal)} kcal per serving`);
     }
   }
-  const broken = { ...COMMUNITY_RECIPES[0], id: 'Bad Id', ingredients: [{ ref: 'generic:nope', grams: 0 }], testedBy: ['OpenPlate'] };
+  const broken = { ...COMMUNITY_RECIPES[0], id: 'Bad Id', ingredients: [{ ref: 'generic:nope', grams: 0 }], testedBy: ['Tellerwerk'] };
   const errs = validateCommunity([broken]).join('\n');
   assert.match(errs, /lowercase/);
   assert.match(errs, /unknown ingredient generic:nope/);
@@ -2104,7 +2105,7 @@ test('ai log: the export joins photos and what the diary says now', () => {
   assert.deepEqual(out.records[1].photos, ['AAAA']);
   assert.equal(out.records[1].diaryNow?.[0].grams, 350);
   assert.equal('diaryNow' in out.records[0], false);
-  assert.equal(aiLogFileName('2026-10-18'), 'openplate-ai-log-2026-10-18.json');
+  assert.equal(aiLogFileName('2026-10-18'), 'tellerwerk-ai-log-2026-10-18.json');
 });
 
 test('ai log: stored records are read back only when they look right; ids are safe file names', () => {
@@ -2859,7 +2860,7 @@ test('open food facts: only what differs is sent; name and brand are only filled
   assert.equal(get('nutrition_data_per'), '100g');
   assert.equal(get('product_name_de'), undefined);
   assert.equal(get('lc'), undefined);
-  assert.equal(get('app_name'), 'OpenPlate');
+  assert.equal(get('app_name'), 'Tellerwerk');
   assert.match(get('comment')!, /fat, sugar, salt/);
   // drinks are per 100 ml; kcal goes with its unit
   const juice = writeFields('new', { ...skyr, unit: 'ml', barcode: undefined }, [{ field: 'kcal', to: 45 }, { field: 'name', to: 'Saft' }], 'en', '1');
@@ -3024,7 +3025,7 @@ test('connection log: purposes, photos, 7 days, no contents', async () => {
   await f('https://search.openfoodfacts.org/search?q=secret');
   await f('https://robotoff.openfoodfacts.org/fail').catch(() => {});
   await f('/local/file');
-  await connRecordingFetch((async () => new Response('')) as unknown as typeof fetch, () => 1, 'https://openplate-app.github.io')('https://openplate-app.github.io/_expo/x.js');
+  await connRecordingFetch((async () => new Response('')) as unknown as typeof fetch, () => 1, 'https://tellerwerk-app.github.io')('https://tellerwerk-app.github.io/_expo/x.js');
   noteRemoteImage('https://images.openfoodfacts.org/a.jpg', 5000);
   noteRemoteImage('https://images.openfoodfacts.org/a.jpg', 6000); // the same picture again: noted once
   setConnectionSink(null);
@@ -3277,3 +3278,103 @@ test('adaptive goal: data rules, trend, energy use, safety rules, apply and undo
 function buildBackupBase() {
   return { profile: null, language: 'en', entries: [], customFoods: [], recentFoods: [], water: {}, weights: [], fastingActive: null, fastingHistory: [], ai: DEFAULT_AI_SETTINGS, meals: [], recipes: [] };
 }
+
+/* ---------- The move from OpenPlate ---------- */
+
+test('rename: the old copy is recognised by its app id or web host, nothing else', () => {
+  assert.equal(APP_NAME, 'Tellerwerk');
+  assert.notEqual(APP_ID, OLD_APP_ID);
+  assert.equal(isOldApp({ appId: OLD_APP_ID }), true);
+  assert.equal(isOldApp({ host: OLD_WEB_HOST }), true);
+  assert.equal(isOldApp({ appId: APP_ID }), false);
+  assert.equal(isOldApp({ host: 'tellerwerk-app.github.io' }), false);
+  assert.equal(isOldApp({ host: 'localhost' }), false);
+  assert.equal(isOldApp({}), false);
+  // app.json is Tellerwerk; app.config.js turns it into the old copy only with APP_VARIANT=openplate
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const app = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo;
+  assert.equal(app.name, APP_NAME);
+  assert.equal(app.ios.bundleIdentifier, APP_ID);
+  assert.equal(app.android.package, APP_ID);
+  const configFn = require(path.join(root, 'app.config.js')) as (a: { config: any }) => any;
+  const before = process.env.APP_VARIANT;
+  try {
+    delete process.env.APP_VARIANT;
+    assert.equal(configFn({ config: app }).android.package, APP_ID);
+    process.env.APP_VARIANT = 'openplate';
+    const old = configFn({ config: app });
+    assert.equal(old.name, 'OpenPlate');
+    assert.equal(old.ios.bundleIdentifier, OLD_APP_ID);
+    assert.equal(old.android.package, OLD_APP_ID);
+    assert.ok(!JSON.stringify(old.ios.infoPlist).includes('Tellerwerk'), 'permission texts of the old copy still say Tellerwerk');
+    assert.ok(!JSON.stringify(old.plugins).includes('Tellerwerk'), 'plugin permission texts of the old copy still say Tellerwerk');
+  } finally {
+    if (before === undefined) delete process.env.APP_VARIANT;
+    else process.env.APP_VARIANT = before;
+  }
+});
+
+test('rename: backups keep the format id OpenPlate, both ways', async () => {
+  assert.equal(BACKUP_FORMAT_ID, 'OpenPlate');
+  // a backup made by Tellerwerk still says 'OpenPlate', so an older OpenPlate opens it
+  assert.equal(buildBackup(buildBackupBase() as never).app, 'OpenPlate');
+  // a backup made by OpenPlate imports into Tellerwerk
+  const fromOpenPlate = JSON.stringify({ app: 'OpenPlate', exportedAt: '2026-10-30T10:00:00.000Z', ...buildBackupBase(), weights: [{ date: '2026-10-30', kg: 71.5 }] });
+  assert.deepEqual(parseBackup(fromOpenPlate).weights, [{ date: '2026-10-30', kg: 71.5 }]);
+  // and an encrypted one too
+  const nodeCrypto = require('node:crypto') as typeof import('node:crypto');
+  const random = (n: number) => new Uint8Array(nodeCrypto.randomBytes(n));
+  const file = await encryptBackup(fromOpenPlate, 'correct horse', random, { name: 'scrypt', N: 2 ** 14, r: 8, p: 1 });
+  assert.equal(JSON.parse(file).app, 'OpenPlate');
+  assert.equal(await decryptBackup(file, 'correct horse'), fromOpenPlate);
+  // a file that names the new app as its format isn't a backup of either app
+  assert.throws(() => parseBackup(JSON.stringify({ ...JSON.parse(fromOpenPlate), app: 'Tellerwerk' })), /INVALID_BACKUP/);
+});
+
+test('rename: “OpenPlate” only appears where the move needs it', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  // Files that talk about the move, keep the historic format id, or build the old copy.
+  const allowed = new Set([
+    'README.md',
+    'CLAUDE.md',
+    'docs/CONTRIBUTING.md',
+    'app.config.js',
+    '.github/workflows/build.yml',
+    '.github/workflows/web.yml',
+    'scripts/make-source.mjs',
+    'scripts/ai-log-unpack.mjs',
+    'scripts/web-smoke.mjs',
+    'src/lib/appIdentity.ts',
+    'src/lib/backup.ts',
+    'src/lib/backupCrypto.ts',
+    'src/lib/device.ts',
+    'src/lib/device.web.ts',
+    'src/components/MoveNotice.tsx',
+    'tests/logic.test.ts',
+  ]);
+  const skip = new Set(['node_modules', '.git', '.test-build', 'dist', 'android', 'ios', 'smoke-shots', 'eval', '.expo']);
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+      const rel = dir ? `${dir}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (!skip.has(e.name)) walk(rel);
+      } else if (/\.(ts|tsx|js|mjs|json|md|yml|yaml)$/.test(e.name) && e.name !== 'package-lock.json') {
+        if (allowed.has(rel)) continue;
+        const lines = fs.readFileSync(path.join(root, rel), 'utf8').split('\n');
+        lines.forEach((line, i) => {
+          if (!line.includes('OpenPlate')) return;
+          // texts: only the move notice and the import texts that name both apps
+          if (rel === 'src/lib/i18n.ts' && /^\s+(move_\w+|import_\w+):/.test(line)) return;
+          found.push(`${rel}:${i + 1}`);
+        });
+      }
+    }
+  };
+  walk('');
+  assert.deepEqual(found, [], `“OpenPlate” is shown or linked here; use Tellerwerk (or add the file to the allow list if it is about the move): ${found.join(', ')}`);
+});

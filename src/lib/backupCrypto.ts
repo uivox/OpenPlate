@@ -5,11 +5,13 @@
  * Native imports; random bytes come from the caller (expo-crypto in the app, node:crypto in tests).
  *
  * File format (JSON, so it still opens as a text file and imports through the same picker):
- *   { app: 'OpenPlate', encrypted: 1, kdf: { name: 'scrypt', N, r, p }, cipher: 'xchacha20poly1305',
+ *   { app: 'OpenPlate' (BACKUP_FORMAT_ID, never changes), encrypted: 1, kdf: { name: 'scrypt', N, r, p }, cipher: 'xchacha20poly1305',
  *     salt, nonce, data }   (bytes as base64)
  * The header (everything but `data`) is bound to the ciphertext as associated data, so changing
  * the key settings in the file makes decryption fail instead of weakening it.
  */
+import { BACKUP_FORMAT_ID } from './appIdentity';
+
 // The @noble code is only loaded when a backup is encrypted or opened, so it doesn't slow down app start.
 const noble = async () => {
   const [{ xchacha20poly1305 }, { scryptAsync }] = await Promise.all([import('@noble/ciphers/chacha.js'), import('@noble/hashes/scrypt.js')]);
@@ -108,7 +110,7 @@ export function fromBase64(s: string): Uint8Array {
 /* ---------- Encrypting ---------- */
 
 interface Header {
-  app: 'OpenPlate';
+  app: typeof BACKUP_FORMAT_ID;
   encrypted: 1;
   kdf: KdfParams;
   cipher: 'xchacha20poly1305';
@@ -142,7 +144,7 @@ export async function encryptBackup(
 ): Promise<string> {
   const salt = random(16);
   const nonce = random(24);
-  const header: Header = { app: 'OpenPlate', encrypted: 1, kdf, cipher: 'xchacha20poly1305', salt: toBase64(salt), nonce: toBase64(nonce) };
+  const header: Header = { app: BACKUP_FORMAT_ID, encrypted: 1, kdf, cipher: 'xchacha20poly1305', salt: toBase64(salt), nonce: toBase64(nonce) };
   const key = await deriveKey(password, salt, kdf, onProgress);
   const { xchacha20poly1305 } = await noble();
   try {
@@ -159,7 +161,7 @@ export function isEncryptedBackup(text: string): boolean {
   if (!t.startsWith('{') || !t.includes('"encrypted"')) return false;
   try {
     const o = JSON.parse(t) as Record<string, unknown>;
-    return o.app === 'OpenPlate' && o.encrypted === 1;
+    return o.app === BACKUP_FORMAT_ID && o.encrypted === 1;
   } catch {
     return false;
   }
@@ -167,7 +169,7 @@ export function isEncryptedBackup(text: string): boolean {
 
 /**
  * The backup JSON inside an encrypted file. Throws 'WRONG_PASSWORD' when the password (or the
- * file) doesn't match, 'INVALID_BACKUP' when it isn't an encrypted OpenPlate backup.
+ * file) doesn't match, 'INVALID_BACKUP' when it isn't an encrypted Tellerwerk backup.
  */
 export async function decryptBackup(text: string, password: string, onProgress?: (p: number) => void): Promise<string> {
   let o: Record<string, unknown>;
@@ -178,7 +180,7 @@ export async function decryptBackup(text: string, password: string, onProgress?:
   }
   const k = o.kdf as Record<string, unknown> | undefined;
   if (
-    o.app !== 'OpenPlate' ||
+    o.app !== BACKUP_FORMAT_ID ||
     o.encrypted !== 1 ||
     o.cipher !== 'xchacha20poly1305' ||
     !k ||
@@ -195,7 +197,7 @@ export async function decryptBackup(text: string, password: string, onProgress?:
   )
     throw new Error('INVALID_BACKUP');
   const kdf: KdfParams = { name: 'scrypt', N: k.N, r: 8, p: 1 };
-  const header: Header = { app: 'OpenPlate', encrypted: 1, kdf, cipher: 'xchacha20poly1305', salt: o.salt, nonce: o.nonce };
+  const header: Header = { app: BACKUP_FORMAT_ID, encrypted: 1, kdf, cipher: 'xchacha20poly1305', salt: o.salt, nonce: o.nonce };
   const salt = fromBase64(o.salt);
   const nonce = fromBase64(o.nonce);
   if (salt.length < 16 || nonce.length !== 24) throw new Error('INVALID_BACKUP');

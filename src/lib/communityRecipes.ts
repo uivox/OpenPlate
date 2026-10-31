@@ -27,7 +27,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Haferflocken und Joghurt in einem Glas verrühren.', 'Über Nacht (mindestens 4 Stunden) in den Kühlschrank stellen.', 'Mit Heidelbeeren, gehackten Mandeln und Honig toppen.'],
       en: ['Stir the oats and yoghurt together in a jar.', 'Refrigerate overnight (at least 4 hours).', 'Top with blueberries, chopped almonds and honey.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -47,7 +47,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Skyr glatt rühren und in eine Schüssel geben.', 'Himbeeren, Müsli und grob gehackte Walnüsse darauf verteilen.', 'Mit Honig beträufeln.'],
       en: ['Stir the skyr smooth and spoon it into a bowl.', 'Top with raspberries, muesli and roughly chopped walnuts.', 'Drizzle with honey.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -66,7 +66,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Eier verquirlen und leicht salzen.', 'Butter in einer Pfanne bei mittlerer Hitze schmelzen, Eier hineingeben und langsam stocken lassen, dabei ab und zu rühren.', 'Auf dem Brot anrichten, Tomate in Scheiben dazu.'],
       en: ['Whisk the eggs with a pinch of salt.', 'Melt the butter in a pan over medium heat, add the eggs and let them set slowly, stirring now and then.', 'Serve on the bread with sliced tomato.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -87,7 +87,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Haferflocken, Eier, Quark und Banane fein pürieren.', 'Etwas Öl in einer beschichteten Pfanne erhitzen und kleine Pfannkuchen bei mittlerer Hitze von beiden Seiten goldbraun backen.', 'Mit den Heidelbeeren servieren.'],
       en: ['Blend the oats, eggs, quark and banana until smooth.', 'Heat a little oil in a non-stick pan and cook small pancakes on both sides over medium heat until golden.', 'Serve with the blueberries.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -107,7 +107,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Reis nach Packungsangabe kochen (die Menge oben ist gekochter Reis).', 'Hähnchen in Streifen schneiden, salzen und in Öl rundum etwa 6 Minuten braten, bis es durch ist.', 'Brokkoli und Paprika dazugeben und 4–5 Minuten mitbraten.', 'Mit dem Reis in einer Schüssel anrichten.'],
       en: ['Cook the rice as the packet says (the amount above is cooked rice).', 'Cut the chicken into strips, season and fry in the oil for about 6 minutes until cooked through.', 'Add the broccoli and pepper and fry for another 4–5 minutes.', 'Serve in a bowl with the rice.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -129,7 +129,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Zwiebel und Paprika würfeln und im Öl 5 Minuten anbraten.', 'Gehackte Tomaten (oder Dosentomaten) dazugeben, mit Salz, Kreuzkümmel, Paprikapulver und Chili würzen und 15 Minuten köcheln lassen.', 'Abgetropfte Kidneybohnen und Mais unterrühren und 5 Minuten heiß werden lassen.', 'Mit gekochtem Reis servieren.'],
       en: ['Dice the onion and pepper and fry in the oil for 5 minutes.', 'Add chopped (or canned) tomatoes, season with salt, cumin, paprika and chilli and simmer for 15 minutes.', 'Stir in the drained kidney beans and corn and heat through for 5 minutes.', 'Serve with cooked rice.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -150,7 +150,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Nudeln in Salzwasser kochen (die Menge oben ist gekocht, etwa 160 g trocken).', 'Zwiebel fein würfeln und im Öl glasig dünsten, gewürfelte Tomaten dazugeben und 8 Minuten einkochen.', 'Abgetropften Thunfisch unterheben, mit Salz und Pfeffer abschmecken.', 'Mit den Nudeln mischen und mit Parmesan bestreuen.'],
       en: ['Cook the pasta in salted water (the amount above is cooked, about 160 g dry).', 'Finely dice the onion and soften it in the oil, add the diced tomatoes and reduce for 8 minutes.', 'Fold in the drained tuna and season with salt and pepper.', 'Toss with the pasta and sprinkle with parmesan.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -172,7 +172,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Backofen auf 200 °C (Umluft 180 °C) vorheizen.', 'Süßkartoffel, Zucchini, Paprika und Zwiebel in Stücke schneiden, mit Kichererbsen, Öl, Salz und Kräutern mischen.', 'Auf einem Blech 25–30 Minuten rösten.', 'Feta darüberbröseln und weitere 5 Minuten backen.'],
       en: ['Heat the oven to 200 °C (180 °C fan).', 'Cut the sweet potato, courgette, pepper and onion into chunks and toss with the chickpeas, oil, salt and herbs.', 'Roast on a tray for 25–30 minutes.', 'Crumble the feta over and bake for another 5 minutes.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -191,7 +191,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Kartoffeln in Salzwasser etwa 20 Minuten gar kochen.', 'Bohnen in den letzten 8 Minuten mitgaren oder separat dämpfen.', 'Lachs salzen und auf der Hautseite 4 Minuten braten, wenden und 2–3 Minuten fertig garen.', 'Alles anrichten, Bohnen mit der Butter schwenken.'],
       en: ['Boil the potatoes in salted water for about 20 minutes.', 'Cook the beans for the last 8 minutes or steam them separately.', 'Season the salmon and fry skin side down for 4 minutes, turn and cook for 2–3 minutes more.', 'Plate up and toss the beans in the butter.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -212,7 +212,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Tofu trocken tupfen, würfeln und im Öl rundum knusprig braten.', 'Brokkoli, Karotte und Paprika klein schneiden und 5 Minuten mitbraten.', 'Mit Sojasoße, Knoblauch und etwas Ingwer abschmecken.', 'Mit dem gekochten Vollkornreis servieren.'],
       en: ['Pat the tofu dry, cube it and fry in the oil until crisp all over.', 'Chop the broccoli, carrot and pepper and stir-fry for 5 minutes.', 'Season with soy sauce, garlic and a little ginger.', 'Serve with the cooked brown rice.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -231,7 +231,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Kartoffeln mit Schale etwa 20 Minuten kochen.', 'Quark mit Öl, fein gewürfelter Gurke, Kräutern, Salz und Pfeffer glatt rühren.', 'Kartoffeln pellen und mit dem Kräuterquark servieren.'],
       en: ['Boil the potatoes in their skins for about 20 minutes.', 'Stir the quark with the oil, finely diced cucumber, herbs, salt and pepper until smooth.', 'Peel the potatoes and serve with the herb quark.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -248,7 +248,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Apfel in Spalten schneiden.', 'Mit Erdnussbutter zum Dippen servieren.'],
       en: ['Cut the apple into wedges.', 'Serve with the peanut butter for dipping.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
   {
@@ -267,7 +267,7 @@ export const COMMUNITY_RECIPES: CommunityRecipe[] = [
       de: ['Brot mit dem körnigen Frischkäse bestreichen.', 'Mit Gurken- und Tomatenscheiben belegen, salzen und pfeffern.'],
       en: ['Spread the bread with the cottage cheese.', 'Top with cucumber and tomato slices and season with salt and pepper.'],
     },
-    author: 'OpenPlate',
+    author: 'Tellerwerk',
     testedBy: [],
   },
 ];
