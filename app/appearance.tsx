@@ -5,7 +5,8 @@ import { Tap } from '../src/components/motion';
 import { PlateRing } from '../src/components/PlateRing';
 import { Button, Card, ChipGroup, Field, MacroBar, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
-import { APP_ICONS, type AppIconId } from '../src/lib/appIcon';
+import { SvgXml } from 'react-native-svg';
+import { ICON_COLOURS, ICON_FACES, iconSvg, type AppIcon } from '../src/lib/appIcon';
 import { appIconNote, canChangeAppIcon, getAppIcon, setAppIcon } from '../src/lib/device';
 import { useStore } from '../src/lib/store';
 import { useColors, useScheme } from '../src/lib/theme';
@@ -187,69 +188,85 @@ export default function AppearanceScreen() {
 }
 
 /**
- * Home-screen icon colour, separate from the in-app look. Browsers can't change an installed web
- * app's icon, so there the choice is shown greyed out with the reason (README → platform differences).
+ * Home-screen icon: Sprout's face and the colour, separate from the in-app look. Each row shows its
+ * choices with the other row's current pick. Browsers can't change an installed web app's icon, so
+ * there the choice is shown greyed out with the reason (README → platform differences).
  */
 function AppIconCard() {
   const { t } = useT();
-  const c = useColors();
-  const [icon, setIcon] = useState<AppIconId>(getAppIcon);
+  const [icon, setIcon] = useState<AppIcon>(getAppIcon);
   const [busy, setBusy] = useState(false);
 
-  const choose = async (id: AppIconId) => {
-    if (!canChangeAppIcon || busy || id === icon) return;
+  const choose = async (next: AppIcon) => {
+    if (!canChangeAppIcon || busy || (next.face === icon.face && next.colour === icon.colour)) return;
     setBusy(true);
-    const ok = await setAppIcon(id);
+    const ok = await setAppIcon(next);
     setBusy(false);
-    if (ok) setIcon(id);
+    if (ok) setIcon(next);
     else showAlert(t('app_icon_failed'));
   };
 
   return (
     <Card style={{ gap: 10 }}>
       <Txt v="h3">{t('app_icon')}</Txt>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, opacity: canChangeAppIcon ? 1 : 0.45 }}>
-        {APP_ICONS.map((ic) => {
-          const selected = canChangeAppIcon && icon === ic.id;
-          return (
-            <Tap
-              key={ic.id}
-              onPress={() => void choose(ic.id)}
-              disabled={!canChangeAppIcon || busy}
-              accessibilityRole="button"
-              accessibilityState={{ selected, disabled: !canChangeAppIcon }}
-              accessibilityLabel={t(`app_icon_${ic.id}`)}
-              scaleTo={0.92}
-              haptic
-              testID={`app-icon-${ic.id}`}
-              style={{ alignItems: 'center', gap: 4, width: 64 }}
-            >
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 14,
-                  backgroundColor: ic.bg,
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  paddingBottom: 10,
-                  borderWidth: 2,
-                  borderColor: selected ? c.accent : c.line,
-                }}
-              >
-                {/* the icon's plate: a bowl with a rim */}
-                <View style={{ width: 34, height: 5, borderRadius: 3, backgroundColor: ic.plate }} />
-                <View style={{ width: 30, height: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: ic.plate }} />
-              </View>
-              <Txt v="small" numberOfLines={1} color={selected ? c.text : c.sub}>
-                {t(`app_icon_${ic.id}`)}
-              </Txt>
-            </Tap>
-          );
-        })}
-      </View>
+      <Txt v="small">{t('app_icon_face')}</Txt>
+      <IconRow
+        items={ICON_FACES.map((face) => ({ key: `face-${face}`, icon: { face, colour: icon.colour }, label: t(`app_icon_face_${face}`) }))}
+        current={icon}
+        busy={busy}
+        onChoose={choose}
+      />
+      <Txt v="small">{t('app_icon_colour')}</Txt>
+      <IconRow
+        items={ICON_COLOURS.map((colour) => ({ key: `colour-${colour}`, icon: { face: icon.face, colour }, label: t(`app_icon_colour_${colour}`) }))}
+        current={icon}
+        busy={busy}
+        onChoose={choose}
+      />
       <Txt v="small">{t(appIconNote)}</Txt>
     </Card>
+  );
+}
+
+function IconRow({
+  items,
+  current,
+  busy,
+  onChoose,
+}: {
+  items: { key: string; icon: AppIcon; label: string }[];
+  current: AppIcon;
+  busy: boolean;
+  onChoose: (icon: AppIcon) => void;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, opacity: canChangeAppIcon ? 1 : 0.45 }}>
+      {items.map(({ key, icon, label }) => {
+        const selected = canChangeAppIcon && icon.face === current.face && icon.colour === current.colour;
+        return (
+          <Tap
+            key={key}
+            onPress={() => void onChoose(icon)}
+            disabled={!canChangeAppIcon || busy}
+            accessibilityRole="button"
+            accessibilityState={{ selected, disabled: !canChangeAppIcon }}
+            accessibilityLabel={label}
+            scaleTo={0.92}
+            haptic
+            testID={`app-icon-${key}`}
+            style={{ alignItems: 'center', gap: 4, width: 64 }}
+          >
+            <View style={{ padding: 2, borderRadius: 16, borderWidth: 2, borderColor: selected ? c.accent : 'transparent' }}>
+              <SvgXml xml={iconSvg(icon, 'rounded', 52)} width={52} height={52} />
+            </View>
+            <Txt v="small" numberOfLines={1} color={selected ? c.text : c.sub}>
+              {label}
+            </Txt>
+          </Tap>
+        );
+      })}
+    </View>
   );
 }
 
