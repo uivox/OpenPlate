@@ -25,7 +25,8 @@
       "package": "io.github.uivox.openplate",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#EEF2E5"
+        "monochromeImage": "./assets/adaptive-monochrome.png",
+        "backgroundColor": "#9C2F62"
       },
       "permissions": ["android.permission.health.READ_STEPS"],
       "versionCode": 1
@@ -67,42 +68,186 @@
         "expo-alternate-app-icons",
         [
           {
-            "name": "Ocean",
-            "ios": "./assets/app-icons/ocean.png",
+            "name": "BeetWink",
+            "ios": "./assets/app-icons/beet-wink.png",
             "android": {
-              "foregroundImage": "./assets/app-icons/ocean-foreground.png",
-              "backgroundColor": "#E8F2F4"
+              "foregroundImage": "./assets/app-icons/beet-wink-foreground.png",
+              "backgroundColor": "#9C2F62"
+            }
+          },
+          {
+            "name": "BeetBright",
+            "ios": "./assets/app-icons/beet-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/beet-bright-foreground.png",
+              "backgroundColor": "#9C2F62"
+            }
+          },
+          {
+            "name": "BeetHeart",
+            "ios": "./assets/app-icons/beet-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/beet-heart-foreground.png",
+              "backgroundColor": "#9C2F62"
+            }
+          },
+          {
+            "name": "Ocean",
+            "ios": "./assets/app-icons/ocean-happy.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/ocean-happy-foreground.png",
+              "backgroundColor": "#0E7C86"
+            }
+          },
+          {
+            "name": "OceanWink",
+            "ios": "./assets/app-icons/ocean-wink.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/ocean-wink-foreground.png",
+              "backgroundColor": "#0E7C86"
+            }
+          },
+          {
+            "name": "OceanBright",
+            "ios": "./assets/app-icons/ocean-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/ocean-bright-foreground.png",
+              "backgroundColor": "#0E7C86"
+            }
+          },
+          {
+            "name": "OceanHeart",
+            "ios": "./assets/app-icons/ocean-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/ocean-heart-foreground.png",
+              "backgroundColor": "#0E7C86"
             }
           },
           {
             "name": "Plum",
-            "ios": "./assets/app-icons/plum.png",
+            "ios": "./assets/app-icons/plum-happy.png",
             "android": {
-              "foregroundImage": "./assets/app-icons/plum-foreground.png",
-              "backgroundColor": "#F4EEF7"
+              "foregroundImage": "./assets/app-icons/plum-happy-foreground.png",
+              "backgroundColor": "#7B3FC4"
+            }
+          },
+          {
+            "name": "PlumWink",
+            "ios": "./assets/app-icons/plum-wink.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/plum-wink-foreground.png",
+              "backgroundColor": "#7B3FC4"
+            }
+          },
+          {
+            "name": "PlumBright",
+            "ios": "./assets/app-icons/plum-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/plum-bright-foreground.png",
+              "backgroundColor": "#7B3FC4"
+            }
+          },
+          {
+            "name": "PlumHeart",
+            "ios": "./assets/app-icons/plum-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/plum-heart-foreground.png",
+              "backgroundColor": "#7B3FC4"
             }
           },
           {
             "name": "Sunset",
-            "ios": "./assets/app-icons/sunset.png",
+            "ios": "./assets/app-icons/sunset-happy.png",
             "android": {
-              "foregroundImage": "./assets/app-icons/sunset-foreground.png",
-              "backgroundColor": "#FAF0E6"
+              "foregroundImage": "./assets/app-icons/sunset-happy-foreground.png",
+              "backgroundColor": "#C9481A"
+            }
+          },
+          {
+            "name": "SunsetWink",
+            "ios": "./assets/app-icons/sunset-wink.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/sunset-wink-foreground.png",
+              "backgroundColor": "#C9481A"
+            }
+          },
+          {
+            "name": "SunsetBright",
+            "ios": "./assets/app-icons/sunset-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/sunset-bright-foreground.png",
+              "backgroundColor": "#C9481A"
+            }
+          },
+          {
+            "name": "SunsetHeart",
+            "ios": "./assets/app-icons/sunset-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/sunset-heart-foreground.png",
+              "backgroundColor": "#C9481A"
             }
           },
           {
             "name": "Mono",
-            "ios": "./assets/app-icons/mono.png",
+            "ios": "./assets/app-icons/mono-happy.png",
             "android": {
-              "foregroundImage": "./assets/app-icons/mono-foreground.png",
-              "backgroundColor": "#F1F1EF"
+              "foregroundImage": "./assets/app-icons/mono-happy-foreground.png",
+              "backgroundColor": "#161616"
+            }
+          },
+          {
+            "name": "MonoWink",
+            "ios": "./assets/app-icons/mono-wink.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/mono-wink-foreground.png",
+              "backgroundColor": "#161616"
+            }
+          },
+          {
+            "name": "MonoBright",
+            "ios": "./assets/app-icons/mono-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/mono-bright-foreground.png",
+              "backgroundColor": "#161616"
+            }
+          },
+          {
+            "name": "MonoHeart",
+            "ios": "./assets/app-icons/mono-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/mono-heart-foreground.png",
+              "backgroundColor": "#161616"
             }
           },
           {
             "name": "Night",
-            "ios": "./assets/app-icons/night.png",
+            "ios": "./assets/app-icons/night-happy.png",
             "android": {
-              "foregroundImage": "./assets/app-icons/night-foreground.png",
+              "foregroundImage": "./assets/app-icons/night-happy-foreground.png",
+              "backgroundColor": "#1B1220"
+            }
+          },
+          {
+            "name": "NightWink",
+            "ios": "./assets/app-icons/night-wink.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/night-wink-foreground.png",
+              "backgroundColor": "#1B1220"
+            }
+          },
+          {
+            "name": "NightBright",
+            "ios": "./assets/app-icons/night-bright.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/night-bright-foreground.png",
+              "backgroundColor": "#1B1220"
+            }
+          },
+          {
+            "name": "NightHeart",
+            "ios": "./assets/app-icons/night-heart.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/night-heart-foreground.png",
               "backgroundColor": "#1B1220"
             }
           }

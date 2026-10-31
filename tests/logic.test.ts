@@ -159,7 +159,7 @@ import {
   type DownloadedPack,
 } from '../src/lib/offlinePack';
 import { createShardedStorage, memoryStore } from '../src/lib/persistStorage';
-import { APP_ICONS, iconIdFromNative, nativeIconName } from '../src/lib/appIcon';
+import { DEFAULT_ICON, ICON_COLOURS, ICON_FACES, alternateIcons, iconFromNative, iconGround, iconSvg, nativeIconName, type IconArt } from '../src/lib/appIcon';
 import { dragOffset, isSideways, swipeResult } from '../src/lib/daySwipe';
 import { buildBars, daysBetween, fastingByDay, foodByDay, formatDateInput, macroKcal, macroPercents, normalizeInsights, parseDateInput, periods, rangeBounds, summarize, weekStart } from '../src/lib/insights';
 import { migrateState, OLD_LOCAL_DEFAULT_URL } from '../src/lib/migrations';
@@ -2185,28 +2185,50 @@ test('own foods: editing and deleting reach saved meals, never the diary', () =>
   assert.equal(after[1], other);
 });
 
-test('app icon: colours, native names and the plugin config agree', () => {
-  assert.equal(nativeIconName('default'), null);
-  assert.equal(nativeIconName('ocean'), 'Ocean');
-  assert.equal(iconIdFromNative('Night'), 'night');
-  assert.equal(iconIdFromNative(null), 'default');
-  assert.equal(iconIdFromNative('Gone'), 'default');
+test('app icon: faces, colours, native names, art and the plugin config agree', () => {
+  assert.equal(nativeIconName(DEFAULT_ICON), null);
+  // happy keeps the plain colour names of the earlier colour-only icons, so an old choice still works
+  assert.equal(nativeIconName({ face: 'happy', colour: 'ocean' }), 'Ocean');
+  assert.deepEqual(iconFromNative('Night'), { face: 'happy', colour: 'night' });
+  assert.equal(nativeIconName({ face: 'wink', colour: 'beet' }), 'BeetWink');
+  assert.deepEqual(iconFromNative('PlumBright'), { face: 'bright', colour: 'plum' });
+  assert.deepEqual(iconFromNative(null), DEFAULT_ICON);
+  assert.deepEqual(iconFromNative('Gone'), DEFAULT_ICON);
+  const alts = alternateIcons();
+  assert.equal(alts.length, ICON_FACES.length * ICON_COLOURS.length - 1);
+  for (const icon of alts) assert.deepEqual(iconFromNative(nativeIconName(icon)), icon);
+  assert.equal(new Set(alts.map(nativeIconName)).size, alts.length);
+
+  // every face and colour draws as one well-formed SVG; the themed icon is a mask, the foreground has no ground
+  const arts: IconArt[] = ['ios', 'rounded', 'foreground', 'monochrome', 'maskable', 'splash'];
+  for (const face of ICON_FACES)
+    for (const colour of ICON_COLOURS)
+      for (const art of arts) {
+        const svg = iconSvg({ face, colour }, art, 64);
+        assert.match(svg, /^<svg [^>]*width="64" height="64" viewBox="0 0 120 120">.*<\/svg>$/);
+        assert.equal((svg.match(/<svg/g) ?? []).length, 1);
+        assert.doesNotMatch(svg, /undefined|NaN/);
+        assert.equal(svg.includes(`fill="${iconGround({ face, colour })}"/><g`), art === 'ios' || art === 'rounded' || art === 'maskable', `${face} ${colour} ${art}`);
+      }
+  assert.match(iconSvg(DEFAULT_ICON, 'monochrome'), /mask="url\(#m\)"/);
+
   const fs = require('node:fs') as typeof import('node:fs');
   const path = require('node:path') as typeof import('node:path');
   const root = path.join(__dirname, '..', '..');
   const app = JSON.parse(fs.readFileSync(path.join(root, 'app.json'), 'utf8')).expo;
   const plugins: unknown[] = app.plugins;
   const icons = (plugins.find((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons') as [string, { name: string; ios: string; android: { foregroundImage: string; backgroundColor: string } }[]])[1];
-  // every colour but the normal icon has its images, with the same background as the settings preview
-  assert.deepEqual(icons.map((i) => i.name), APP_ICONS.filter((i) => i.id !== 'default').map((i) => nativeIconName(i.id)));
+  // app.json is written by scripts/make-app-icons.mjs: every alternate icon, with its images and ground
+  assert.deepEqual(icons.map((i) => i.name), alts.map(nativeIconName));
   for (const i of icons) {
     assert.ok(fs.existsSync(path.join(root, i.ios)), i.ios);
     assert.ok(fs.existsSync(path.join(root, i.android.foregroundImage)), i.android.foregroundImage);
-    assert.equal(i.android.backgroundColor, APP_ICONS.find((a) => nativeIconName(a.id) === i.name)!.bg);
+    assert.equal(i.android.backgroundColor, iconGround(iconFromNative(i.name)));
   }
   // the alias fix must run after the icon plugin, so it is listed before it
   assert.ok(plugins.indexOf('./plugins/withAlternateIconAliases') < plugins.findIndex((p) => Array.isArray(p) && p[0] === 'expo-alternate-app-icons'));
-  assert.equal(APP_ICONS.find((i) => i.id === 'default')!.bg, app.android.adaptiveIcon.backgroundColor);
+  assert.equal(app.android.adaptiveIcon.backgroundColor, iconGround(DEFAULT_ICON));
+  for (const f of [app.icon, app.android.adaptiveIcon.foregroundImage, app.android.adaptiveIcon.monochromeImage]) assert.ok(fs.existsSync(path.join(root, f)), f);
 });
 
 test('insights: ranges, periods and what counts', () => {

@@ -781,7 +781,8 @@ async function run(scheme) {
       await page.getByRole('tab', { name: 'Profile' }).click();
       await text('Appearance', { exact: true }).click();
       await text(/Browsers don’t let a web app change its icon/).waitFor();
-      if (!(await page.getByTestId('app-icon-ocean').filter({ visible: true }).first().isDisabled())) throw new Error('icon choice is not disabled in the browser');
+      await page.getByTestId('app-icon-face-wink').filter({ visible: true }).first().waitFor();
+      if (!(await page.getByTestId('app-icon-colour-ocean').filter({ visible: true }).first().isDisabled())) throw new Error('icon choice is not disabled in the browser');
       await page.goBack();
       await page.getByRole('tab', { name: 'Diary' }).click();
       await btn('Add food: Snacks').waitFor();

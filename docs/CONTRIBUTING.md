@@ -85,7 +85,7 @@ public/icons/           home-screen icons for the web version
 plugins/                Expo config plugins: release signing, storage size on Android, Health Connect and links on the app-icon aliases
 scripts/web-pwa.mjs     turns the web export into an installable, offline web app (with a Content Security Policy)
 scripts/web-smoke.mjs   clicks through the built web app in a headless browser
-scripts/make-app-icons.py  makes the app icon colours in assets/app-icons/ from assets/icon.png (Pillow); colours as in src/lib/appIcon.ts
+scripts/make-app-icons.mjs renders every app icon PNG (assets/, assets/app-icons/, public/icons/) from the SVGs in src/lib/appIcon.ts and writes the icon list into app.json (Playwright)
 scripts/build-offline-pack.mjs, pack-key.mjs  build and sign the offline product pack; create its key
 scripts/ai-log-unpack.mjs  unpacks AI answer log exports into eval/ (git-ignored) with a summary
 .claude/skills/ai-eval/ how Claude evaluates the AI answer log and proposes prompt or model changes

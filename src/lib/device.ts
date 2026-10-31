@@ -10,7 +10,7 @@ import { Pedometer } from 'expo-sensors';
 import * as Sharing from 'expo-sharing';
 import { Linking, Platform, Share } from 'react-native';
 import * as HealthConnect from 'react-native-health-connect';
-import { iconIdFromNative, nativeIconName, type AppIconId, type AppIconNote } from './appIcon';
+import { DEFAULT_ICON, iconFromNative, nativeIconName, type AppIcon, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { endOfDay, startOfDay } from './dates';
 import { FAST_NOTICE_PREFIX } from './fasting';
@@ -402,20 +402,20 @@ export const canChangeAppIcon = true;
 /** Text shown under the icon choice: what happens when it changes on this platform. */
 export const appIconNote: AppIconNote = Platform.OS === 'android' ? 'app_icon_note_android' : 'app_icon_note_ios';
 
-export function getAppIcon(): AppIconId {
+export function getAppIcon(): AppIcon {
   try {
-    return iconIdFromNative(icons()?.getAppIconName());
+    return iconFromNative(icons()?.getAppIconName());
   } catch {
-    return 'default';
+    return { ...DEFAULT_ICON };
   }
 }
 
 /** Switches the home-screen icon; false when this device can't (or the switch failed). */
-export async function setAppIcon(id: AppIconId): Promise<boolean> {
+export async function setAppIcon(icon: AppIcon): Promise<boolean> {
   const m = icons();
   if (!m || !m.supportsAlternateIcons) return false;
   try {
-    await m.setAlternateAppIcon(nativeIconName(id));
+    await m.setAlternateAppIcon(nativeIconName(icon));
     return true;
   } catch {
     return false;

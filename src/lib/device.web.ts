@@ -1,6 +1,6 @@
 /* Browser versions of the device helpers in device.ts. */
 
-import type { AppIconId, AppIconNote } from './appIcon';
+import { DEFAULT_ICON, type AppIcon, type AppIconNote } from './appIcon';
 import { MAX_BACKUP_BYTES } from './backup';
 import { reminderDiff, reminderTarget, type NotificationAccess, type ReminderNotice, type ScheduledReminder } from './reminders';
 import type { StepReading, StepSource, StepStatus } from './steps';
@@ -316,11 +316,11 @@ export async function openStepSettings(_status: StepStatus): Promise<void> {}
 export const canChangeAppIcon = false;
 export const appIconNote: AppIconNote = 'app_icon_note_web';
 
-export function getAppIcon(): AppIconId {
-  return 'default';
+export function getAppIcon(): AppIcon {
+  return { ...DEFAULT_ICON };
 }
 
-export async function setAppIcon(_id: AppIconId): Promise<boolean> {
+export async function setAppIcon(_icon: AppIcon): Promise<boolean> {
   return false;
 }
 

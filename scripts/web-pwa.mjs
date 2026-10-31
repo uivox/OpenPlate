@@ -132,21 +132,23 @@ const head = `
     <script src="${root}register-sw.js" defer></script>
 `;
 
-// The start screen itself, first thing in <body>. The same bowl as src/components/Sprout.tsx.
+// The start screen itself, first thing in <body>. The same bowl as src/components/Sprout.tsx and the app icon.
 const splash = `
     <div id="op-splash" role="status" aria-live="polite" aria-label="OpenPlate is starting">
       <svg width="112" height="112" viewBox="0 0 120 120" aria-hidden="true">
-        <g class="op-sprout">
-          <path d="M60 64 C60 50 57 42 60 30" stroke="var(--op-leaf)" stroke-width="4.5" stroke-linecap="round" fill="none" />
-          <path d="M59 42 C44 42 33 32 32 18 C47 18 58 27 59 42 Z" fill="var(--op-leaf)" />
-          <path d="M61 35 C73 33 85 22 88 9 C73 9 62 20 61 35 Z" fill="var(--op-leaf)" opacity="0.85" />
-        </g>
-        <g class="op-bowl">
-          <path d="M16 66 H104 A44 44 0 0 1 16 66 Z" fill="var(--op-accent)" />
-          <rect x="12" y="60" width="96" height="11" rx="5.5" fill="var(--op-accent)" />
-          <circle cx="48" cy="84" r="3.6" fill="var(--op-face)" />
-          <circle cx="72" cy="84" r="3.6" fill="var(--op-face)" />
-          <path d="M52 93 Q60 100 68 93" stroke="var(--op-face)" stroke-width="3" stroke-linecap="round" fill="none" />
+        <g transform="translate(8.4 8) scale(0.86)">
+          <g class="op-sprout">
+            <path d="M60 66 C60 52 57 44 60 33" stroke="var(--op-leaf)" stroke-width="7" stroke-linecap="round" fill="none" />
+            <path d="M59 45 C40 46 25 34 23 15 C43 14 58 27 59 45 Z" fill="var(--op-leaf)" />
+            <path d="M61 38 C77 36 93 22 97 4 C77 3 62 18 61 38 Z" fill="var(--op-leaf)" opacity="0.75" />
+          </g>
+          <g class="op-bowl">
+            <path d="M12 66 H108 A48 48 0 0 1 12 66 Z" fill="var(--op-accent)" />
+            <rect x="8" y="59" width="104" height="13" rx="6.5" fill="var(--op-accent)" />
+            <path d="M39 87 Q46 79 53 87" stroke="var(--op-face)" stroke-width="5" stroke-linecap="round" fill="none" />
+            <path d="M67 87 Q74 79 81 87" stroke="var(--op-face)" stroke-width="5" stroke-linecap="round" fill="none" />
+            <path d="M49 94 H71 Q70 107 60 107 Q50 107 49 94 Z" fill="var(--op-face)" />
+          </g>
         </g>
       </svg>
       <div class="op-name">OpenPlate</div>
