@@ -220,6 +220,13 @@ async function run(scheme) {
       await page.waitForFunction(() => ![...document.querySelectorAll('*')].some((e) => e.childElementCount === 0 && e.textContent === 'Apple' && e.offsetParent));
       await text(/kcal · \d+ foods?$/).waitFor(); // the folded header says how many foods it holds
       await btn('Add food: Breakfast').waitFor(); // adding still works while folded
+      // Wait until the folded meal is saved, or the reload would read the layout from before.
+      for (let i = 0; i < 50; i++) {
+        const main = JSON.parse((await idbGet('openplate-v1')) ?? '{}');
+        if (main.state?.layout?.collapsedMeals?.includes('breakfast')) break;
+        if (i === 49) throw new Error('folding the meal was not saved');
+        await page.waitForTimeout(100);
+      }
       await page.reload();
       await text('Breakfast', { exact: true }).waitFor();
       if ((await apples()) !== 0) throw new Error('folded meal opened again after a reload');
@@ -307,8 +314,9 @@ async function run(scheme) {
     });
     await step('reminders: an empty dinner gets a reminder, and a tap opens its add screen', async () => {
       const now = new Date();
-      // Dinner is still empty here. Set it so time + 30 min is the next full minute (light run only: it waits for the clock).
-      const fireAt = new Date(now.getTime() + 60000);
+      // Dinner is still empty here. Set it so time + 30 min is a full minute 30–90 s from now (light run
+      // only: it waits for the clock). Never the very next second, which the scheduling could miss.
+      const fireAt = new Date(now.getTime() + 90000);
       fireAt.setSeconds(0, 0);
       const wait = scheme === 'light' && fireAt.getDate() === now.getDate();
       const mins = fireAt.getHours() * 60 + fireAt.getMinutes() - 30;
