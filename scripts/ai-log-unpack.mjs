@@ -21,7 +21,7 @@ if (!files.length && existsSync('eval/inbox')) {
   for (const f of readdirSync('eval/inbox')) if (f.endsWith('.json')) files.push(join('eval/inbox', f));
 }
 if (!files.length) {
-  console.error('No export files. Put openplate-ai-log-*.json into eval/inbox/ or pass them as arguments.');
+  console.error('No export files. Put tellerwerk-ai-log-*.json into eval/inbox/ or pass them as arguments.');
   process.exit(1);
 }
 
@@ -46,7 +46,7 @@ let updated = 0;
 for (const file of files) {
   const data = JSON.parse(readFileSync(file, 'utf8'));
   if (data?.app !== 'OpenPlate' || data?.kind !== 'ai-log' || !Array.isArray(data.records)) {
-    console.error(`${file}: not an OpenPlate AI log export, skipped.`);
+    console.error(`${file}: not a Tellerwerk AI log export, skipped.`);
     continue;
   }
   for (const raw of data.records) {

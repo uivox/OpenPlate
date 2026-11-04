@@ -2,7 +2,7 @@
 //
 // The generated android/app/build.gradle signs release builds with debug.keystore, which is
 // identical for every Expo/React Native project. Anyone could then sign a modified APK that
-// installs over OpenPlate as an "update" and reads all its data. This adds a `release` signing
+// installs over Tellerwerk as an "update" and reads all its data. This adds a `release` signing
 // config that reads the project's own keystore from environment variables:
 //
 //   OPENPLATE_KEYSTORE_PATH      absolute path to the .jks / .keystore file

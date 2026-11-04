@@ -1,4 +1,4 @@
-# Working on OpenPlate
+# Working on Tellerwerk
 
 This page is for people who want to change the code, add recipes or run their own copy. To use the app, see the [README](../README.md).
 
@@ -29,8 +29,18 @@ Dependencies are locked in `package-lock.json` (CI installs with `npm ci`). Add 
 
 Every push to `main` is a release:
 
-- `build.yml` builds both apps (about 30 minutes) and publishes them under [Releases](https://github.com/uivox/OpenPlate/releases/latest), with the SideStore source for the iPhone app. Android APKs are signed with the project key.
+- `build.yml` builds both apps (about 30 minutes) and publishes them under [Releases](https://github.com/uivox/Tellerwerk/releases/latest), with the SideStore source for the iPhone app. Android APKs are signed with the project key.
 - `web.yml` rebuilds the web version (a few minutes) and publishes it to its own site, see *Web version hosting* below.
+
+### The move from OpenPlate (temporary)
+
+The app was called OpenPlate until the rename (plan and reasons: `claude/RENAME.md` in the project docs). Tellerwerk has a new app id and a new web address, so users move their data with a backup file. For the move period:
+
+- `build.yml` builds every release twice (a matrix): Tellerwerk, and the last OpenPlate with `APP_VARIANT=openplate` (`app.config.js`: old app id and name). Both are published; `source.json` lists both apps.
+- `web.yml` publishes the same web build to the new site and, when `WEB_OLD_SITE_REPO` and the environment secret `WEB_OLD_DEPLOY_KEY` are set, to OpenPlate's old site.
+- The app knows it is the old copy by its app id or host name (`isOldApp` in `src/lib/appIdentity.ts`, `oldAppCopy` in both `device` files) and shows `MoveNotice` at the top of the diary.
+- What stays `openplate` on purpose: the backup format id (`BACKUP_FORMAT_ID`, so OpenPlate backups import), storage and database keys, the service worker's cache names, the SideStore source id, the signing environment variables. A test fails if “OpenPlate” shows up anywhere else.
+- After the move period (at least six months): drop the OpenPlate matrix entry and the old-site step. Leave the last build on the old site; never replace it with an empty page, since only the app at that address can read the data people's browsers keep there. Never delete the `openplate-app` organisation.
 
 ## Project layout
 
@@ -95,7 +105,7 @@ docs/                   this page, design notes, recipe format
 
 ## Evaluating the AI answers
 
-With *AI settings → AI answer log* switched on, every meal photo and label reading is logged with the photos, each provider call (raw reply, time, errors, fallback), what was saved and the user's optional rating. *Export log* writes `openplate-ai-log-YYYY-MM-DD.json`. Put exports into `eval/inbox/` and run `node scripts/ai-log-unpack.mjs`: it merges them into `eval/data/` (one folder per answer, `cases.jsonl`, `summary.md`). `eval/` is git-ignored because it holds personal meal photos. A Claude session in this folder can then run the evaluation with the `ai-eval` skill (`.claude/skills/ai-eval/SKILL.md`).
+With *AI settings → AI answer log* switched on, every meal photo and label reading is logged with the photos, each provider call (raw reply, time, errors, fallback), what was saved and the user's optional rating. *Export log* writes `tellerwerk-ai-log-YYYY-MM-DD.json`. Put exports into `eval/inbox/` and run `node scripts/ai-log-unpack.mjs`: it merges them into `eval/data/` (one folder per answer, `cases.jsonl`, `summary.md`). `eval/` is git-ignored because it holds personal meal photos. A Claude session in this folder can then run the evaluation with the `ai-eval` skill (`.claude/skills/ai-eval/SKILL.md`).
 
 When you change `buildMealPrompt` (ai.ts) or `buildLabelPrompt` (labelScan.ts), bump the matching `PROMPT_VERSION` in `aiLog.ts`, so answers before and after the change can be compared.
 
@@ -128,23 +138,23 @@ Users sign in with their own Open Food Facts account (Profile → *Open Food Fac
 
 **API usage form:** Open Food Facts asks every app that writes to the database to describe its use in their form <https://docs.google.com/forms/d/e/1FAIpQLSdIE3D8qvjC_zRJw1W8OmuHhsWJ_NSckiiniAHlfaVwUZCziQ/viewform>. Answers to give (adapt as needed):
 
-- App name: OpenPlate. Website: <https://github.com/uivox/OpenPlate>; web version <https://openplate-app.github.io/>. Contact: the maintainer's email.
+- App name: Tellerwerk. Website: <https://github.com/uivox/Tellerwerk>; web version <https://tellerwerk-app.github.io/>. Contact: the maintainer's email.
 - What it is: a free, open-source (MIT) calorie tracker for iPhone, Android and the web, without accounts or a server of its own.
 - Reads: barcode lookups (`/api/v2/product`), search when the user submits (search-a-licious, fallback `/cgi/search.pl`, at most 8 a minute, pause after 429), Robotoff nutrient insights, and a weekly build from the data export for an offline pack.
-- Writes: only when a user taps *Send to Open Food Facts* on one of their own foods and confirms a preview. Each user signs in with their own Open Food Facts account; the app sends `app_name=OpenPlate`, `app_version` and a random per-install `app_uuid`. It only fills in name, brand and serving size when the product has none, sends nutrition values per 100 g/ml that differ from the product, and optionally one nutrition-table photo. Products without a barcode (bakery, market) are created with `code=new` and need the shop as brand.
+- Writes: only when a user taps *Send to Open Food Facts* on one of their own foods and confirms a preview. Each user signs in with their own Open Food Facts account; the app sends `app_name=Tellerwerk`, `app_version` and a random per-install `app_uuid`. It only fills in name, brand and serving size when the product has none, sends nutrition values per 100 g/ml that differ from the product, and optionally one nutrition-table photo. Products without a barcode (bakery, market) are created with `code=new` and need the shop as brand.
 - Expected volume: low; a handful of edits per active user per month.
-- User-Agent: `OpenPlate/1.0 (open-source calorie tracker; https://github.com/uivox/OpenPlate)` from the apps; browsers don't allow setting it, so the web version is identified by `app_name`.
+- User-Agent: `Tellerwerk/1.0 (open-source calorie tracker; https://github.com/uivox/Tellerwerk)` from the apps; browsers don't allow setting it, so the web version is identified by `app_name`.
 
 ## Web version hosting
 
 The web app keeps everything in its site's browser storage, and every GitHub Pages site of one account or organisation shares that storage (one origin). So the web version is published to the Pages site of a separate organisation that hosts nothing else, not to this repository's own Pages.
 
-1. Create a GitHub organisation used only for this, e.g. `openplate-app`. **Never host another Pages site in it**: any site there could read the app's data.
-2. In it, create the public repository `openplate-app.github.io` (it is served at `https://openplate-app.github.io/`).
-3. Create a deploy key on your computer: `ssh-keygen -t ed25519 -N "" -C "OpenPlate web deploy" -f openplate-web`. In the site repository: *Settings → Deploy keys → Add deploy key*, paste `openplate-web.pub`, tick *Allow write access*.
+1. Create a GitHub organisation used only for this, e.g. `tellerwerk-app`. **Never host another Pages site in it**: any site there could read the app's data.
+2. In it, create the public repository `tellerwerk-app.github.io` (it is served at `https://tellerwerk-app.github.io/`).
+3. Create a deploy key on your computer: `ssh-keygen -t ed25519 -N "" -C "Tellerwerk web deploy" -f tellerwerk-web`. In the site repository: *Settings → Deploy keys → Add deploy key*, paste `tellerwerk-web.pub`, tick *Allow write access*.
 4. In this repository:
-   - *Settings → Environments → New environment* `web`; *Deployment branches and tags*: *Selected branches*, add `main`. Add the environment secret `WEB_DEPLOY_KEY` with the content of the private key file `openplate-web`. Then delete both key files.
-   - *Settings → Secrets and variables → Actions → Variables*: `WEB_SITE_REPO` = `openplate-app/openplate-app.github.io`, `WEB_SITE_URL` = `https://openplate-app.github.io/`.
+   - *Settings → Environments → New environment* `web`; *Deployment branches and tags*: *Selected branches*, add `main`. Add the environment secret `WEB_DEPLOY_KEY` with the content of the private key file `tellerwerk-web`. Then delete both key files.
+   - *Settings → Secrets and variables → Actions → Variables*: `WEB_SITE_REPO` = `tellerwerk-app/tellerwerk-app.github.io`, `WEB_SITE_URL` = `https://tellerwerk-app.github.io/`.
 5. *Actions → Web app → Run workflow*. When it's done, in the site repository: *Settings → Pages → Deploy from a branch → main / (root)*, and tick *Enforce HTTPS*.
 
 Each run replaces the site repository's content with one fresh commit. The key can only write to that one repository, and only workflows on `main` can use it.

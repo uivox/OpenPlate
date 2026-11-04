@@ -33,7 +33,7 @@ export const PACK_PUBLIC_KEY: string = 'JOBYr/V8FeuFt8Cr8OO8LV1/Hcw6a49bCZQuWJzG
 
 export const PACK_COUNTRY = 'de';
 /** Where the pack workflow publishes (the `offline-pack` branch). raw.githubusercontent.com allows browser requests (CORS). */
-export const PACK_BASE_URL = 'https://raw.githubusercontent.com/uivox/OpenPlate/offline-pack/';
+export const PACK_BASE_URL = 'https://raw.githubusercontent.com/uivox/Tellerwerk/offline-pack/';
 export const PACK_MANIFEST_URL = `${PACK_BASE_URL}${PACK_COUNTRY}/manifest.json`;
 export const PACK_FORMAT = 1;
 /** Hard limits; the builder stays below them. */

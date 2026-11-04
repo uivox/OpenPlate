@@ -167,10 +167,10 @@ writeFileSync(join(out, PACK_COUNTRY, 'manifest.json'), envelope);
 writeFileSync(
   join(out, 'README.md'),
   [
-    '# OpenPlate offline product pack',
+    '# Tellerwerk offline product pack',
     '',
-    `Built ${manifest.created} by the "Offline product pack" workflow of OpenPlate. Products sold in Germany with complete,`,
-    'plausible nutrition, most scanned first. The OpenPlate app downloads these files on request and checks the',
+    `Built ${manifest.created} by the "Offline product pack" workflow of Tellerwerk. Products sold in Germany with complete,`,
+    'plausible nutrition, most scanned first. The Tellerwerk app downloads these files on request and checks the',
     'Ed25519 signature in `de/manifest.json` before using them.',
     '',
     'Data: © Open Food Facts contributors, https://world.openfoodfacts.org, available under the',

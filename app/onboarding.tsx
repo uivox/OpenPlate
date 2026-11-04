@@ -78,7 +78,7 @@ export default function Onboarding() {
       {step === 0 ? (
         <View style={{ gap: 16, marginTop: 12 }}>
           <Sprout size={150} />
-          <Txt v="hero">OpenPlate</Txt>
+          <Txt v="hero">Tellerwerk</Txt>
           <Txt v="h2" style={{ maxWidth: 340 }}>
             {t('welcome_text')}
           </Txt>

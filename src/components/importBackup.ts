@@ -59,7 +59,7 @@ export function importBackupText(text: string, t: TFn): void {
         // The reminder of a fast running here belongs to data that is about to be replaced.
         await cancelNotification(useStore.getState().fastingActive?.notificationId).catch(() => {});
         useStore.getState().importBackup(data);
-        const done = skipped ? `${t('import_done')}\n${t('import_skipped', { n: skipped })}` : t('import_done');
+        const done = [t('import_done'), skipped ? t('import_skipped', { n: skipped }) : '', t('import_done_setup')].filter(Boolean).join('\n\n');
         if (data.profile) {
           router.replace('/');
           showAlert(done);

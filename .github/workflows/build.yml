@@ -43,6 +43,18 @@ jobs:
 
   android:
     runs-on: ubuntu-latest
+    strategy:
+      # During the move to Tellerwerk, every release also builds the last OpenPlate: the same code
+      # under the old app id (APP_VARIANT=openplate, see app.config.js), which installs over OpenPlate
+      # and shows the move notice. Drop the OpenPlate entry once the move period is over (claude/RENAME.md).
+      matrix:
+        include:
+          - app: Tellerwerk
+            variant: ''
+          - app: OpenPlate
+            variant: openplate
+    env:
+      APP_VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -72,11 +84,11 @@ jobs:
           OPENPLATE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           OPENPLATE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash ../scripts/ci-run.sh ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
-      - run: cp android/app/build/outputs/apk/release/app-release.apk OpenPlate.apk
+      - run: cp android/app/build/outputs/apk/release/app-release.apk ${{ matrix.app }}.apk
       - name: Refuse APKs signed with the debug key
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          CERTS=$("$APKSIGNER" verify --print-certs OpenPlate.apk)
+          CERTS=$("$APKSIGNER" verify --print-certs ${{ matrix.app }}.apk)
           echo "$CERTS"
           if echo "$CERTS" | grep -q "CN=Android Debug"; then
             echo "::error title=Debug-signed APK::The APK is signed with the public debug key."
@@ -86,12 +98,24 @@ jobs:
         if: always()
       - uses: actions/upload-artifact@v6
         with:
-          name: android
-          path: OpenPlate.apk
+          name: android-${{ matrix.app }}
+          path: ${{ matrix.app }}.apk
 
   ios:
     # Expo SDK 56+ needs Xcode 26.4 or newer; macos-15 only has up to 26.3.
     runs-on: macos-26
+    strategy:
+      # During the move to Tellerwerk, every release also builds the last OpenPlate: the same code
+      # under the old app id (APP_VARIANT=openplate, see app.config.js), which installs over OpenPlate
+      # and shows the move notice. Drop the OpenPlate entry once the move period is over (claude/RENAME.md).
+      matrix:
+        include:
+          - app: Tellerwerk
+            variant: ''
+          - app: OpenPlate
+            variant: openplate
+    env:
+      APP_VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -115,11 +139,11 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/app.xcarchive/Products/Applications/*.app Payload/
-          zip -qry OpenPlate.ipa Payload
+          zip -qry ${{ matrix.app }}.ipa Payload
       - uses: actions/upload-artifact@v6
         with:
-          name: ios
-          path: OpenPlate.ipa
+          name: ios-${{ matrix.app }}
+          path: ${{ matrix.app }}.ipa
 
   release:
     # Nothing is published unless type check and tests pass too.
@@ -134,12 +158,14 @@ jobs:
           merge-multiple: true
       - id: v
         run: echo "version=$(node scripts/set-version.mjs)" >> "$GITHUB_OUTPUT"
-      - run: node scripts/make-source.mjs OpenPlate.ipa "${{ steps.v.outputs.version }}" "${{ github.repository }}"
+      - run: node scripts/make-source.mjs "${{ steps.v.outputs.version }}" "${{ github.repository }}"
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.v.outputs.version }}" OpenPlate.apk OpenPlate.ipa source.json \
-            --title "OpenPlate ${{ steps.v.outputs.version }}" \
-            --notes "Android: download OpenPlate.apk on your phone and install it. iPhone: update in SideStore (source: https://github.com/${{ github.repository }}/releases/latest/download/source.json) or install OpenPlate.ipa. Built from ${GITHUB_SHA::7}." \
+          gh release create "v${{ steps.v.outputs.version }}" Tellerwerk.apk Tellerwerk.ipa OpenPlate.apk OpenPlate.ipa source.json \
+            --title "Tellerwerk ${{ steps.v.outputs.version }}" \
+            --notes "OpenPlate is now Tellerwerk, a new app. To keep your data: in OpenPlate, Profile → Export data; install Tellerwerk; Profile → Import data. Then delete OpenPlate. Your AI key, Open Food Facts login, app lock and offline product data aren't in the backup; set them up again.
+
+          Android: download Tellerwerk.apk on your phone and install it (OpenPlate.apk is the last OpenPlate, which only shows these steps). iPhone: install Tellerwerk in SideStore (source: https://github.com/${{ github.repository }}/releases/latest/download/source.json) or Tellerwerk.ipa. Web: https://tellerwerk-app.github.io/. Built from ${GITHUB_SHA::7}." \
             --latest

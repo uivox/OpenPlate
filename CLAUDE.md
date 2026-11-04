@@ -1,6 +1,6 @@
-# OpenPlate: notes for working on the code
+# Tellerwerk: notes for working on the code
 
-OpenPlate is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md is for people using the app (features, install, platform differences, safety, privacy); docs/CONTRIBUTING.md has the dev setup, project layout, releases and web hosting; docs/DESIGN.md the palette, type and motion; docs/RECIPES.md the community recipe format; .github/SECURITY.md the security policy. Keep the README about using the app: anything only people working on the code need goes into docs/CONTRIBUTING.md.
+Tellerwerk (called OpenPlate until the rename in autumn 2026) is a calorie tracker built with Expo (SDK 58, React Native 0.88) that runs as an iPhone app, an Android app and a web app (PWA). README.md is for people using the app (features, install, platform differences, safety, privacy); docs/CONTRIBUTING.md has the dev setup, project layout, releases and web hosting; docs/DESIGN.md the palette, type and motion; docs/RECIPES.md the community recipe format; .github/SECURITY.md the security policy. Keep the README about using the app: anything only people working on the code need goes into docs/CONTRIBUTING.md.
 
 ## Priorities
 
@@ -125,3 +125,10 @@ Every change is checked against these three, and every pull request description 
 - `src/lib/aiLogStore.ts` (a folder per record in the documents directory) and `aiLogStore.web.ts` (its own IndexedDB database): never part of the store or a backup.
 - `src/components/aiLogging.ts` (writes never block or break logging food; export is prepare, then share from a tap for Safari), `AIRatingCard.tsx`; used by `app/photo.tsx`, `app/label.tsx` → `app/custom-food.tsx` (the record travels in the food draft) and `app/ai-settings.tsx`. Off by default (`ai.logAnswers`), per device. *Delete all data* deletes it too.
 - `scripts/ai-log-unpack.mjs` and `.claude/skills/ai-eval/SKILL.md`: the evaluation, with data in the git-ignored `eval/`.
+
+## Where things are (the move from OpenPlate)
+
+- `src/lib/appIdentity.ts` (pure): the name, repo and web addresses, both app ids, `BACKUP_FORMAT_ID` (stays 'OpenPlate' for good: OpenPlate backups must import), `isOldApp`. `oldAppCopy` in both `device` files: the old app id (native) or the old host (web).
+- `src/components/MoveNotice.tsx`: shown at the top of the diary only in the old copy: export, get Tellerwerk, turn off reminders here (`cancelAllNotifications` in both `device` files).
+- `app.config.js` `APP_VARIANT=openplate` builds the old copy; `build.yml` builds both, `make-source.mjs` lists both, `web.yml` publishes to both sites. docs/CONTRIBUTING.md → *The move from OpenPlate* says what to remove afterwards.
+- Storage keys and database names still start with `openplate`: they are invisible, and the old copy must find OpenPlate's data under them. Don't rename them. A test fails if “OpenPlate” appears in the code or docs outside its allow list.

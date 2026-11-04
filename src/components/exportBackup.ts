@@ -4,7 +4,7 @@ import { dayKey } from '../lib/dates';
 import { shareExport } from '../lib/device';
 import { useStore } from '../lib/store';
 
-export const backupFileName = () => `openplate-export-${dayKey()}.json`;
+export const backupFileName = () => `tellerwerk-export-${dayKey()}.json`;
 
 /** The backup as JSON text (API keys, the app lock and the connection log are never part of it). */
 export const backupJson = () => JSON.stringify(buildBackup(useStore.getState()), null, 2);
