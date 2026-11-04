@@ -5,7 +5,7 @@ import { buildColors, type Colors } from './themes';
 import type { MotionPref } from './types';
 
 /**
- * OpenPlate design tokens. The palettes live in themes.ts ("garden" is the original veggie patch:
+ * Tellerwerk design tokens. The palettes live in themes.ts ("garden" is the original veggie patch:
  * pistachio ground, aubergine ink, beet for actions, produce colours for macros — see docs/DESIGN.md).
  */
 export type { Colors } from './themes';

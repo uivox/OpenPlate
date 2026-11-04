@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "OpenPlate",
+    "name": "Tellerwerk",
     "slug": "openplate",
     "scheme": "openplate",
     "version": "1.0.0",
@@ -9,12 +9,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "io.github.uivox.openplate",
+      "bundleIdentifier": "io.github.uivox.tellerwerk",
       "infoPlist": {
-        "NSCameraUsageDescription": "OpenPlate uses the camera to scan barcodes and photograph meals.",
-        "NSPhotoLibraryUsageDescription": "OpenPlate lets you pick meal photos for AI recognition.",
-        "NSMotionUsageDescription": "OpenPlate reads your step count to show daily activity.",
-        "NSLocalNetworkUsageDescription": "OpenPlate can talk to an AI model running on your own computer.",
+        "NSCameraUsageDescription": "Tellerwerk uses the camera to scan barcodes and photograph meals.",
+        "NSPhotoLibraryUsageDescription": "Tellerwerk lets you pick meal photos for AI recognition.",
+        "NSMotionUsageDescription": "Tellerwerk reads your step count to show daily activity.",
+        "NSLocalNetworkUsageDescription": "Tellerwerk can talk to an AI model running on your own computer.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -22,7 +22,7 @@
       "buildNumber": "1"
     },
     "android": {
-      "package": "io.github.uivox.openplate",
+      "package": "io.github.uivox.tellerwerk",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-monochrome.png",
@@ -38,26 +38,26 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "OpenPlate uses the camera to scan barcodes and photograph meals."
+          "cameraPermission": "Tellerwerk uses the camera to scan barcodes and photograph meals."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "OpenPlate lets you pick meal photos for AI recognition."
+          "photosPermission": "Tellerwerk lets you pick meal photos for AI recognition."
         }
       ],
       [
         "expo-sensors",
         {
-          "motionPermission": "OpenPlate reads your step count to show daily activity."
+          "motionPermission": "Tellerwerk reads your step count to show daily activity."
         }
       ],
       "expo-notifications",
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "OpenPlate uses Face ID only to unlock the app when you turn on the app lock."
+          "faceIDPermission": "Tellerwerk uses Face ID only to unlock the app when you turn on the app lock."
         }
       ],
       "react-native-health-connect",
@@ -280,8 +280,8 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./public/icons/favicon-32.png",
-      "name": "OpenPlate",
-      "shortName": "OpenPlate",
+      "name": "Tellerwerk",
+      "shortName": "Tellerwerk",
       "themeColor": "#EEF2E5",
       "backgroundColor": "#EEF2E5"
     }

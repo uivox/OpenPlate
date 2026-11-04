@@ -1,6 +1,6 @@
 # Community recipes
 
-OpenPlate's recipe tab shows your own recipes and a shared set of community recipes. Community recipes live in [`src/lib/communityRecipes.ts`](../src/lib/communityRecipes.ts) and are added through pull requests, so every recipe is visible, reviewable and free to use.
+Tellerwerk's recipe tab shows your own recipes and a shared set of community recipes. Community recipes live in [`src/lib/communityRecipes.ts`](../src/lib/communityRecipes.ts) and are added through pull requests, so every recipe is visible, reviewable and free to use.
 
 ## What makes a good recipe
 

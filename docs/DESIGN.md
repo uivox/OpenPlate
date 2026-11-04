@@ -1,4 +1,4 @@
-# OpenPlate design
+# Tellerwerk design
 
 **Idea:** a veggie patch, not a gym. Logging food should feel like jotting in a kitchen notebook: warm, a bit playful, never judgemental. The memorable element is the **plate**: the daily calorie ring is drawn as a plate seen from above, and its rim fills with one colour per macro. Everything around it stays quiet.
 

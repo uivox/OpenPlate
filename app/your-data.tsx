@@ -79,7 +79,7 @@ export default function YourData() {
   );
   const counts = rowCounts(tables);
   // Built and shared in the same tap, with nothing awaited first (Safari's share sheet needs that).
-  const exportCsv = () => void shareExport(zipTables(tables, lang), `openplate-${today}.zip`, 'application/zip');
+  const exportCsv = () => void shareExport(zipTables(tables, lang), `tellerwerk-${today}.zip`, 'application/zip');
 
   return (
     <Screen>

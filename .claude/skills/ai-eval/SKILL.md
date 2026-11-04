@@ -1,6 +1,6 @@
 ---
 name: ai-eval
-description: Evaluate OpenPlate's AI answers from an exported AI answer log (openplate-ai-log-*.json) and propose prompt or model changes. Use when the user says "run the AI eval", "evaluate the AI log", or drops an AI log export into eval/inbox/.
+description: Evaluate Tellerwerk's AI answers from an exported AI answer log (tellerwerk-ai-log-*.json) and propose prompt or model changes. Use when the user says "run the AI eval", "evaluate the AI log", or drops an AI log export into eval/inbox/.
 ---
 
 # Evaluating the AI answer log
@@ -14,7 +14,7 @@ never paste photos or notes into a pull request, issue or commit message.
 
 ## 1. Unpack
 
-1. Look for exports in `eval/inbox/` (`openplate-ai-log-*.json`). If there are none, ask the user
+1. Look for exports in `eval/inbox/` (`tellerwerk-ai-log-*.json`). If there are none, ask the user
    to export the log in the app (AI settings → AI answer log → Export log → Share) and put the
    file there.
 2. Run `node scripts/ai-log-unpack.mjs` (reads every export in `eval/inbox/`, merges by record

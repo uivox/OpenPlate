@@ -37,11 +37,11 @@ export interface OffLogin {
   uuid: string;
 }
 
-export const APP_NAME = 'OpenPlate';
+export const APP_NAME = 'Tellerwerk';
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-const USER_AGENT = 'OpenPlate/1.0 (open-source calorie tracker; https://github.com/uivox/OpenPlate)';
+const USER_AGENT = 'Tellerwerk/1.0 (open-source calorie tracker; https://github.com/uivox/Tellerwerk)';
 const TIMEOUT_MS = 20000;
 
 /** Base64 of an ASCII string (btoa exists in browsers, Hermes and Node). */

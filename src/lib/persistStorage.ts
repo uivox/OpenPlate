@@ -139,7 +139,7 @@ export function createShardedStorage<S extends Shardable>(kv: KeyValueStore) {
           // Forget what we think is stored so the next change rewrites everything.
           written.clear();
           lastError = e;
-          console.warn('OpenPlate: saving failed', e);
+          console.warn('Tellerwerk: saving failed', e);
         });
       return queue;
     },

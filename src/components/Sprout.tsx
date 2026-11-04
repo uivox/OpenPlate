@@ -3,7 +3,7 @@ import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { useColors } from '../lib/theme';
 
 /**
- * OpenPlate's bowl with a sprout, the same shape as the app icon (src/lib/appIcon.ts) and the web
+ * Tellerwerk's bowl with a sprout, the same shape as the app icon (src/lib/appIcon.ts) and the web
  * start screen (scripts/web-pwa.mjs), in the theme's colours. Used on onboarding and empty states.
  * `mood` changes the face: happy (default, the icon's face), sleepy (fasting, app lock), surprised (AI).
  */
