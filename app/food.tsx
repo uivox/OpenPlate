@@ -5,11 +5,12 @@ import { Image, View } from 'react-native';
 import { Banner, Button, Card, ChipGroup, Divider, NumField, Row, Screen, Txt } from '../src/components/ui';
 import { showAlert } from '../src/lib/alert';
 import { flowParams } from '../src/lib/barcodeFlow';
-import { dayKey } from '../src/lib/dates';
+import { dayKey, locale } from '../src/lib/dates';
 import { addToMealDraft, getFood, setFoodDraft } from '../src/lib/foodCache';
 import { fmt } from '../src/lib/format';
 import { leaveToDiary } from '../src/lib/nav';
 import { scaleNutrients } from '../src/lib/nutrition';
+import { chainOfFood } from '../src/lib/restaurants';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import { MEALS, type MealType, type Nutrients } from '../src/lib/types';
@@ -38,6 +39,8 @@ export default function FoodScreen() {
   const food = entry?.food ?? saved ?? getFood(params.fid);
   const editing = !!entry;
   const unit = food?.unit ?? 'g';
+  /** For a fast-food chain's item: whose published values these are, and from when. */
+  const chain = food ? chainOfFood(food) : undefined;
 
   const [unitIdx, setUnitIdx] = useState<number>(() => {
     if (!food) return -1;
@@ -210,6 +213,11 @@ export default function FoodScreen() {
       {food.dataFrom === 'robotoff' ? <Txt v="small">{t('robotoff_note')}</Txt> : null}
       {food.source === 'off' || food.dataFrom === 'robotoff' ? <Txt v="small">{t('off_attribution')}</Txt> : null}
       {food.source === 'bls' ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
+      {chain ? (
+        <Txt v="small">
+          {t('restaurant_source', { chain: chain.name, source: chain.source[lang], date: new Date(chain.asOf).toLocaleDateString(locale(lang)) })}
+        </Txt>
+      ) : null}
       {food.source === 'ai' ? <Txt v="small">{t('ai_estimate_note')}</Txt> : null}
     </Screen>
   );

@@ -119,6 +119,12 @@ Every change is checked against these three, and every pull request description 
 - Uses: `resolveBarcode(…, offline)` asks the pack after the user's own foods and before Open Food Facts; `add-food.tsx` searches it while typing (250 ms pause); `app/offline-data.tsx` downloads, updates, deletes. *Delete all data* deletes it too.
 - `.github/workflows/offline-pack.yml` + `scripts/build-offline-pack.mjs`: weekly build from the Open Food Facts export, signed, force-pushed to the `offline-pack` branch. Setup and key handling: docs/CONTRIBUTING.md → *Offline product pack*. Never put the private key anywhere but the `offline-pack` environment secret.
 
+## Where things are (restaurant items)
+
+- `scripts/restaurants/raw/*.txt`: one table per chain, copied from the chain's own published nutrition information for Germany (source and date in each header). `scripts/build-restaurants.mjs` turns them into `src/lib/restaurantData.ts` (generated; per 100 g / ml plus the chain's serving) and leaves out rows that fail the `checkPer100` rules.
+- `src/lib/restaurants.ts` (pure): `RESTAURANT_CHAINS` (name, source, link, date), `loadRestaurants` (dynamic import, like the BLS), `searchRestaurants` (name words or the chain's name), `restaurantFood` (id `rest:<chain>:<slug>`, source `restaurant`, brand = chain), `chainOfFood`.
+- `app/add-food.tsx` shows them after the built-in basics while typing (`LayoutPrefs.restaurantFoods`, missing = on, switch on the Layout screen); `app/food.tsx` names the chain's source and date (`restaurant_source`).
+
 ## Where things are (AI answer log)
 
 - `src/lib/aiLog.ts`: the pure part: record types, `PROMPT_VERSION` (bump it with every change to `buildMealPrompt` or `buildLabelPrompt`), `recordingCall` (wraps the provider call to record every attempt), the size limit and the export format. Tests in `tests/logic.test.ts`.

@@ -80,6 +80,7 @@ src/lib/
   labelScan.ts          nutrition label prompt and parser, plausibility checks for outside nutrition data
   genericFoods.ts       built-in basic foods
   bls.ts, blsData.ts    German nutrient database (BLS 4.0) search and data
+  restaurants.ts, restaurantData.ts   fast-food chains' menu items: chains, search and data
   offlinePack.ts        offline product pack: row format, signature and manifest checks, barcode index and search
   ed25519.ts            Ed25519 signature check and SHA-512 (for the offline pack)
   packStore(.web).ts    where the offline pack is kept (app documents folder / its own IndexedDB)
@@ -112,6 +113,12 @@ When you change `buildMealPrompt` (ai.ts) or `buildLabelPrompt` (labelScan.ts), 
 ## German nutrient database (BLS 4.0)
 
 `src/lib/blsData.ts` is generated, don't edit it by hand. Download the data from <https://blsdb.de> and run `python3 scripts/import_bls.py BLS_4_0_Daten_2025_DE.xlsx` (needs `openpyxl`).
+
+## Restaurant items (fast-food chains)
+
+`src/lib/restaurantData.ts` is generated, don't edit it by hand. The source tables are in `scripts/restaurants/raw/`, one file per chain, each copied from that chain's own published nutrition information for Germany; the header of each file says where from, when, and in which columns. Run `node scripts/build-restaurants.mjs` after changing them: it turns per-serving values into per 100 g / 100 ml (keeping the serving), fixes the column slips it lists, adds up the Five Guys burgers from their parts, and leaves out every row that fails the app's plausibility check, printing why. A test checks every bundled row against `checkPer100` again.
+
+To update a chain: read its current values (the links are in `RESTAURANT_CHAINS` in `src/lib/restaurants.ts`), replace its raw file, update `asOf` (and `source` if the document changed), rebuild, and look through what the builder left out. Only the chain's own published values go in, never another app's database.
 
 ## Offline product pack
 

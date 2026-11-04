@@ -1,0 +1,32 @@
+# NORDSEE Deutschland, from the "Nährwerte" tab of each product page under https://www.nordsee.com/de/produkte, read 2026-11-04.
+# Nordsee gives values per 100 g only, no portion weights and no fibre, so these foods have no serving.
+# name|serving|unit|kcal|protein|carbs|fat|fiber|sugar|satFat|salt (per 100 g)
+Garnelen-Kimchi Burger||g|270|6.9|34|10||4.4|2.0|1.5
+Thunfisch-Wrap||g|171|8.2|15|8.4||1.9|1.3|1.1
+Tiramisu-Creme mit Biscoff®||g|297|3.0|19|23||14|13|0.23
+Räucherlachs-Bagel||g|243|9.7|22|12||1.7|2.2|1.46
+Crunchy Chicken Burger||g|278|3.2|27|14||5.0|2.1|1.0
+Classic Fish Burger||g|219|11|26|7.4||5.1|1.0|0.83
+Heißer Backfisch XXL||g|293|10|28|15||1.6|1.1|1.6
+Mini-Bremer – Der Klassische||g|262|9.4|35|8.9||4.3|1.2|1.1
+Mini-Bremer – Der Pikante||g|290|9.2|32|13||2.7|1.4|1.5
+Mini-Bremer – Der Scharfe||g|301|9.4|34|14||2.7|1.6|1.1
+Mini-Bremer – Der Süß-Scharfe||g|307|9.3|33|15||3.4|1.5|1.5
+Räucherlachs-Wrap||g|181|7.2|15.1|9.8||2.2|1.5|1.5
+Bismarck-Baguette||g|185|9.7|24|5.4||1.8|1.5|2
+Seelachs-Ei-Baguette||g|214|10|23|8.5||1.1|1.6|1.8
+Garnelen-Ei-Baguette||g|189|11|22|6.3||1.4|1.5|0.99
+Shrimps & Chips||g|214|5|30|7.3||0.79|0.89|1.4
+Matjes-Baguette||g|179|7.7|22|6.2||1.6|1.1|1.5
+Backfisch-Baguette||g|257|10|31|8.9||1.4|0.65|1.3
+Bremer||g|215|8.8|31|5.5||4.4|1.1|1.2
+Plant-based Backvisch-Brötchen||g|292|6.0|32|15||0.9|1.0|1.2
+Pommes Frites||g|201|3.0|33|6.2||0.21|0.11|0.47
+Kartoffel-Box||g|218|3.0|33|7.9||0.21|0.21|0.87
+Mix-Box||g|237|7.3|28|8.9||0.8|0.57|1.1
+Garnelen-Box||g|281|10|32|8.0||2.9|0.68|1.4
+Fish Nuggets Box||g|253|13|26|9.5||1.2|0.41|1.1
+Fish & Chips||g|218|6.6|30|7.4||0.56|0.21|0.71
+Gebackene Limanda Aspera||g|326|15|26|18||0.51|1|0.89
+Alaska-Seelachsfilet||g|177|6.0|14|9.8||2.2|0.77|1.1
+Lachs-Pasta mit Blattspinat||g|172|7.8|11|11||1.5|4.9|1.0

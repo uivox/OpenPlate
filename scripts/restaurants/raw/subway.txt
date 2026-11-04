@@ -1,0 +1,114 @@
+# Subway Deutschland, from the official "Nährwertinformationen March 2026 – Deutschland" PDF
+# (https://www.subway.com/v1v2/assets/de-at/nutrition/documents/germany-nutritional-information-full-menu-c2-march-2026-german.pdf), read 2026-11-04.
+# Sandwiches are 15 cm with the recommended bread, standard vegetables and sauce.
+# section|name|serving (g, ml for drinks)|kJ|kcal|fat|satFat|carbs|sugar|fiber|protein|salt (per serving)
+Sandwich|Chicken Teriyaki|227|1130|270|3.3|1.4|38|10|3|22|1.3
+Sandwich|Plant-based Chicken Teriyaki|227|1208|289|4.3|1.5|42|9.4|6.4|19|2.2
+Sandwich|Chicken Fajita|209|1046|250|2.6|1.2|36|8|3|21|1.8
+Sandwich|Rotisserie-Style Chicken|209|1089|260|4|1.2|34|7.1|2.9|21|1.1
+Sandwich|Chicken Tandoori|199|1625|388|14|5.9|39|10|2.8|26|2.3
+Sandwich|Dölicious Chicken|263|1672|422|16|3.3|46|8.2|4.6|26|3.3
+Sandwich|Tuna|227|1397|334|12|1.8|37|8|2.9|20|1.6
+Sandwich|Italian B.M.T.|217|1543|369|16|6.4|36|7.6|3.2|21|2.3
+Sandwich|BBQ Rib|217|2049|474|26|11|38|7.8|3.9|23|2.4
+Sandwich|Nacho Chicken|233|1702|415|17|4.3|47|8.4|3.6|19|1.9
+Sandwich|Philly Beef & Cheese|221|1277|304|7.2|3.8|39|9.7|3.3|20|1.7
+Sandwich|Salami|169|1061|254|7.6|3.3|35|7.1|2.9|12|1.2
+Sandwich|Ham|195|1005|240|3.6|1.4|35|7.6|3.3|17|1.2
+Sandwich|Spicy Vegan Patty|238|1473|301|9.6|1.9|44|9.2|6.5|21|1.7
+Sandwich|Smashed Falafel|245|2027|512|27|5.5|54|8.3|9.9|15|2.9
+Sandwich|Veggie Delite|165|968|231|5.5|3.1|35|7.4|2.9|11|0.9
+Sandwich|Plant-based Dölicious Chicken|262|1634|413|13|2|49|7.7|8.8|25|3.9
+Wrap|Chicken Teriyaki|250|1555|372|7.1|1.2|54|7.5|5|20|1.9
+Wrap|Plant-based Chicken Teriyaki|250|1633|391|8.1|1.3|58|6.9|8.4|17|2.8
+Wrap|Chicken Fajita|232|1471|352|6.4|1|52|5.5|5|20|2.4
+Wrap|Rotisserie-Style Chicken|232|1514|362|7.8|1.1|50|4.6|4.9|20|1.7
+Wrap|Chicken Tandoori|258|1974|472|17|3.7|55|7.3|5.2|23|2.6
+Wrap|Dölicious Chicken|288|1987|507|20|4|58|6.6|6.4|26|3.9
+Wrap|Tuna|250|1822|436|16|1.6|53|5.5|4.9|19|2.1
+Wrap|Italian B.M.T.|236|1900|454|18|5.6|52|5.1|5.2|19|2.7
+Wrap|BBQ Rib|240|2474|576|30|10|53|5.3|5.9|21|3
+Wrap|Nacho Chicken|256|2183|530|22|4.3|62|6.2|5.7|18|2.5
+Wrap|Philly Beef & Cheese|244|1702|406|11|3.7|55|7.2|5.3|19|2.2
+Wrap|Salami|192|1486|355|11|3.1|50|4.6|4.9|11|1.8
+Wrap|Ham|218|1430|342|7.4|1.3|51|5.1|5.3|16|1.7
+Wrap|Spicy Vegan Patty|261|1898|403|13|1.7|60|6.7|8.4|20|2.2
+Wrap|Veggie Delite|188|1393|333|9.3|3|51|4.9|4.9|9.7|1.5
+Wrap|Smashed Falafel|264|2397|573|29|4.6|66|6.8|11|13|3.1
+Wrap|Plant-based Dölicious Chicken|287|1949|498|16|2.8|61|6|11|25|4.5
+Salad|Chicken Teriyaki|293|498|118|1.6|0.5|10|7.7|2.9|15|0.73
+Salad|Plant-based Chicken Teriyaki|293|577|137|2.6|0.6|14|7.1|6.3|12|1.6
+Salad|Chicken Fajita|275|414|98|0.9|0.3|7.9|5.7|2.9|14|1.2
+Salad|Rotisserie-Style Chicken|290|466|109|2.2|0.4|6.4|5|3|15|0.5
+Salad|Chicken Tandoori|315|1197|285|19|3.5|12|8|3.2|18|1.6
+Salad|Dölicious Chicken|329|915|283|17|3.7|15|7.2|4.4|21|3.6
+Salad|Tuna|293|765|182|10|1|8.5|5.7|2.8|14|1.0
+Salad|Italian B.M.T.|279|843|200|13|5|7.5|5.3|3.1|14|1.6
+Salad|BBQ Rib|234|1208|271|20|7.7|7.2|4.1|3.4|14|1.5
+Salad|Nacho Chicken|313|1384|337|23|4.1|20|7.2|3.7|13|1.5
+Salad|Philly Beef & Cheese|287|645|152|5.4|3|11|7.4|3.2|14|1.1
+Salad|Salami|235|430|101|5.9|2.4|6.4|4.8|2.8|5.3|0.6
+Salad|Ham|261|373|88|1.9|0.6|7.1|5.3|3.2|10|0.6
+Salad|Spicy Vegan Patty|304|841|149|7.8|1.1|16|6.9|6.4|15|1.1
+Salad|Veggie Delite|231|336|79|3.8|2.3|6.5|5.1|2.8|4.5|0.3
+Salad|Smashed Falafel|316|1583|377|30|4.4|22|7.5|8.7|8|2.4
+Salad|Plant-based Dölicious Chicken|328|877|274|14|2.4|17|6.6|8.6|20|4.3
+Special|The BBQ Master|297|2646|622|32|13|56|22|5.3|26|4.4
+Special|Furious Chicken|270|2231|522|23|5.7|50|7|5.4|27|3
+Special|Fiesta Fajita|255|2218|506|25|5.7|51|8.5|4.9|27|3.4
+Special|Tasty Tandoori|199|1625|388|14|5.9|39|10|2.8|26|2.3
+Special|Beef Texicana|248|1882|449|20|9.4|42|11|3.4|27|2.7
+Panini|Chick'n'Garlic|196|1858|444|21|8.2|35|7.5|2.3|27|2.2
+Panini|Philly Supreme|196|1847|441|20|8.6|40|10|2.7|25|2.5
+Panini|Smoky Beast|207|1755|421|16|8.1|40|12|2.6|29|2.5
+Side|Footlong Cookie|265|5621|1344|68|33|164|94|5.8|15|1.7
+Side|Peperoni-Salami & Cheese Footlong Dipper|138|1812|433|19|7.6|49|3.4|3.9|15|2.5
+Side|Triple Cheese Footlong Dipper|148|1892|453|19|9.5|49|3.3|3.9|18|2.1
+Side|Waffle Fries|100|1085|184|8.2|1.1|23|0.3|4|2.8|0.9
+Side|Nacho Chicken Bites|18|188|45|2.1|0.2|3.5|0.2|0.3|2.6|0.2
+Side|Falafel Bites|90|945|226|13|1.1|26|1.4|12|6.5|1.2
+Side|Lay’s Chips Salted|28|620|148|9.4|0.7|14|0.1|1.2|1.7|0.4
+Side|Lay’s Chips Paprika|28|609|146|8.8|0.7|14|0.7|1.3|1.7|0.4
+Side|Doritos Nacho Cheese|44|920|220|11|1.5|26|1.2|2.5|2.9|0.5
+Side|Doritos Sweet Chili Pepper|44|918|219|11|1.4|26|2.3|2.5|2.9|0.5
+Drink|Pepsi regular 0,5 l|500|599|143|35|35|0|0|0|0|0
+Drink|Pepsi Zero Zucker 0,5 l|500|10|2|0|0|0|0|0.2|0|0
+Drink|Schwip Schwap 0,5 l|500|828|198|49|48|0|0.5|0.1|0|0
+Drink|Schwip Schwap Zero 0,5 l|500|30|7|1.5|1.5|0|0|0.1|0|0
+Drink|7UP Zero 0,5 l|500|409|98|23|23|0|0|0.2|0|0
+Drink|Lipton Eistee Peach 0,5 l|500|279|67|15|15|0|0|0.0|0|0.15
+Drink|Lipton Eistee Lemon 0,5 l|500|274|66|0|0|15|15|0.0|0|0.15
+Drink|Adelholzener Classic 0,5 l|500|0|0|0|0|0|0|0|0|0
+Drink|Mountain Dew 0,5 l|500|1058|253|60|60|0|0|0|0|0
+Drink|Capri-Sun Fruit Crush Tropical 0,2 l|200|244|58|13|13|0|0|0.0|0|0
+Side|BuddyFruits Fruchtmousse|90|233|56|12|11|1.7|0.5|0|0|0
+Sauce|BBQ Sauce (vegan)|14|83.8|21|0|0|4.9|4.2|0.3|0.1|0.4
+Sauce|Caesar Sauce|14|210|50|4.8|0.5|1.2|0.7|0|0.4|0.3
+Sauce|Chipotle Southwest Sauce|14|258|62|6.3|0.5|1.3|0.8|0|0.1|0.2
+Sauce|Doner Sauce|14|137|33|2.6|0.3|1.8|0.9|0.21|0.2|0.4
+Sauce|X-spicy Chipotle Sauce (vegan)|14|251|60|6.1|0.5|1.1|0.7|0.1|0.2|0.3
+Sauce|Honey & Wholegrain Mustard Sauce|14|122|29|1.9|0.1|2.7|2.3|0.2|0.3|0.2
+Sauce|Lite Mayonnaise|14|194|46|4.9|0.3|0.6|0.6|0|0|0.2
+Sauce|Joghurt|14|78|18|1.4|0|1.3|0.6|0|0.1|0.2
+Sauce|Sweet Onion (vegan)|14|97|23|0.1|0|5.6|4.8|0.1|0.1|0.1
+Sauce|Garlic & Herb (vegan)|14|90|22|0.19|0|4.9|4.2|0|0|0.1
+Sauce|Olivenöl (vegan)|3.5|131|32|3.5|0.4|0|0|0|0|0
+Cookie|Double Chocolate Cookie (vegan)|45|876|209|9.5|5.4|27|18|0.5|2.3|0.4
+Cookie|Chocolate Chunk Cookie|45|896|214|10|5.1|28|16|1.2|2.3|0.3
+Cookie|Chocolate Chip mit Rainbow Candy Cookie|45|894|214|9.8|5|28|18|1.5|2.2|0.1
+Cookie|White Chip Macadamia Nut Cookie|45|900|215|10|5.1|27|16|0.5|2.3|0.4
+Cookie|Oat & Raisin Cookie|45|587|140|0.6|0.1|28|14|5.9|2.6|0.2
+Cookie|Raspberry Cheesecake Cookie|45|871|208|9.6|5.4|27|16|0.2|2.5|0.3
+Extra|Scheibenkäse|12|177|42|3.5|2.2|0.4|0.4|0|2.3|0.3
+Extra|Mozzarella-Emmental-Mix|14|187|45|3.4|2.2|0.6|0.1|0|3.2|0.2
+Extra|Cheddar|11|191|46|3.8|2.3|0.0|0.0|0|2.8|0.2
+Extra|Guacamole|35|98|24|6.0|0.3|0.9|0.4|0.6|0.7|0.2
+Extra|Bacon|9|154|37|2.8|1.0|0.2|0.3|0|3.0|0.3
+Extra|Omelette|70|363|87|4.69|1.4|2.3|0.7|0|7.8|0.8
+Bread|Italian|70|794|190|2.1|0|36|4.2|2.1|7|0.6
+Bread|Sesam|75|782|187|4|1|29|1|2|8|1
+Bread|Cheese Oregano|81|816|195|3.9|1.6|30|1|1.9|9.3|0.7
+Bread|Honey Oat|96|983|235|2.6|0.5|41|9|5|9.5|0.5
+Bread|Vollkornbrot|76|658|157|0.8|0.2|27|1.4|4.4|7.5|1
+Bread|Weizenwrap|95|1153|276|5.7|0.8|48|2.6|3.9|6.7|1.2
+Bread|Glutenfrei|110|1229|294|6.6|0.6|53|1.2|3.7|3.3|1.0

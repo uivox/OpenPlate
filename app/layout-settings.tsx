@@ -2,6 +2,7 @@ import React from 'react';
 import { Switch, View } from 'react-native';
 import { Button, Card, ChipGroup, Divider, IconButton, Row, Screen, SectionTitle, Txt } from '../src/components/ui';
 import { DEFAULT_LAYOUT, FIXED_DIARY, FIXED_TABS, move, toggle } from '../src/lib/layout';
+import { RESTAURANT_CHAINS } from '../src/lib/restaurants';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
 import type { DiarySection, LayoutPrefs, TabId } from '../src/lib/types';
@@ -72,7 +73,23 @@ export default function LayoutSettingsScreen() {
         <Txt v="small">{t('usual_setting_text')}</Txt>
       </Card>
 
-      <Button kind="ghost" icon="refresh" title={t('reset_layout')} onPress={() => setLayout({ ...DEFAULT_LAYOUT, usualMeal: true })} />
+      <Card style={{ gap: 8 }}>
+        <Row gap={12}>
+          <Txt v="h3" style={{ flex: 1 }}>
+            {t('restaurant_setting')}
+          </Txt>
+          <Switch
+            value={layout.restaurantFoods !== false}
+            onValueChange={(on) => setLayout({ restaurantFoods: on })}
+            trackColor={{ true: c.accent }}
+            accessibilityLabel={t('restaurant_setting')}
+            testID="restaurant-switch"
+          />
+        </Row>
+        <Txt v="small">{t('restaurant_setting_text', { chains: RESTAURANT_CHAINS.map((ch) => ch.name).join(', ') })}</Txt>
+      </Card>
+
+      <Button kind="ghost" icon="refresh" title={t('reset_layout')} onPress={() => setLayout({ ...DEFAULT_LAYOUT, usualMeal: true, restaurantFoods: true })} />
     </Screen>
   );
 }

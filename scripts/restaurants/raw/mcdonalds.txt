@@ -1,0 +1,164 @@
+# McDonald's Deutschland, from mcdonalds.com/dnaapp/itemDetails?country=DE&language=de (the data behind every product page on mcdonalds.com/de/de-de), read 2026-11-04.
+# id|category|name|serving (g, ml for drinks)|kcal|protein|carbs|fat|fiber|sugar|satFat|salt (per serving)
+200006|fruehstueck|McMuffin® Fresh Chicken|159|355|15|37|16|2.5|3.4|4.4|1.9
+200016|mcsmart-snacks|Hamburger|106|259|13|29|9.5|2.2|6.9|3.7|1.1
+200017|mcsmart-snacks|Cheeseburger|121|307|16|30|13|2.2|7.4|6.3|1.6
+200018|burger|Double Cheeseburger|179|460|27|31|25|2.4|8.0|12|2.4
+200019|burger|Hamburger Royal Cheese|213|549|33|38|29|2.9|10|14|2.5
+200020|burger|Big Mac®|232|545|27|42|29|3.9|8.6|11|2.3
+200023|mcnuggets-fingerfood|6 Chicken McNuggets®|109|267|16|18|14|1.2|0.8|1.7|1.1
+200024|mcnuggets-fingerfood|9 Chicken McNuggets®|163|401|24|27|21|1.8|1.2|2.5|1.7
+200025|happy-meal|4 Chicken McNuggets®|72|178|11|12|9.5|0.8|0.5|1.1|0.73
+200026|mcnuggets-fingerfood|20 Chicken McNuggets®|363|892|54|60|47|4.1|2.7|5.6|3.7
+200027|beilagen-extras|Barbecue Sauce 25ml|29|48|0.2|11|0.3|0|9.5|0.0|0.44
+200030|beilagen-extras|Senf Sauce 25ml|28|59|0.6|6.4|3.3|0.4|5.7|0.3|0.52
+200031|beilagen-extras|Süßsauer Sauce 25ml|30|49|0.1|11|0.3|0.4|9.7|0.0|0.31
+200032|beilagen-extras|Curry Sauce 25ml|29|47|0.3|10|0.4|0.4|9.6|0.1|0.32
+200033|beilagen-extras|Ketchup 20ml|23|28|0.4|6.4|0.1|0.5|4.3|0.0|0.45
+200034|beilagen-extras|Mayonnaise 20ml|19|141|0.2|0.4|15|0.0|0.4|1.7|0.19
+200035|burger|McDouble® Chili Cheese|173|435|26|28|24|2.3|5.7|11|2.2
+200037|burger|Hamburger Royal TS|241|536|30|36|29|3|8.8|12|1.9
+200039|mcsmart-snacks|Chickenburger|127|293|11|34|8.7|2.2|11|1.4|1.3
+200040|burger|Double Chickenburger|179|410|17|34|16|2.5|11|2.5|1.7
+200042|mcsmart-snacks|Pommes Frites klein|80|231|2.8|29|11|2.8|0.3|1|0.37
+200043|beilagen-extras|Pommes Frites mittel|114|329|3.9|41|16|4|0.4|1.5|0.53
+200044|beilagen-extras|Pommes Frites groß|160|463|5.5|58|22|5.6|0.5|2.1|0.75
+200047|beilagen-extras|Balsamico Dressing 25 ml|32|22|00|3.2|0.8|0.1|3.2|0.1|0.57
+200050|happy-meal|Snack Salad|124|21|1.1|3.1|0.20|1.2|2.2|0.00|0.03
+200053|desserts|McSundae® Original mit Schoko-Sauce|152|285|5.5|46|8.4|0.7|43|6.4|0.25
+200054|desserts|McSundae® Original mit Karamell-Sauce|154|286|4.7|53|6.1|0.0|38|4.1|0.28
+200056|desserts|Heiße Apfeltasche|80|228|2.3|28|12|1.5|9.2|2.8|0.33
+200057|highlights|Heiße Kirsch Tasche|85|259|2.9|37|11|2.0|14|3.0|0.34
+200058|happy-meal|Fruchtquatsch 80g|80|41|0.4|7.8|0.5|1.4|7.1|0.1|0.01
+200059|happy-meal|Bio Apfeltüte 60g|60|34|0.1|7.6|0.1|1.1|6.4|0.1|0.01
+200073|highlights|Milchshake Schokogeschmack 0,4l|277|325|9.1|57|6.5|1.1|47|4.4|0.63
+200074|desserts|Milchshake Vanillegeschmack 0,4l|276|313|8.1|57|5.9|0|52|3.9|0.29
+200075|desserts|Milchshake Erdbeergeschmack 0,4l|276|316|8.1|58|5.9|0|54|3.9|0.3
+200078|beilagen-extras|Sour Cream-Schnittlauch Dip 25ml|24|112|0.3|0.5|12|0.1|0.2|1.1|0.22
+200079|burger|Big Tasty® Bacon|359|912|49|51|57|2.4|12|22|4.0
+200082|getraenke|Coca-Cola Classic 0,5l|500|200|0.0|50|0.0|0.0|50|0.0|0.00
+200085|getraenke|Fanta 0,5l|500|185|0.0|45|0.0|0.0|44|0.0|0.00
+200088|getraenke|Sprite 0,5l|500|159|0|38|0|0|38|0|0
+200096|mcsmart-snacks|Café Small|180|1|0.1|0.2|0.0|0.0|0.2|0.0|0.01
+200098|fruehstueck|Café Grande|370|2|0.2|0.2|0.0|0.0|0.2|0.0|0.02
+200103|fruehstueck|Heißes Kakaogetränk grande|351|378|14|45|14|4.4|43|9.7|0.62
+200104|mcsmart-snacks|Cappuccino Small|140|41|2.2|3.1|2.2|0.0|3.1|1.4|0.08
+200105|fruehstueck|Cappuccino Grande|279|82|4.3|6.1|4.4|0.0|6.1|2.9|0.17
+200106|fruehstueck|Latte Macchiato Grande|262|110|5.7|8.1|6.0|0.0|8.1|3.9|0.22
+200112|happy-meal|Bio Schorle Apfel-Birne 0,2l|206|47|1.0|11|1|0.0|11|0.2|0.02
+200115|getraenke|Coca-Cola Zero Sugar 0,5l|543|1|0|0.1|0|0|0|0|0.02
+200118|getraenke|Lipton Ice Tea Peach 0,5l|500|95|2.5|22|2.5|0|22|0.5|0.15
+200194|mcsmart-snacks|McFlurry® Original|142|197|4.8|33|5.2|0.0|30|3.8|0.03
+200195|desserts|Wahlzutat Schoko-Sauce|38|127|1.6|20|4.2|0.7|18|3.4|0.23
+200196|desserts|Wahlzutat Karamell-Sauce|41|133|0.7|28|1.9|0.0|14|1.3|0.12
+200198|desserts|Wahlzutat OREO®|24|114|1.2|16|4.8|0.7|8.9|1.3|0.18
+200200|desserts|Wahlzutat Smarties®|36|170|1.5|25|7.1|0.90|24|4.6|0.05
+200205|highlights|3 Käsegipfel|75|273|13|11|20|0.9|0.6|9.0|2.8
+200206|highlights|6 Käsegipfel|150|546|26|23|39|1.8|1.2|18|5.6
+200233|highlights|1955er Burger|332|735|41|51|40|3.9|14|14|2.4
+200254|mcwrap|McWrap® Chicken Honig-Senf|241|501|21|51|25|4.7|5.8|6.6|2.4
+200264|highlights|Curly Fries|176|458|6.0|55|23|6.3|0.7|2.3|3.5
+200268|happy-meal|Capri-Sun Tropical 0,2l|204|43|0.0|10|0.0|0.0|10|00|0.01
+200280|mcwrap|McWrap® Chicken Sweet Chili|232|543|21|65|22|5.5|14|6.0|2.2
+200288|getraenke|Red Bull Zero Dragonberry Energizer Grande|468|105|0.3|29|0.2|0.5|16|0.1|0.05
+200663|getraenke|Espresso Grande|75|1|0.1|0.2|0.0|0.0|0.2|0.0|0.00
+200680|getraenke|Orangensaft|0.25|120|2.0|25|0|1.8|25|0|0
+200725|getraenke|Iced Matcha Latte Grande|297|142|5.6|17|5.4|1.0|17|3.5|0.20
+200845|getraenke|Red Bull 250 ml|263|121|0.0|29|0.0|0.0|29|0.0|0.26
+200909|fruehstueck|McToast® Cheese|78|239|10|27|9.6|1.8|5.3|5.6|1.4
+200926|getraenke|Red Bull Zero Blueberry Energizer Grande|465|77|0.1|22|0.1|1.0|16|0.0|0.09
+201099|highlights|Big Tasty® Bacon BBQ|375|918|50|59|52|4.7|17|23|3.8
+201127|fruehstueck|Buttercroissant|83|335|6.1|39|17|1.1|3.6|13|0.58
+201204|getraenke|Lipton Ice Tea Peach Zero|543|5|0.0|0.0|0.0|0.0|0.0|0.0|0.20
+201212|burger|McCrispy®|219|525|24|58|21|3.3|7.8|2.2|2.3
+201234|getraenke|Iced Coffee Shake Choc 0,4l|361|485|9.5|76|15|2.1|68|12|0.54
+201263|desserts|Triple Choc Cookie|80|383|4.2|46|19|1.8|31|11|0.46
+201326|mcsmart-snacks|McSundae® Original|113|155|4.0|25|4.1|0.0|23|2.8|0.16
+201478|mccafe|Sahne Portion|23|50|0.6|2.5|4.3|0.0|2.1|3.2|0.02
+201484|fruehstueck|Earl Grey Tee Regular|301|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.01
+201485|fruehstueck|Fresh Mint Tee Regular|300|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.01
+201486|fruehstueck|Aromatisierter Grüntee|301|0.0|0.0|0.0|0.0|0.0|0.0|0.0|0.01
+201489|mccafe|Laktosefreie Milch|84|39|0.0|4.0|1.3|0.0|4.0|0.8|0.11
+201508|fruehstueck|McMuffin® Bacon & Egg|132|297|17|26|13|1.7|2.3|5.5|1.5
+201521|mcnuggets-fingerfood|Chicken & Cheese Box|365|1054|58|60|64|3.6|2.3|21|7.9
+201534|getraenke|Ginger Lemon Refresher Grande|465|85|0.0|22|0.0|0.0|19|0.0|0.03
+201541|fruehstueck|Dark Chocolate Grande|311|356|12|43|13|5.8|41|8.4|0.49
+201546|getraenke|Espresso Macchiato Grande|85|8|0.5|0.7|0.4|0.0|0.7|0.2|0.02
+201560|getraenke|Berry Blue & Sprite Zero Grande|464|94|0.1|22|0.1|1.0|15|0.0|0.02
+201618|desserts|N.Y. Style Cheesecake|140|469|8|42|30|0.6|28|16|0.7
+201635|mccafe|Haferdrink|84|50|2.4|6.4|2.5|0|3.1|0.3|0.08
+201776|happy-meal|Bio McFreezy® Erdbeer-Banane|74|40|0.3|9.0|0.1|0.4|8.6|0.0|0.01
+201795|desserts|N.Y. Style Cheesecake mit OREO®-Topping und Schoko|202|708|11|78|39|2.4|56|22|1.10
+201951|happy-meal|4 McPlant® Nuggets|66|189|8.8|14|10|2.7|0.6|1.0|0.75
+201955|mcnuggets-fingerfood|6 McPlant® Nuggets|99|284|13|21|16|4.1|0.9|1.5|1.1
+201964|mcnuggets-fingerfood|9 McPlant® Nuggets|149|426|20|31|23|6.1|1.3|2.2|1.7
+201970|mcnuggets-fingerfood|20 McPlant® Nuggets|330|947|44|69|52|14|3.0|5.0|3.7
+202064|beilagen-extras|Sweet Chili Sauce|31|67|0.2|16|0|0.2|15|0|0.5
+202175|burger|Double Hamburger Royal TS|345|835|54|37|52|3.0|9.3|22|2.8
+202188|burger|Double Hamburger Royal Cheese|304|800|54|38|48|2.9|10|22|3.0
+202247|fruehstueck|McToast® Bacon & Cheese|88|279|13|27|13|1.8|5.4|6.7|1.7
+202248|fruehstueck|McMuffin® Egg|128|273|16|26|12|1.9|2.2|4.8|1.1
+202250|fruehstueck|McMuffin® Sausage & Egg|175|417|25|26|23|1.9|2.3|9.4|1.8
+202252|fruehstueck|Big Morning Farmer|194|534|26|38|30|5.5|4.3|9.6|2.7
+202253|fruehstueck|Big Morning Chicken|206|469|19|37|22|6.0|4.8|5.0|2.2
+202254|fruehstueck|McWrap® Rührei Cheese|251|487|22|38|27|3.9|5.2|9.8|1.8
+202255|fruehstueck|McWrap® Rührei Bacon|237|565|27|39|33|3.7|4.8|13|2.4
+202256|fruehstueck|6 Mini Pancakes|51|183|3.4|19|10|0.5|8.2|1.6|0.43
+202257|fruehstueck|12 Mini Pancakes|102|365|6.7|37|21|0.9|16|3.3|0.87
+202263|fruehstueck|Big Morning Egg|195|453|21|37|24|5.6|4.4|6.3|1.9
+202308|mccafe|Iced Latte|385|97|5.1|7.2|5.3|0.0|7.2|3.5|0.20
+202463|beilagen-extras|Honig-Senf Dressing 50 ml|54|118|0.60|9.3|8.4|0.60|8.9|0.60|1.1
+202465|beilagen-extras|Big Chicken Salad|271|280|14|19|15|4.5|3|2.3|1.1
+202543|highlights|McShaker® Fries Cheeseburger Style|163|467|6|59|22|5.9|0.8|2.2|0.96
+202583|burger|Double Beef Classic|189|497|23|37|28|2.3|8.9|7.4|2.0
+202645|desserts|Himbeer-White Choc Cookie|80|385|3.9|49|19|0.8|29|10|0.55
+202648|desserts|McPops® Berry Bomb|25|104|1.4|11|6|0.4|5.3|2.8|0.17
+202662|desserts|Pistachio Cream Donut|76|356|5|36|21|1.7|18|5.9|0.46
+202684|desserts|Choc-Nut Brownie|63|275|3.5|27|17|2.1|18|4.2|0.24
+202699|desserts|McPops® Pistachio Dream|24|119|2|9.4|7.9|0.6|5.8|3.6|0.23
+202818|burger|McVeggie® TS|233|449|20|50|17|6.2|10|4.4|2.6
+202821|veggie-und-plantbased|Big Veggie Salad|261|191|13|16|6.9|6.1|4.0|1.2|1.2
+202822|mcwrap|McWrap® Veggie Honig-Senf|255|487|20|52|20|8.3|6.5|5.1|2.5
+202904|desserts|Kirsch-Streusel Kuchen|142|358|4.5|55|13|2.3|32|5.5|0.33
+202910|mccafe|McPop® Coco Kiss|22|107|1.4|9|7.1|0.5|5.7|4.1|0.22
+202915|happy-meal|Wasser Still 0,25l|293|0|0.0|0.0|0.0|0.0|0.0|0.0|0.00
+202921|getraenke|Wasser Still 0,5l|543|0|0.0|0.0|0.0|0.0|0.0|0.0|0.00
+202925|happy-meal|Wasser Sprudelnd 0,25l|293|0|0.0|0.0|0.0|0.0|0.0|0.0|0.00
+202933|getraenke|Wasser Sprudelnd 0,5l|543|0|0.0|0.0|0.0|0.0|0.0|0.0|0.00
+202952|getraenke|Strawberry Melon Refresher Grande|437|64|0.2|15|0.1|0.4|13|0.0|0.00
+202956|getraenke|Red Bull Blueberry Energizer Grande|476|193|0.1|46|0.1|1.0|45|0.0|0.30
+203058|getraenke|Mezzo Mix|543|160|0.0|0.0|0.0|0.0|38|0.0|0.05
+203062|getraenke|Sprite® Zero 0,5l|543|5|0.0|0.0|0.0|0.0|0.0|0.0|0.20
+203077|getraenke|Pink Dragonfruit & Sprite Zero Grande|452|45|0.3|9.6|0.2|0.5|9.6|0.1|0.10
+203085|getraenke|Red Bull Zero 250 ml|252|5|0.0|5.0|0.0|0.0|0.0|0.0|0.05
+203128|fruehstueck|2 McGriddles® Pancakes|100|335|4.7|45|15|1.0|12|1.6|0.90
+203168|getraenke|Lift Apfelschorle 0,5l|511|128|0.0|31|0.0|0.0|30|0.0|0.05
+203178|fruehstueck|McGriddles® Bacon & Egg|185|530|19|46|30|1.0|12|7.7|1.8
+203243|mcwrap|McWrap® Veggie Sweet Chili|240|466|20|63|13|8.3|15|4.4|2.5
+203260|burger|McVeggie®Sweet Chili|228|461|20|62|13|6.7|20|3.9|2.8
+203277|burger|McChicken®|181|451|18|49|20|3.8|7.9|3.1|2.1
+203281|burger|Fish Filet Classic|156|393|17|40|18|2.0|5.6|4.3|2.0
+203285|burger|McChicken® Bacon Deluxe|216|644|28|49|36|3.5|8.5|8.7|3.2
+203289|highlights|3 McWings|186|595|29|36|38|4.4|0.9|5.5|3.8
+203290|highlights|5 McWings|310|992|48|59|64|7.4|1.5|9.2|6.3
+203294|mcnuggets-fingerfood|Chicken Box|405|1126|62|73|66|6.7|2.5|9.0|6.2
+203309|desserts|McPops® mit nutella®|25|122|1.8|13|7.0|0.1|6.8|3.0|0.17
+203314|desserts|Pecannuss Caramel Muffin|110|491|6.4|45|31|2.5|28|5.4|0.60
+203318|desserts|Schoko-Banane Donut|70|247|3.4|30|12|1.1|15|5.5|0.39
+203322|getraenke|Red Bull Dragonberry Energizer Grande|478|221|0.3|52|0.2|0.5|45|0.1|0.26
+203326|getraenke|Iced Matcha Blueberry Grande|461|341|9.1|47|9.0|2.1|47|5.8|0.38
+203334|getraenke|Iced Winter Spiced Latte Grande|526|323|9.1|39|15|0.0|38|10|0.36
+203342|getraenke|Iced Popcorn Latte Grande|507|302|8.7|45|9.2|0.4|42|5.8|0.38
+203346|getraenke|Iced Cozy Pink Grande|422|212|8.3|24|8.8|0.0|23|5.8|0.39
+203350|getraenke|Matcha Latte Grande|270|181|7.3|21|7.1|1.2|21|4.6|0.26
+203358|getraenke|Matcha Latte Blueberry Grande|309|309|7.4|44|7.3|2.1|44|4.6|0.32
+203366|getraenke|Winter Spiced Latte Grande|375|291|7.5|36|13|0.0|36|8.8|0.29
+203374|getraenke|Popcorn Latte Grande|355|270|7.0|43|7.5|0.4|40|4.7|0.31
+203378|getraenke|Cozy Pink Grande|270|180|6.7|22|7.0|0.0|21|4.6|0.32
+203382|desserts|Apfel-Zimt Kuchen|183|401|4.2|51|20|2.2|31|13|0.20
+203385|desserts|McPops® Milky Red Velvet|26|105|1.1|14|2.8|0.2|8.2|1.1|0.19
+203393|highlights|McFlurry® Daim|211|484|6.5|78|16|0.5|66|9.7|0.65
+203394|highlights|McCrispy® 1955|302|674|31|67|30|5.2|15|5.1|3.2
+203399|beilagen-extras|Hot Western Sauce|29|38|0.3|8.1|0.4|0.4|5.4|0.0|0.46
+203401|highlights|McVeggie® Smoky|226|457|20|50|18|6.6|10|4.4|2.6
+203405|highlights|McFarmer|245|738|31|34|52|2.6|6.4|18|3.2

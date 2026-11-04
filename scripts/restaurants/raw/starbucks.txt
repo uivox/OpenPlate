@@ -1,0 +1,111 @@
+# Starbucks Deutschland, from the official "Allergen- und Nährwertinformationen Spring – 02.02.2026 – Nährwerte Getränke" PDF
+# (https://www.starbucks.de/sites/starbucks-de-pwa/files/2026-03/Allergen-%20und%20N%C3%A4hrwertinformationen%20Spring%20-%2002.02.2026%20-%20N%C3%A4hrwerte%20Getr%C3%A4nke.pdf), read 2026-11-04.
+# Default milk is semi-skimmed (Halbfettmilch); "(Hafer)" is the oat drink version. Blonde, decaf and limited drinks are left out.
+# The PDF gives values per cup; the cup volumes (Tall about 350 ml, Grande about 470 ml) are used only to work out per-100 ml values; one cup always gives the published figure.
+# name|size|kcal|fat|satFat|carbs|sugar|fiber|protein|salt (per cup)
+Caffe Latte|Tall|129|4.5|2.9|12.7|12.3|0.1|9.4|0.28
+Caffe Latte|Grande|151|5.2|3.4|15|14.2|0.3|10.9|0.32
+Caffe Latte (Hafer)|Tall|153|7.9|0.8|17.5|8.4|2.7|2.2|0.33
+Caffe Latte (Hafer)|Grande|178|9.2|0.9|20.4|9.7|3.2|2.7|0.38
+Latte Macchiato|Tall|110|3.8|2.5|10.8|10.4|0.1|7.9|0.24
+Latte Macchiato|Grande|147|5.1|3.2|14.6|13.7|0.3|10.6|0.31
+Latte Macchiato (Hafer)|Tall|130|6.7|0.7|14.8|7.1|2.3|1.9|0.28
+Latte Macchiato (Hafer)|Grande|173|8.9|0.9|19.8|9.4|3.1|2.7|0.36
+Freshly Brewed Coffee|Tall|25|1.1|0.4|2.2|0.4|1.8|1.1|0.01
+Freshly Brewed Coffee|Grande|31|1.3|0.4|2.6|0.4|2.2|1.3|0.01
+Cappuccino|Tall|105|3.7|2.3|10.4|10|0.1|7.6|0.23
+Cappuccino|Grande|130|4.5|2.9|12.9|12.1|0.3|9.4|0.28
+Cappuccino (Hafer)|Tall|124|6.4|0.6|14.2|6.8|2.2|1.9|0.26
+Cappuccino (Hafer)|Grande|153|7.8|0.8|17.5|8.3|2.7|2.4|0.32
+Caramel Macchiato|Tall|164|4.8|3.1|21.7|20.9|0.1|8.3|0.27
+Caramel Macchiato|Grande|214|6|3.8|28.9|27.6|0.3|10.9|0.35
+Caramel Macchiato (Hafer)|Tall|184|7.8|1.2|25.9|17.5|2.4|2.1|0.31
+Caramel Macchiato (Hafer)|Grande|240|9.9|1.4|34.3|23.2|3.1|2.8|0.40
+Mocha|Tall|221|9.5|6.5|24.2|22.8|2.8|8.1|0.19
+Mocha|Grande|281|11.2|7.5|32.2|30.1|3.9|10.9|0.26
+Mocha (Hafer)|Tall|236|11.7|5.1|27.2|20.4|4.4|3.7|0.22
+Mocha (Hafer)|Grande|301|14|5.7|36.2|26.8|6|5|0.30
+White Mocha|Tall|272|10.8|7.7|35|34.6|0.2|8.7|0.38
+White Mocha|Grande|345|12.7|9.1|46.2|45.4|0.3|11.3|0.50
+White Mocha (Hafer)|Tall|288|13.1|6.3|38.2|31.9|1.9|3.8|0.42
+White Mocha (Hafer)|Grande|366|15.7|7.2|50.4|41.9|2.6|5|0.54
+Cold Brew|Tall|16|0.6|0.2|1.6|0.1|1|0.8|0.01
+Cold Brew|Grande|22|0.8|0.3|2.2|0.1|1.4|1.1|0.01
+Cold Brew Latte|Tall|88|3.1|1.9|8.6|7.7|0.5|6.4|0.18
+Cold Brew Latte|Grande|123|4.3|2.7|12|11.1|0.6|8.9|0.26
+Cold Brew Latte (Hafer)|Tall|103|5.2|0.6|11.5|5.3|2.1|1.9|0.21
+Cold Brew Latte (Hafer)|Grande|144|7.4|0.8|16.2|7.6|2.9|2.5|0.30
+Iced Latte|Tall|90|3.1|2|8.9|8.5|0.1|6.5|0.19
+Iced Latte|Grande|128|4.4|2.8|12.7|11.9|0.3|9.2|0.27
+Iced Latte (Hafer)|Tall|106|5.5|0.5|12.2|5.8|1.9|1.6|0.23
+Iced Latte (Hafer)|Grande|150|7.7|0.8|17.2|8.1|2.7|2.4|0.31
+Classic Iced Cappuccino|Tall|78|2.7|1.7|7.7|7.3|0.1|5.6|0.17
+Classic Iced Cappuccino|Grande|106|3.6|2.3|10.6|9.8|0.3|7.6|0.22
+Classic Iced Cappuccino (Hafer)|Tall|92|4.7|0.5|10.5|5|1.6|1.4|0.19
+Classic Iced Cappuccino (Hafer)|Grande|125|6.3|0.6|14.3|6.7|2.3|2|0.26
+Iced Latte Macchiato|Tall|88|3|1.9|8.7|8.3|0.1|6.3|0.19
+Iced Latte Macchiato|Grande|132|4.5|2.9|13.1|12.3|0.3|9.5|0.28
+Iced Latte Macchiato (Hafer)|Tall|103|5.3|0.5|11.8|5.6|1.8|1.6|0.22
+Iced Latte Macchiato (Hafer)|Grande|155|7.9|0.8|17.7|8.4|2.8|2.4|0.32
+Iced Caramel Macchiato|Tall|143|4.1|2.6|20|19.1|0.1|6.4|0.22
+Iced Caramel Macchiato|Grande|201|5.6|3.6|27.9|26.6|0.3|9.6|0.31
+Iced Caramel Macchiato (Hafer)|Tall|158|6.4|1.2|23.1|16.5|1.8|1.7|0.25
+Iced Caramel Macchiato (Hafer)|Grande|224|9|1.5|32.6|22.7|2.8|2.5|0.36
+Iced Mocha|Tall|252|13.2|9.2|24.2|22.8|2.8|7.6|0.18
+Iced Mocha|Grande|340|17.7|12.2|32.9|30.7|3.9|10.5|0.24
+Iced Mocha (Hafer)|Tall|265|15.1|8|26.8|20.7|4.2|3.8|0.20
+Iced Mocha (Hafer)|Grande|357|20.2|10.6|36.3|27.8|5.7|5.2|0.28
+Iced White Mocha|Tall|298|14.3|10.3|34.5|34.1|0.2|7.8|0.36
+Iced White Mocha|Grande|401|19.1|13.7|46.5|45.7|0.3|10.6|0.48
+Iced White Mocha (Hafer)|Tall|311|16.2|9.1|37.1|31.9|1.6|3.8|0.38
+Iced White Mocha (Hafer)|Grande|419|21.7|12.1|50.1|42.7|2.3|5.3|0.52
+Iced Brown Sugar Oat Shaken Espresso|Tall|87|2.1|1.3|12.6|11.8|0.3|4.3|0.12
+Iced Brown Sugar Oat Shaken Espresso|Grande|115|2.6|1.6|17.4|16.2|0.4|5.4|0.15
+Classic Hot Chocolate|Tall|246|10.3|7|27.2|26.1|3|9.6|0.24
+Classic Hot Chocolate|Grande|309|12.1|8.1|35.4|34|3.9|12.7|0.32
+Classic Hot Chocolate (Hafer)|Tall|264|13|5.3|30.8|23|4.9|4|0.27
+Classic Hot Chocolate (Hafer)|Grande|334|15.7|5.9|40.4|29.9|6.5|5.2|0.37
+Iced Chocolate|Tall|269|13.8|9.5|26.4|25.3|2.9|8.5|0.21
+Iced Chocolate|Grande|364|18.5|12.8|35.6|34.1|3.8|11.9|0.30
+Coffee Frappuccino®|Tall|212|10.6|7.5|25.2|24.4|0.1|3.7|0.41
+Coffee Frappuccino®|Grande|283|14|9.9|34.1|33|0.2|4.9|0.55
+Caramel Frappuccino®|Tall|270|12.3|8.5|35.6|34.2|0.1|3.9|0.46
+Caramel Frappuccino®|Grande|346|15.8|11|45.6|43.9|0.2|5|0.60
+Mocha Frappuccino®|Tall|238|11.1|7.8|29.6|28.5|1|4.3|0.40
+Mocha Frappuccino®|Grande|314|14.6|10.2|39.1|37.7|1.3|5.5|0.53
+Java Chip Frappuccino®|Tall|275|13.4|9.6|33.2|30.9|1.7|4.6|0.42
+Java Chip Frappuccino®|Grande|378|17.9|13|46.4|43.2|2.3|6.3|0.60
+Chocolate Cream Frappuccino®|Tall|236|11.6|8.1|27.5|26.7|1.1|5|0.41
+Chocolate Cream Frappuccino®|Grande|322|15.4|10.8|38.3|37.1|1.5|6.8|0.57
+Vanilla Cream Frappuccino®|Tall|212|10.9|7.7|24.4|23.9|0|4.1|0.39
+Vanilla Cream Frappuccino®|Grande|290|14.5|10.2|34.4|33.7|0|5.6|0.56
+Caramel Cream Frappuccino®|Tall|254|12.6|8.7|31|30|0|4.2|0.45
+Caramel Cream Frappuccino®|Grande|336|16.3|11.4|41.5|40.3|0|5.8|0.61
+Strawberries & Cream Frappuccino®|Tall|229|10.9|7.7|28.3|27.2|0.2|4.2|0.39
+Strawberries & Cream Frappuccino®|Grande|310|14.4|10.2|39.1|37.6|0.3|5.6|0.54
+Cookies & Cream Frappuccino®|Tall|273|13.9|9.6|31.6|27|0.2|5.3|0.57
+Cookies & Cream Frappuccino®|Grande|365|18.4|12.7|42.7|36.6|0.3|7.1|0.77
+Double Chocolatey Chip Cream Frappuccino®|Tall|280|14|10.2|32.1|29.9|1.7|5.4|0.46
+Double Chocolatey Chip Cream Frappuccino®|Grande|379|18.8|13.6|44.1|41|2.3|7.3|0.63
+Matcha Cream Frappuccino®|Tall|221|11|7.8|25.4|24.9|0.8|4.8|0.41
+Matcha Cream Frappuccino®|Grande|298|14.6|10.3|34.8|34|1.1|6.4|0.56
+Cool Lime Starbucks Refresha™|Tall|53|0.1|0|12.3|11.9|0.4|0.2|0.01
+Cool Lime Starbucks Refresha™|Grande|69|0.1|0|16.1|15.6|0.4|0.2|0.02
+Strawberry Acai Starbucks Refresha®|Tall|62|0.1|0|14.2|14.1|0.6|0.3|0.00
+Strawberry Acai Starbucks Refresha®|Grande|79|0.1|0|18.3|18.1|0.6|0.4|0.01
+Very Berry Hibiscus Refresha|Tall|74|0.1|0|15.9|15.7|2.1|0.6|0.04
+Very Berry Hibiscus Refresha|Grande|93|0.1|0|20.4|20.1|2.1|0.6|0.05
+Orange & Mango Refresha|Tall|54|0|0|12.8|12.6|0.3|0|0.00
+Orange & Mango Refresha|Grande|71|0|0|16.8|16.6|0.3|0|0.00
+Matcha Green Tea Latte|Tall|134|4.7|3|12.7|12.7|0.8|10|0.29
+Matcha Green Tea Latte|Grande|161|5.6|3.6|15.2|15.2|1.2|12|0.34
+Matcha Green Tea Latte (Hafer)|Tall|158|8.2|0.8|17.5|8.7|3.5|2.6|0.34
+Matcha Green Tea Latte (Hafer)|Grande|190|9.8|1|21|10.4|4.3|3.3|0.40
+Iced Matcha Green Tea Latte|Tall|82|2.8|1.8|7.6|7.6|0.8|6.2|0.17
+Iced Matcha Green Tea Latte|Grande|117|4|2.5|10.9|10.9|1.3|8.8|0.25
+Chai Tea Latte|Tall|129|2.5|1.6|21.4|21.4|0.2|5.1|0.17
+Chai Tea Latte|Grande|181|3.7|2.3|29.4|29.3|0.3|7.4|0.24
+Chai Tea Latte (Hafer)|Tall|142|4.4|0.4|24|19.2|1.6|1.2|0.19
+Chai Tea Latte (Hafer)|Grande|200|6.4|0.6|33.2|26.2|2.3|1.7|0.28
+Iced Chai Tea Latte|Tall|132|2.6|1.7|21.7|21.7|0.2|5.3|0.17
+Iced Chai Tea Latte|Grande|180|3.6|2.3|29.3|29.2|0.3|7.4|0.24

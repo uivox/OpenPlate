@@ -1,0 +1,36 @@
+# Five Guys Deutschland, from the official "Allergen and Nutrition Info" PDF (https://www.fiveguys.de/wp-content/uploads/sites/33/2026/06/Allergen-and-Nutrition-Info.pdf, "FGDE 15/06/2026"), read 2026-11-04.
+# The PDF gives values per portion and per 100 g but no portion weight; the serving below is portion kcal ÷ kcal per 100 g, rounded.
+# Five Guys burgers are built from parts (bun, patties, cheese, toppings); see COMPOSED in scripts/build-restaurants.mjs.
+# name|serving|unit|kcal|protein|carbs|fat|fiber|sugar|satFat|salt (per 100 g)
+Bacon|14|g|554|46|5.0|39|0|0|16|6.6
+Rindfleisch-Burgerpatty|67|g|291|27|0|21|0|0|8.3|0.19
+Hot Dog|76|g|252|14|2.8|20|0|0|8.4|2.5
+Burger-Brötchen|76|g|320|9.1|49|9.6|1.2|8.9|3.3|1.13
+Hot Dog-Brötchen|71|g|319|8.6|49|9.3|2.7|9.8|3.2|1.16
+Mini Fries|129|g|271|4.1|29|16|2.6|0.4|2.2|0.43
+Little Fries|243|g|271|4.1|29|16|2.6|0.4|2.2|0.43
+Regular Fries|396|g|271|4.1|29|16|2.6|0.4|2.2|0.43
+Large Fries|557|g|271|4.1|29|16|2.6|0.4|2.2|0.43
+Curry Style Fries|416|g|245|5.1|27.3|12.9|1.9|8.8|2.8|1.09
+Loaded Fries|331|g|227|4|23.3|12.3|2.7|1.3|2.7|1.2
+Loaded Cajun Fries|331|g|233|4|23.9|12.7|2.8|1.2|2.76|1.15
+Curry Sauce|40|g|177|0.7|42|0|1.1|35|0|1.8
+BBQ Sauce|12|g|128|1.3|29|0.5|1.2|27|0|2.4
+Käse (Scheibe)|19|g|371|20|3.0|30|0|3|19|3.7
+Gegrillte Champignons|32|g|38|3.0|6.4|0|2.2|1.3|0|0.73
+Hot Sauce|8|g|25|2.5|1.8|0.6|1.5|0|0|8.4
+Steak Sauce|7|g|102|0.9|28|0|0|23|0|1.3
+Tomato Ketchup|14|g|102|1.2|23|0|0|23|0|1.8
+Mayonnaise|15|g|754|1.2|2.2|82|0|2.2|13|1.3
+Senf|7|g|75|4.2|4.3|3.9|2.7|0.9|0.8|2.8
+Gegrillte Zwiebeln|32|g|38|1.2|8.4|0|1.1|5.6|0|0.02
+Relish|13|g|154|0|35|0|1.2|29|0.2|1.4
+Röstzwiebeln|8|g|590|6|40|44|5|9.0|21|1.2
+Milchshake (Basis)|355|g|176|2.2|21|9.4|0|20|6.2|0.20
+Milchshake klein (Basis)|178|g|176|2.2|21|9.4|0|20|6.2|0.20
+Schlagsahne (Shake)|20|g|339|2.3|3.0|35|0|3.0|26|0.08
+Veggie Sandwich|256|g|129|3.9|20|2.9|2.1|5.2|1.0|0.47
+Veggie Sandwich mit Käse|293|g|146|4.8|20|4.7|2.0|5.0|2.0|0.86
+Grilled Cheese|118|g|368|11|36|20|1.9|6.2|6.4|1.9
+BLT|200|g|326|11|23|20|1.8|4.4|5.0|1.3
+Burger im Salat Wrap|262|g|94|9.1|2.0|5.0|0.7|1.0|2.0|0.29
