@@ -184,7 +184,7 @@ Recipes, fixes and ideas are welcome. Setting up the code, the project layout an
 - Code: MIT, see `LICENSE`.
 - Product data: © Open Food Facts contributors, [Open Database License](https://opendatacommons.org/licenses/odbl/1-0/). The app shows this attribution wherever their data appears.
 - Built-in basic foods: approximate averages compiled from public references such as USDA FoodData Central.
-- Restaurant items: copied from each chain’s own published nutrition information for Germany (product pages and nutrition PDFs, read in November 2026; the food screen names the source and date). The chains publish these values for their customers; OpenPlate isn’t affiliated with any of them, and the names are their trademarks. Domino’s and Pizza Hut publish no nutrition values for their pizzas, so only Domino’s pre-packed items are included.
+- Restaurant items: copied from each chain’s own published nutrition information for Germany (product pages and nutrition PDFs, read in November 2026; the food screen names the source and date). The chains publish these values for their customers; Tellerwerk isn’t affiliated with any of them, and the names are their trademarks. Domino’s and Pizza Hut publish no nutrition values for their pizzas, so only Domino’s pre-packed items are included.
 - Bundeslebensmittelschlüssel (BLS) 4.0: Max Rubner-Institut, Karlsruhe, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), <https://doi.org/10.25826/Data20251217-134202-0>. Bundled with the app (energy, macros, fibre, sugar, saturated fat, salt), from the download at <https://blsdb.de>.
 
 Tellerwerk is an independent project and is not affiliated with any commercial nutrition app. It is not medical advice.
