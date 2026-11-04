@@ -1,7 +1,7 @@
 # Starbucks Deutschland, from the official "Allergen- und Nährwertinformationen Spring – 02.02.2026 – Nährwerte Getränke" PDF
 # (https://www.starbucks.de/sites/starbucks-de-pwa/files/2026-03/Allergen-%20und%20N%C3%A4hrwertinformationen%20Spring%20-%2002.02.2026%20-%20N%C3%A4hrwerte%20Getr%C3%A4nke.pdf), read 2026-11-04.
 # Default milk is semi-skimmed (Halbfettmilch); "(Hafer)" is the oat drink version. Blonde, decaf and limited drinks are left out.
-# The PDF gives values per cup; the cup volumes (Tall 354 ml, Grande 473 ml) are Starbucks' standard sizes, used only to work out the per-100 ml values.
+# The PDF gives values per cup; the cup volumes (Tall about 350 ml, Grande about 470 ml) are used only to work out per-100 ml values; one cup always gives the published figure.
 # name|size|kcal|fat|satFat|carbs|sugar|fiber|protein|salt (per cup)
 Caffe Latte|Tall|129|4.5|2.9|12.7|12.3|0.1|9.4|0.28
 Caffe Latte|Grande|151|5.2|3.4|15|14.2|0.3|10.9|0.32
