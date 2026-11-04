@@ -172,6 +172,19 @@ async function run(scheme) {
       await text(/Bundeslebensmittelschlüssel/).waitFor();
       await page.goBack();
     });
+    await step('restaurant items: found by name, with the chain and where the values come from', async () => {
+      await btn('Add food: Lunch').click();
+      await field('Search foods and products').fill('big mac');
+      await text('Big Mac®', { exact: true }).waitFor();
+      await text(/McDonald’s · /).first().waitFor();
+      await text(/chains’ own published nutrition values/).waitFor();
+      await text('Big Mac®', { exact: true }).click();
+      await text('545', { exact: true }).waitFor(); // one serving: the chain's own figure
+      await text(/Values as published by McDonald’s \(product pages/).waitFor();
+      await page.goBack();
+      await page.goBack();
+      await btn('Add food: Lunch').waitFor();
+    });
     await step('amount wheel: fractions of a serving and switching units', async () => {
       await btn('Add food: Lunch').click();
       await field('Search foods and products').fill('apple');
@@ -528,6 +541,20 @@ async function run(scheme) {
       if (await page.getByRole('tab', { name: 'Fasting' }).count()) throw new Error('Fasting tab still visible');
       await page.getByRole('tab', { name: 'Diary' }).click();
       await text('Breakfast', { exact: true }).waitFor();
+    });
+    await step('layout: restaurant items can be switched off', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      await text('Layout', { exact: true }).click();
+      await page.getByRole('switch', { name: 'Restaurant items in the food search' }).filter({ visible: true }).first().click();
+      await page.goBack();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Lunch').click();
+      await field('Search foods and products').fill('whopper');
+      await btn('Search products for “whopper”').waitFor().catch(() => {});
+      await page.waitForTimeout(500);
+      if (await page.getByText('Whopper®', { exact: true }).filter({ visible: true }).count()) throw new Error('restaurant items still shown after switching them off');
+      await page.goBack();
+      await btn('Add food: Lunch').waitFor();
     });
     await step('recipes: log a community recipe', async () => {
       await page.getByRole('tab', { name: 'Recipes' }).click();

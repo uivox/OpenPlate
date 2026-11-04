@@ -8,6 +8,7 @@ import { dayGoal } from './goals';
 import { stepsKcal } from './nutrition';
 import { needsBls, resolveCommunity } from './recipes';
 import { blsRows, loadBls } from './bls';
+import { loadRestaurants, restaurantRows } from './restaurants';
 import { stepsActionKey, stepsReasonKey, type StepReading } from './steps';
 import { useStore } from './store';
 import type { Profile, Recipe, WeightEntry } from './types';
@@ -108,6 +109,22 @@ export function useBlsReady(wanted = true): boolean {
     if (!wanted || ready) return;
     let alive = true;
     loadBls()
+      .then(() => alive && setReady(true))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [wanted, ready]);
+  return ready;
+}
+
+/** Whether the restaurant menu data is loaded; starts loading it when `wanted` (see restaurants.ts). */
+export function useRestaurantsReady(wanted = true): boolean {
+  const [ready, setReady] = useState(() => restaurantRows() !== null);
+  useEffect(() => {
+    if (!wanted || ready) return;
+    let alive = true;
+    loadRestaurants()
       .then(() => alive && setReady(true))
       .catch(() => {});
     return () => {

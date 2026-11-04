@@ -134,6 +134,8 @@ const en = {
   usual_info_text: '{foods}\n\nYou logged exactly these foods for this meal on {n} of the last 14 days ({days}). The amounts are your middle values from those days. Tapping the button adds them to today; you can change or delete them afterwards.',
   usual_setting: 'Suggest your usual meals',
   usual_setting_text: 'When a meal is still empty today and you logged the same foods for it on at least 3 of the last 14 days, the meal offers to add them in one tap.',
+  restaurant_setting: 'Restaurant items in the food search',
+  restaurant_setting_text: 'Shows menu items of fast-food chains in Germany ({chains}) while you search, with the chains’ own published values. They’re part of the app, so searching sends nothing.',
   quick_entry: 'Quick entry',
   water: 'Water',
   glass_n: 'Glass {n}',
@@ -741,7 +743,10 @@ const en = {
   reset_layout: 'Reset layout',
   // German food database
   source_bls: 'German nutrient database (BLS)',
+  source_restaurant: 'Restaurant (chain’s own values)',
   bls_attribution: 'Nutrition data: Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut, CC BY 4.0.',
+  restaurant_attribution: 'Restaurant items: the chains’ own published nutrition values for Germany. Open one to see the source and date.',
+  restaurant_source: 'Values as published by {chain} ({source}), read on {date}. Restaurants change recipes and portions, so check there if it matters.',
   retailer_hint: 'Tip: start with a supermarket, e.g. “Lidl Skyr”, to see its products first.',
   // Recipes
   tab_recipes: 'Recipes',
@@ -1270,6 +1275,8 @@ const de: Record<TKey, string> = {
   usual_info_text: '{foods}\n\nDu hast genau diese Lebensmittel für diese Mahlzeit an {n} der letzten 14 Tage eingetragen ({days}). Die Mengen sind deine mittleren Werte aus diesen Tagen. Ein Tipp auf den Knopf trägt sie für heute ein; du kannst sie danach ändern oder löschen.',
   usual_setting: 'Übliche Mahlzeiten vorschlagen',
   usual_setting_text: 'Wenn eine Mahlzeit heute noch leer ist und du an mindestens 3 der letzten 14 Tage dieselben Lebensmittel dafür eingetragen hast, bietet sie an, sie mit einem Tipp einzutragen.',
+  restaurant_setting: 'Restaurant-Gerichte in der Lebensmittelsuche',
+  restaurant_setting_text: 'Zeigt beim Suchen Gerichte von Fast-Food-Ketten in Deutschland ({chains}) mit den eigenen Nährwertangaben der Ketten. Sie sind Teil der App, beim Suchen wird nichts gesendet.',
   quick_entry: 'Schnelleintrag',
   water: 'Wasser',
   glass_n: 'Glas {n}',
@@ -1871,7 +1878,10 @@ const de: Record<TKey, string> = {
   reset_layout: 'Anordnung zurücksetzen',
   // German food database
   source_bls: 'Bundeslebensmittelschlüssel (BLS)',
+  source_restaurant: 'Restaurant (Angaben der Kette)',
   bls_attribution: 'Nährwerte: Bundeslebensmittelschlüssel (BLS) 4.0, Max Rubner-Institut, CC BY 4.0.',
+  restaurant_attribution: 'Restaurant-Gerichte: die eigenen Nährwertangaben der Ketten für Deutschland. Öffne eines, um Quelle und Datum zu sehen.',
+  restaurant_source: 'Werte wie von {chain} veröffentlicht ({source}), abgerufen am {date}. Restaurants ändern Rezepte und Portionen – im Zweifel dort nachsehen.',
   retailer_hint: 'Tipp: Beginne mit einem Supermarkt, z. B. „Lidl Skyr“, dann siehst du dessen Produkte zuerst.',
   // Recipes
   tab_recipes: 'Rezepte',

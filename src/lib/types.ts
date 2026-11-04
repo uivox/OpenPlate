@@ -12,7 +12,7 @@ export interface Nutrients {
   salt?: number;
 }
 
-export type FoodSource = 'generic' | 'bls' | 'off' | 'custom' | 'ai' | 'quick' | 'recipe';
+export type FoodSource = 'generic' | 'bls' | 'restaurant' | 'off' | 'custom' | 'ai' | 'quick' | 'recipe';
 
 export interface Serving {
   label: string;
@@ -219,6 +219,8 @@ export interface LayoutPrefs {
   collapsedMeals: MealType[];
   /** Offer "Your usual breakfast?" in today's empty meal cards (usualMeal.ts). On when missing. */
   usualMeal?: boolean;
+  /** Show fast-food chains' menu items (restaurants.ts) in the food search. On when missing. */
+  restaurantFoods?: boolean;
 }
 
 export type RecipeTag = 'breakfast' | 'main' | 'snack' | 'vegetarian' | 'vegan' | 'high_protein' | 'quick';

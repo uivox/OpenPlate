@@ -36,6 +36,8 @@ import { buildLabelPrompt, checkPer100, nutrientsFromRobotoff, parseLabelJson, r
 import { COMMUNITY_RECIPES } from '../src/lib/communityRecipes';
 import { newRecipe, perServing, recipeFood, resolveCommunity, resolveRef, scaleItems, searchRecipes, validateCommunity } from '../src/lib/recipes';
 import type { BlsRow } from '../src/lib/blsData';
+import { chainOfFood, loadRestaurants, RESTAURANT_CHAINS, restaurantFood, restaurantRows, searchRestaurants } from '../src/lib/restaurants';
+import type { RestaurantRow } from '../src/lib/restaurantData';
 import { addDays, dayKey, lastNDays, weekdayOf } from '../src/lib/dates';
 import { formatNumberInput, parseNumber } from '../src/lib/numbers';
 import { amountSpoken, convertAmount, FRACTION_LABELS, FRACTIONS, joinAmount, splitAmount } from '../src/lib/portions';
@@ -3164,6 +3166,75 @@ test('web start: no BLS database or extra icon sets in the start bundle; BLS loa
   assert.equal(blsRows(), rows);
   assert.ok(rows.length > 7000);
   assert.ok(searchBLS('haferflocken', 'de', 3).length > 0);
+});
+
+test('restaurant items: every bundled row passes the outside-data check and names a known chain', async () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const root = path.join(__dirname, '..', '..');
+  // Loaded on demand like the BLS, never with the start bundle.
+  for (const f of ['src/lib/restaurants.ts', 'src/lib/hooks.ts', 'app/add-food.tsx', 'app/food.tsx'])
+    assert.ok(!/^import \{[^}]*\bRESTAURANT_ROWS\b[^}]*\} from/m.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f} imports RESTAURANT_ROWS statically`);
+  const rows = await loadRestaurants();
+  assert.equal(await loadRestaurants(), rows);
+  assert.equal(restaurantRows(), rows);
+  assert.ok(rows.length > 600);
+  const chains = new Set(RESTAURANT_CHAINS.map((c) => c.id));
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const f = restaurantFood(row, 'de');
+    assert.ok(chains.has(row[0]), `unknown chain ${row[0]}`);
+    const check = checkPer100(f.per100);
+    assert.ok(check.per100, `${row[1]}: impossible values`);
+    assert.deepEqual(check.issues, [], `${row[1]}: ${check.issues.join(', ')}`);
+    assert.ok(!ids.has(f.id), `duplicate id ${f.id}`);
+    ids.add(f.id);
+  }
+  for (const c of RESTAURANT_CHAINS) {
+    assert.ok(rows.some((r) => r[0] === c.id), `${c.name} has no items`);
+    assert.match(c.asOf, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(c.url, /^https:\/\//);
+  }
+});
+
+test('restaurant search: names, chain names and serving', () => {
+  const rows: RestaurantRow[] = [
+    ['mcd', 'Big Mac®', 'g', 232, 234.9, 11.6, 18.1, 12.5, 1.7, 3.7, 4.7, 1],
+    ['mcd', 'Pommes Frites mittel', 'g', 114, 288.6, 3.4, 36, 14, 3.5, 0.4, 1.3, 0.5],
+    ['bk', 'Whopper®', 'g', 282, 217.4, 9.7, 18.1, 11.6, null, 4.4, 3.2, 1],
+    ['bk', 'King Pommes mittel', 'g', 116, 269.8, 3.4, 35.9, 12.3, null, 0.3, 0.3, 0.9],
+    ['nordsee', 'Fish & Chips', 'g', 0, 218, 6.6, 30, 7.4, null, 0.56, 0.21, 0.71],
+    ['starbucks', 'Caffe Latte Grande', 'ml', 470, 32.1, 2.3, 3.2, 1.1, 0.1, 3, 0.7, 0.1],
+  ];
+  assert.equal(searchRestaurants('big mac', 'de', 5, rows)[0].name, 'Big Mac®');
+  assert.equal(searchRestaurants('whopper', 'en', 5, rows)[0].brand, 'Burger King');
+  // a chain name narrows the hits, written with or without apostrophe and spaces
+  assert.deepEqual(searchRestaurants('mcdonalds pommes', 'de', 5, rows).map((f) => f.name), ['Pommes Frites mittel']);
+  assert.deepEqual(searchRestaurants('burgerking pommes', 'de', 5, rows).map((f) => f.name), ['King Pommes mittel']);
+  assert.equal(searchRestaurants('pommes', 'de', 5, rows).length, 2);
+  assert.equal(searchRestaurants('nordsee', 'de', 5, rows).length, 1);
+  assert.deepEqual(searchRestaurants('x', 'de', 5, rows), []);
+  assert.deepEqual(searchRestaurants('pizza', 'de', 5, rows), []);
+  assert.deepEqual(searchRestaurants('whopper', 'de', 5, null), []); // not loaded yet
+  const mac = restaurantFood(rows[0], 'de');
+  assert.equal(mac.id, 'rest:mcd:big-mac');
+  assert.equal(mac.source, 'restaurant');
+  assert.equal(mac.brand, 'McDonald’s');
+  assert.deepEqual(mac.servings, [{ label: '1 Portion', grams: 232 }]);
+  // one serving gives back the chain's own figure
+  assert.equal(Math.round((mac.per100.kcal * mac.servings[0].grams) / 100), 545);
+  assert.equal(mac.per100.fiber, 1.7);
+  assert.equal(restaurantFood(rows[2], 'en').per100.fiber, undefined); // Burger King publishes none
+  assert.deepEqual(restaurantFood(rows[4], 'de').servings, []); // per 100 g only
+  assert.equal(restaurantFood(rows[5], 'en').unit, 'ml');
+  assert.equal(restaurantFood(rows[5], 'en').servings[0].label, '1 serving');
+  assert.equal(chainOfFood(mac)?.name, 'McDonald’s');
+  assert.equal(chainOfFood({ id: 'rest:mcd:x', source: 'custom' }), undefined);
+  assert.equal(chainOfFood({ id: 'rest:nope:x', source: 'restaurant' }), undefined);
+  // the switch (Profile → Layout) survives the layout normaliser, stored data and backups; missing = on
+  assert.equal(normalizeLayout({ restaurantFoods: false } as never).restaurantFoods, false);
+  assert.equal(normalizeLayout({ restaurantFoods: true } as never).restaurantFoods, undefined);
+  assert.equal(normalizeLayout({ restaurantFoods: 'no' } as never).restaurantFoods, undefined);
 });
 
 test('streak animation: only the first entry of the day, following the motion setting', () => {

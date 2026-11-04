@@ -13,7 +13,8 @@ import { putFood, setFoodDraft, setMealDraft, type FoodDraft } from '../src/lib/
 import { foodSubtitle } from '../src/lib/format';
 import { searchBLS } from '../src/lib/bls';
 import { searchGeneric } from '../src/lib/genericFoods';
-import { useBlsReady, useRecipes } from '../src/lib/hooks';
+import { searchRestaurants } from '../src/lib/restaurants';
+import { useBlsReady, useRecipes, useRestaurantsReady } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
 import { lookupFailure, RateLimitedError, searchOFF, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
@@ -54,6 +55,9 @@ export default function AddFoodScreen() {
   const q = query.trim();
   // The BLS database is loaded when this screen opens (usually already a few seconds after start).
   const blsReady = useBlsReady();
+  // Fast-food chains' menus (Profile → Layout can turn them off).
+  const restaurantsOn = useStore((s) => s.layout.restaurantFoods !== false);
+  const restaurantsReady = useRestaurantsReady(restaurantsOn);
   const local = useMemo(() => {
     if (!q) return [];
     const ql = q.toLowerCase();
@@ -62,10 +66,11 @@ export default function AddFoodScreen() {
     );
     const generic = searchGeneric(q, lang, 5).filter((g) => !mine.some((m) => m.id === g.id));
     // the national nutrient database fills in everything unpackaged that the basics list lacks
+    const restaurant = (restaurantsOn && restaurantsReady ? searchRestaurants(q, lang, 8) : []).filter((r) => !mine.some((m) => m.id === r.id));
     const taken = new Set([...mine, ...generic].map((f) => f.name.toLowerCase()));
     const bls = (blsReady ? searchBLS(q, lang, 10) : []).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
-    return [...mine.slice(0, 6), ...generic, ...bls];
-  }, [q, custom, recent, lang, blsReady]);
+    return [...mine.slice(0, 6), ...generic, ...restaurant, ...bls];
+  }, [q, custom, recent, lang, blsReady, restaurantsOn, restaurantsReady]);
 
   // The offline pack is searched on the phone while typing (a short pause after the last key, it holds
   // hundreds of thousands of products); Open Food Facts itself only when the user submits.
@@ -259,6 +264,7 @@ export default function AddFoodScreen() {
           {shownRemote.length > 0 ? <Card>{shownRemote.map(renderFood)}</Card> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
           {packHits.length > 0 ? <Txt v="small">{t('pack_search_note', { date: packDate })}</Txt> : null}
+          {local.some((f) => f.source === 'restaurant') ? <Txt v="small">{t('restaurant_attribution')}</Txt> : null}
           {local.some((f) => f.source === 'bls') ? <Txt v="small">{t('bls_attribution')}</Txt> : null}
           {lang === 'de' && !/^(lidl|aldi|rewe|edeka|kaufland|penny|netto|dm|rossmann)\b/i.test(q) ? <Txt v="small">{t('retailer_hint')}</Txt> : null}
         </>

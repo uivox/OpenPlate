@@ -131,7 +131,7 @@ const text = (v: unknown, max = BACKUP_LIMITS.text): string | undefined => {
   return s ? s.slice(0, max) : undefined;
 };
 
-const SOURCES: FoodSource[] = ['generic', 'bls', 'off', 'custom', 'ai', 'quick', 'recipe'];
+const SOURCES: FoodSource[] = ['generic', 'bls', 'restaurant', 'off', 'custom', 'ai', 'quick', 'recipe'];
 const ACTIVITIES: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
 
 /** Product images may only come from Open Food Facts (where the app itself gets them). */

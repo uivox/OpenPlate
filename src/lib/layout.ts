@@ -55,6 +55,7 @@ export function normalizeLayout(l: Partial<LayoutPrefs> | undefined): LayoutPref
     hiddenDiary: complete(v.hiddenDiary, ALL_DIARY).filter((id) => hiddenDiary.includes(id) && !FIXED_DIARY.includes(id)),
     collapsedMeals: MEALS.filter((m) => collapsed.includes(m)),
     ...(v.usualMeal === false ? { usualMeal: false } : {}),
+    ...(v.restaurantFoods === false ? { restaurantFoods: false } : {}),
   };
 }
 

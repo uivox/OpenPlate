@@ -1,0 +1,18 @@
+# Domino's Pizza Deutschland, from https://www.dominos.de/produkte/pflichtinformationen/ ("Pflichtinformationen zu vorverpackten Produkten"), read 2026-11-04.
+# Domino's publishes nutrition only for its pre-packed products; the pizzas have allergen lists but no nutrition values.
+# name|serving|unit|kcal|protein|carbs|fat|fiber|sugar|satFat|salt (per 100 g / 100 ml)
+Schokoladenmuffin||g|444|5.4|50|24||34|6.2|0.84
+Keks mit Schokoladenstückchen||g|486|5.1|61|24||40|14|0.58
+Trüffel Dip||g|532|0.8|8.1|55||5.9|4.3|2.16
+Scharf Dip||g|140|1.5|14.5|7.9||13.7|0.7|4.1
+Jalapeño Limette Dip||g|339|0.5|10.0|33.2||7.3|2.4|2.2
+Aioli Dip||g|521|0.5|5.5|55.0||3.7|3.8|1.84
+Knoblauch Dip||g|637|1.1|12.8|64||11.8|4.8|1.63
+Kräuterremoulade||g|591|1.1|5.5|64||5.3|4.9|1.6
+Sweet Chilli Dip||g|187|0.3|44|0.8||41|0|2.66
+BBQ Honey Dip||g|155|0.6|36|0.6||32|0|2.4
+Joghurt-Limetten-Dressing||g|131|1.4|7|10.6||5.1|2.2|1.2
+Balsamico-Dressing||g|142|0|18.6|6.8||17.3|0.8|1.1
+American Dressing||g|311|0.6|11.3|29||11|2.1|1.9
+Caesar's Dressing||g|271|2.1|3.1|27.6||3|3|2.1
+Sour-Crème||g|126|7.9|4.5|6.3||3|1.3|1.2
