@@ -419,7 +419,7 @@ const SEARCH_WINDOW_MS = 60_000;
 const CACHE_TTL_MS = 10 * 60_000;
 const CACHE_MAX = 50;
 const recentSearches: number[] = [];
-const searchCache = new Map<string, { at: number; foods: Food[] }>();
+const searchCache = new Map<string, { at: number; foods: Food[]; more: boolean }>();
 
 function takeSearchSlot(now: number) {
   while (recentSearches.length && now - recentSearches[0] > SEARCH_WINDOW_MS) recentSearches.shift();
@@ -434,36 +434,61 @@ export function _resetSearchState() {
   pausedUntil = 0;
 }
 
+/** One page of search results, and whether Open Food Facts has more after it (*Load more*). */
+export interface SearchPage {
+  foods: Food[];
+  more: boolean;
+}
+
 /**
  * Full-text search: tries the newer search service, and the classic endpoint only when the first
  * one could not be reached (never after a rate-limit or other 4xx answer, which would just double the load).
  * A 429 also pauses all requests for a while (see `notePause`).
  */
 export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 40, fetchImpl: FetchLike = fetch, now = Date.now()): Promise<Food[]> {
+  return (await searchOFFPage(query, lang, 1, pageSize, fetchImpl, now)).foods;
+}
+
+/**
+ * Page `page` (from 1) of a search. Each page is its own request and counts toward the searches a
+ * minute like a new search, so a further page is only fetched when the user taps *Load more*.
+ */
+export async function searchOFFPage(
+  query: string,
+  lang: 'de' | 'en',
+  page = 1,
+  pageSize = 40,
+  fetchImpl: FetchLike = fetch,
+  now = Date.now(),
+): Promise<SearchPage> {
   const { retailer, rest } = parseRetailer(query);
   const text = (retailer ? rest || retailer.names[0] : rest).trim().replace(/\s+/g, ' ');
   const q = encodeURIComponent(text);
-  if (!q) return [];
-  const cacheKey = `${lang}:${retailer?.id ?? ''}:${text.toLowerCase()}`;
+  if (!q) return { foods: [], more: false };
+  const p = Math.max(1, Math.floor(page));
+  const cacheKey = `${lang}:${retailer?.id ?? ''}:${text.toLowerCase()}:${p}:${pageSize}`;
   const cached = searchCache.get(cacheKey);
-  if (cached && now - cached.at < CACHE_TTL_MS) return cached.foods;
+  if (cached && now - cached.at < CACHE_TTL_MS) return { foods: cached.foods, more: cached.more };
 
   checkPause(now);
   takeSearchSlot(now);
   let hits: Json[] = [];
+  let total: number | undefined;
   try {
-    const data = await getJson(`https://search.openfoodfacts.org/search?q=${q}&page_size=${pageSize}&langs=${lang},en&fields=${FIELDS}`, fetchImpl);
+    const data = await getJson(`https://search.openfoodfacts.org/search?q=${q}&page=${p}&page_size=${pageSize}&langs=${lang},en&fields=${FIELDS}`, fetchImpl);
     hits = Array.isArray(data.hits) ? (data.hits as Json[]) : [];
+    total = num(data.count);
   } catch (e) {
     notePause(e, now);
     if (e instanceof HttpError && e.status < 500) throw e;
     takeSearchSlot(now);
     try {
       const data = await getJson(
-        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page_size=${pageSize}&fields=${FIELDS}`,
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${q}&search_simple=1&action=process&json=1&page=${p}&page_size=${pageSize}&fields=${FIELDS}`,
         fetchImpl,
       );
       hits = Array.isArray(data.products) ? (data.products as Json[]) : [];
+      total = num(data.count);
     } catch (e2) {
       notePause(e2, now);
       throw e2;
@@ -478,7 +503,15 @@ export async function searchOFF(query: string, lang: 'de' | 'en', pageSize = 40,
       out.push(f);
     }
   }
+  const more = hasMorePages(p, pageSize, hits.length, total);
   if (searchCache.size >= CACHE_MAX) searchCache.delete(searchCache.keys().next().value!);
-  searchCache.set(cacheKey, { at: now, foods: out });
-  return out;
+  searchCache.set(cacheKey, { at: now, foods: out, more });
+  return { foods: out, more };
+}
+
+/** Whether a page after `page` exists: from the total when the server gives one, else from a full page. */
+export function hasMorePages(page: number, pageSize: number, hitsOnPage: number, total?: number): boolean {
+  if (hitsOnPage === 0) return false;
+  if (total !== undefined) return page * pageSize < total;
+  return hitsOnPage >= pageSize;
 }

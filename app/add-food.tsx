@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { RecipeCard } from '../src/components/RecipeCard';
 import { Sprout } from '../src/components/Sprout';
 import { Button, Card, ChipGroup, Divider, Field, IconButton, ListRow, Screen, SectionTitle, Tile, Txt, type IconName } from '../src/components/ui';
-import { dayKey, locale } from '../src/lib/dates';
+import { dayKey, locale, parseDayKey } from '../src/lib/dates';
 import { looksLikeBarcode } from '../src/lib/barcode';
 import { flowParams, resolveBarcode } from '../src/lib/barcodeFlow';
 import { putFood, setFoodDraft, setMealDraft, type FoodDraft } from '../src/lib/foodCache';
@@ -17,7 +17,21 @@ import { searchRestaurants } from '../src/lib/restaurants';
 import { useBlsReady, useRecipes, useRestaurantsReady } from '../src/lib/hooks';
 import { mealTotals, searchMeals } from '../src/lib/meals';
 import { leaveToDiary } from '../src/lib/nav';
-import { lookupFailure, RateLimitedError, searchOFF, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
+import { lookupFailure, RateLimitedError, searchOFFPage, type LookupFailure, type PartialProduct } from '../src/lib/openFoodFacts';
+import { showAlert } from '../src/lib/alert';
+import {
+  appendPage,
+  filterHistory,
+  foodHistory,
+  HISTORY_FILTER_FROM,
+  HISTORY_PAGE,
+  matchesFood,
+  OFF_PAGE_SIZE,
+  sectionPage,
+  shownCount,
+  type HistoryItem,
+  type SearchSection,
+} from '../src/lib/foodHistory';
 import { currentPack, usePack } from '../src/lib/packRuntime';
 import { useStore } from '../src/lib/store';
 import { useColors } from '../src/lib/theme';
@@ -26,6 +40,8 @@ import { useT } from '../src/lib/useT';
 import { confirmLogging } from '../src/components/fastGuard';
 
 type ListTab = 'recent' | 'meals' | 'recipes' | 'mine';
+
+const NO_TAPS: Record<SearchSection, number> = { mine: 0, generic: 0, restaurant: 0, bls: 0, pack: 0 };
 
 /** A barcode typed into the search box that didn't lead straight to a product. */
 type BarcodeState = { kind: 'missing'; code: string; draft: FoodDraft; partial?: PartialProduct } | { kind: 'failed'; code: string; failure: LookupFailure };
@@ -38,8 +54,14 @@ export default function AddFoodScreen() {
   const pick = params.pick === '1' || params.pick === 'recipe';
   const { t, lang } = useT();
   const c = useColors();
-  const recent = useStore((s) => s.recentFoods);
+  const entries = useStore((s) => s.entries);
   const custom = useStore((s) => s.customFoods);
+  const hidden = useStore((s) => s.hiddenHistory);
+  const hide = useStore((s) => s.hideFromHistory);
+  // Every food ever logged, built from the diary (the old recent list kept only 40).
+  const history = useMemo(() => foodHistory(entries, custom, hidden), [entries, custom, hidden]);
+  const [historyFilter, setHistoryFilter] = useState('');
+  const [historyShown, setHistoryShown] = useState(HISTORY_PAGE);
   const meals = useStore((s) => s.meals);
   const recipes = useRecipes();
   const logMeal = useStore((s) => s.logMeal);
@@ -50,6 +72,14 @@ export default function AddFoodScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [barcode, setBarcode] = useState<BarcodeState | null>(null);
+  /** Open Food Facts: the last page fetched, whether there is another, and a failed *Load more*. */
+  const [offPage, setOffPage] = useState(0);
+  const [offMore, setOffMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  /** Taps on *Show more* per section; back to none for every new search text. */
+  const [taps, setTaps] = useState(NO_TAPS);
+  const showMore = (section: SearchSection) => setTaps((x) => ({ ...x, [section]: x[section] + 1 }));
   const requestId = useRef(0);
 
   const q = query.trim();
@@ -58,19 +88,26 @@ export default function AddFoodScreen() {
   // Fast-food chains' menus (Profile → Layout can turn them off).
   const restaurantsOn = useStore((s) => s.layout.restaurantFoods !== false);
   const restaurantsReady = useRestaurantsReady(restaurantsOn);
-  const local = useMemo(() => {
-    if (!q) return [];
-    const ql = q.toLowerCase();
-    const mine = [...custom, ...recent].filter(
-      (f, i, arr) => f.name.toLowerCase().includes(ql) && arr.findIndex((x) => x.id === f.id) === i,
-    );
-    const generic = searchGeneric(q, lang, 5).filter((g) => !mine.some((m) => m.id === g.id));
+  // Each section asks for one item more than it shows, so *Show more* only appears when there is one.
+  const sections = useMemo(() => {
+    const none = { visible: [] as Food[], more: false };
+    if (!q) return { mine: none, generic: none, restaurant: none, bls: none };
+    const limit = (s: SearchSection) => shownCount(s, taps[s]) + 1;
+    const mine = [...custom, ...history.map((h) => h.food)].filter((f, i, arr) => matchesFood(f, q) && arr.findIndex((x) => x.id === f.id) === i);
+    const generic = searchGeneric(q, lang, limit('generic') + mine.length).filter((g) => !mine.some((m) => m.id === g.id));
     // the national nutrient database fills in everything unpackaged that the basics list lacks
-    const restaurant = (restaurantsOn && restaurantsReady ? searchRestaurants(q, lang, 8) : []).filter((r) => !mine.some((m) => m.id === r.id));
-    const taken = new Set([...mine, ...generic].map((f) => f.name.toLowerCase()));
-    const bls = (blsReady ? searchBLS(q, lang, 10) : []).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
-    return [...mine.slice(0, 6), ...generic, ...restaurant, ...bls];
-  }, [q, custom, recent, lang, blsReady, restaurantsOn, restaurantsReady]);
+    const restaurant = (restaurantsOn && restaurantsReady ? searchRestaurants(q, lang, limit('restaurant') + mine.length) : []).filter((r) => !mine.some((m) => m.id === r.id));
+    const genericPage = sectionPage(generic, shownCount('generic', taps.generic));
+    const taken = new Set([...mine, ...genericPage.visible].map((f) => f.name.toLowerCase()));
+    const bls = (blsReady ? searchBLS(q, lang, limit('bls') + taken.size) : []).filter((b) => !mine.some((m) => m.id === b.id) && !taken.has(b.name.toLowerCase()));
+    return {
+      mine: sectionPage(mine, shownCount('mine', taps.mine)),
+      generic: genericPage,
+      restaurant: sectionPage(restaurant, shownCount('restaurant', taps.restaurant)),
+      bls: sectionPage(bls, shownCount('bls', taps.bls)),
+    };
+  }, [q, custom, history, lang, blsReady, restaurantsOn, restaurantsReady, taps]);
+  const local = useMemo(() => [...sections.mine.visible, ...sections.generic.visible, ...sections.restaurant.visible, ...sections.bls.visible], [sections]);
 
   // The offline pack is searched on the phone while typing (a short pause after the last key, it holds
   // hundreds of thousands of products); Open Food Facts itself only when the user submits.
@@ -80,10 +117,12 @@ export default function AddFoodScreen() {
     const id = setTimeout(() => setPackQuery(q), 250);
     return () => clearTimeout(id);
   }, [q]);
-  const packHits = useMemo(() => {
-    if (pack.status !== 'ready' || packQuery.length < 2 || looksLikeBarcode(packQuery)) return [];
-    return pack.index.search(packQuery, 20).filter((f) => !local.some((l) => l.id === f.id));
-  }, [pack, packQuery, local]);
+  const packSection = useMemo(() => {
+    if (pack.status !== 'ready' || packQuery.length < 2 || looksLikeBarcode(packQuery)) return { visible: [] as Food[], more: false };
+    const shown = shownCount('pack', taps.pack);
+    return sectionPage(pack.index.search(packQuery, shown + 1 + local.length).filter((f) => !local.some((l) => l.id === f.id)), shown);
+  }, [pack, packQuery, local, taps.pack]);
+  const packHits = packSection.visible;
   const packDate = pack.status === 'ready' ? new Date(pack.manifest.created).toLocaleDateString(locale(lang)) : '';
   const shownRemote = remote.filter((r) => !packHits.some((p) => p.id === r.id));
 
@@ -98,6 +137,11 @@ export default function AddFoodScreen() {
     setLoading(false);
     setError(null);
     setBarcode(null);
+    setOffPage(0);
+    setOffMore(false);
+    setLoadingMore(false);
+    setMoreError(null);
+    setTaps(NO_TAPS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, lang]);
 
@@ -113,6 +157,9 @@ export default function AddFoodScreen() {
     setLoading(true);
     setError(null);
     setBarcode(null);
+    setOffPage(0);
+    setOffMore(false);
+    setMoreError(null);
     try {
       if (asBarcode) {
         const out = await resolveBarcode(q, lang, custom, fetch, currentPack());
@@ -126,14 +173,36 @@ export default function AddFoodScreen() {
         } else setBarcode({ kind: 'missing', code: out.code, draft: out.draft, partial: out.partial });
         return;
       }
-      const res = await searchOFF(q, lang);
-      if (id === requestId.current) setRemote(res.filter((r) => !local.some((l) => l.id === r.id)));
+      const res = await searchOFFPage(q, lang, 1, OFF_PAGE_SIZE);
+      if (id !== requestId.current) return;
+      setRemote(res.foods.filter((r) => !local.some((l) => l.id === r.id)));
+      setOffPage(1);
+      setOffMore(res.more);
     } catch (e) {
       if (id !== requestId.current) return;
       if (asBarcode) setBarcode({ kind: 'failed', code: q.replace(/\s+/g, ''), failure: lookupFailure(e) });
       else setError(e instanceof RateLimitedError ? t('search_rate_limited') : t('search_failed'));
     } finally {
       if (id === requestId.current) setLoading(false);
+    }
+  };
+
+  /** The next page of Open Food Facts results: only on a tap, and it counts toward the searches a minute. */
+  const loadMore = async () => {
+    if (loadingMore || loading || !offPage || searched !== q) return;
+    const id = requestId.current;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const res = await searchOFFPage(q, lang, offPage + 1, OFF_PAGE_SIZE);
+      if (id !== requestId.current) return;
+      setRemote((shown) => appendPage(shown, res.foods.filter((r) => !local.some((l) => l.id === r.id))));
+      setOffPage(offPage + 1);
+      setOffMore(res.more);
+    } catch (e) {
+      if (id === requestId.current) setMoreError(e instanceof RateLimitedError ? t('search_rate_limited') : t('search_failed'));
+    } finally {
+      if (id === requestId.current) setLoadingMore(false);
     }
   };
 
@@ -218,6 +287,40 @@ export default function AddFoodScreen() {
     />
   );
 
+  /** One search section in its own card, with *Show more* at the end when it has more. */
+  const renderSection = (section: SearchSection, page: { visible: Food[]; more: boolean }) =>
+    page.visible.length > 0 ? (
+      <Card key={section}>
+        {page.visible.map(renderFood)}
+        {page.more ? <MoreRow label={t('show_more')} onPress={() => showMore(section)} testID={`show-more-${section}`} /> : null}
+      </Card>
+    ) : null;
+
+  const lastDay = (key: string) =>
+    parseDayKey(key).toLocaleDateString(locale(lang), {
+      day: 'numeric',
+      month: 'short',
+      ...(key.slice(0, 4) !== String(new Date().getFullYear()) ? { year: 'numeric' } : {}),
+    });
+  const askRemove = (h: HistoryItem) =>
+    showAlert(t('history_remove_q', { name: h.food.name }), t('history_remove_text'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('history_remove'), style: 'destructive', onPress: () => hide(h.food.id) },
+    ]);
+  const renderHistory = (h: HistoryItem, i: number) => (
+    <React.Fragment key={h.food.id}>
+      {i > 0 ? <Divider /> : null}
+      <ListRow
+        title={h.food.name}
+        subtitle={`${t('history_line', { n: h.count, date: lastDay(h.lastDate) })} · ${foodSubtitle(h.food)}`}
+        onPress={() => open(h.food)}
+        onLongPress={() => askRemove(h)}
+        right={<Ionicons name="add-circle" size={26} color={c.accent} />}
+      />
+    </React.Fragment>
+  );
+  const filteredHistory = historyFilter.trim() ? filterHistory(history, historyFilter) : history;
+
   return (
     <Screen>
       <Stack.Screen options={{ title: pick ? t('add_ingredient') : t(`meal_${meal}`) }} />
@@ -245,7 +348,10 @@ export default function AddFoodScreen() {
       {q ? (
         <>
           {matchingMeals.length > 0 ? <Card>{matchingMeals.map(renderMeal)}</Card> : null}
-          {local.length > 0 ? <Card>{local.map(renderFood)}</Card> : null}
+          {renderSection('mine', sections.mine)}
+          {renderSection('generic', sections.generic)}
+          {renderSection('restaurant', sections.restaurant)}
+          {renderSection('bls', sections.bls)}
           <SectionTitle right={loading ? <ActivityIndicator color={c.accent} /> : undefined}>{t('products')}</SectionTitle>
           {error ? <Txt v="sub">{error}</Txt> : null}
           {q.length >= 2 && searched !== q && !loading ? (
@@ -259,9 +365,21 @@ export default function AddFoodScreen() {
             />
           ) : null}
           {barcode && searched === q && !loading ? renderBarcode(barcode) : null}
-          {packHits.length > 0 && !barcode ? <Card>{packHits.map(renderFood)}</Card> : null}
+          {!barcode ? renderSection('pack', packSection) : null}
           {!loading && !error && !barcode && remote.length === 0 && packHits.length === 0 && q.length >= 2 && searched === q ? <Txt v="sub">{t('no_results')}</Txt> : null}
-          {shownRemote.length > 0 ? <Card>{shownRemote.map(renderFood)}</Card> : null}
+          {shownRemote.length > 0 ? (
+            <Card>
+              {shownRemote.map(renderFood)}
+              {offMore && searched === q && !asBarcode ? (
+                loadingMore ? (
+                  <ActivityIndicator color={c.accent} style={{ paddingVertical: 12 }} />
+                ) : (
+                  <MoreRow label={t('load_more_off')} onPress={loadMore} testID="load-more-off" />
+                )
+              ) : null}
+            </Card>
+          ) : null}
+          {moreError ? <Txt v="sub">{moreError}</Txt> : null}
           <Txt v="small">{t('off_attribution')}</Txt>
           {packHits.length > 0 ? <Txt v="small">{t('pack_search_note', { date: packDate })}</Txt> : null}
           {local.some((f) => f.source === 'restaurant') ? <Txt v="small">{t('restaurant_attribution')}</Txt> : null}
@@ -285,8 +403,32 @@ export default function AddFoodScreen() {
             onChange={setTab}
           />
           {tab === 'recent' ? (
-            recent.length > 0 ? (
-              <Card>{recent.slice(0, 15).map(renderFood)}</Card>
+            history.length > 0 ? (
+              <>
+                {history.length > HISTORY_FILTER_FROM ? (
+                  <Field
+                    placeholder={t('history_filter')}
+                    value={historyFilter}
+                    onChangeText={(v) => {
+                      setHistoryFilter(v);
+                      setHistoryShown(HISTORY_PAGE);
+                    }}
+                    autoCorrect={false}
+                    clearButtonMode="while-editing"
+                  />
+                ) : null}
+                {filteredHistory.length > 0 ? (
+                  <Card>
+                    {filteredHistory.slice(0, historyShown).map(renderHistory)}
+                    {filteredHistory.length > historyShown ? (
+                      <MoreRow label={t('show_more')} onPress={() => setHistoryShown((n) => n + HISTORY_PAGE)} testID="show-more-history" />
+                    ) : null}
+                  </Card>
+                ) : (
+                  <Txt v="sub">{t('history_no_match', { q: historyFilter.trim() })}</Txt>
+                )}
+                <Txt v="small">{t('history_hint')}</Txt>
+              </>
             ) : (
               <View style={{ alignItems: 'center', gap: 8, paddingVertical: 20 }}>
                 <Sprout size={100} />
@@ -348,6 +490,25 @@ function Action({ icon, label, onPress, bg, color }: { icon: IconName; label: st
     >
       <Tile icon={icon} bg={bg} color={color} size={42} />
       <Txt v="label" color={c.text} center numberOfLines={1}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/** *Show more* / *Load more* at the end of a list card. */
+function MoreRow({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
+  const c = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, opacity: pressed ? 0.6 : 1 })}
+    >
+      <Ionicons name="chevron-down" size={18} color={c.accent} />
+      <Txt v="label" color={c.accent}>
         {label}
       </Txt>
     </Pressable>

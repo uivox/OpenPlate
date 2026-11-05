@@ -22,6 +22,7 @@ import {
   type MealLogRecord,
 } from '../src/lib/aiLog';
 import { buildBackup, parseBackup, parseBackupReport } from '../src/lib/backup';
+import { appendPage, filterHistory, foodHistory, hideFromHistory, HISTORY_FILTER_FROM, matchesFood, normalizeHidden, OFF_PAGE_SIZE, sectionPage, shownCount } from '../src/lib/foodHistory';
 import { usualMeal } from '../src/lib/usualMeal';
 import { applySuggestion, checkIn, DEFAULT_GOAL_CHECK, dueCheckIn, normalizeGoalCheck, undoPatch, weightSlope, type Calculation } from '../src/lib/adaptiveGoal';
 import { addRecord, bodyHasPhoto, normalizeLog, noteRemoteImage, pruneLog, purposeFor, recordingFetch as connRecordingFetch, SERVERS, setConnectionSink, type ConnectionRecord } from '../src/lib/connectionLog';
@@ -142,6 +143,8 @@ import {
   rankHits,
   RateLimitedError,
   searchOFF,
+  searchOFFPage,
+  hasMorePages,
 } from '../src/lib/openFoodFacts';
 import { draftProblem } from '../src/lib/validation';
 import { createHash, generateKeyPairSync, randomBytes, sign as edSign, type KeyObject } from 'node:crypto';
@@ -3448,4 +3451,136 @@ test('rename: “OpenPlate” only appears where the move needs it', () => {
   };
   walk('');
   assert.deepEqual(found, [], `“OpenPlate” is shown or linked here; use Tellerwerk (or add the file to the allow list if it is about the move): ${found.join(', ')}`);
+});
+
+/* ---------- Food history and Show more (PR I) ---------- */
+
+const hFood = (id: string, name: string, extra: Partial<Food> = {}): Food => ({ id, source: 'off', name, per100: { kcal: 100, protein: 1, carbs: 1, fat: 1 }, servings: [], ...extra });
+const hEntry = (id: string, food: Food, date: string, createdAt: number): DiaryEntry => ({ id, date, meal: 'lunch', food, grams: 100, createdAt });
+
+test('food history: every food ever logged, newest first, with counts and the last day', () => {
+  const skyr = hFood('off:1', 'Skyr');
+  const oats = hFood('generic:oats', 'Oats', { source: 'generic' });
+  const entries = [
+    hEntry('a', skyr, '2026-10-01', 10),
+    hEntry('b', oats, '2026-10-02', 20),
+    hEntry('c', skyr, '2026-11-03', 30),
+    hEntry('q', hFood('quick:1', 'Quick add', { source: 'quick' }), '2026-11-04', 40),
+  ];
+  const h = foodHistory(entries);
+  assert.deepEqual(h.map((i) => [i.food.id, i.count, i.lastDate]), [['off:1', 2, '2026-11-03'], ['generic:oats', 1, '2026-10-02']], 'quick add stays out');
+  // far more than the 40 foods the old recent list kept
+  const many = Array.from({ length: 120 }, (_, i) => hEntry(`e${i}`, hFood(`off:${i}`, `Food ${i}`), '2026-10-01', i));
+  const all = foodHistory(many);
+  assert.equal(all.length, 120);
+  assert.equal(all[0].food.id, 'off:119');
+  // the same createdAt (imported old entries have 0): the later day wins, then the name
+  const tie = foodHistory([hEntry('x', skyr, '2026-10-01', 0), hEntry('y', skyr, '2026-10-05', 0), hEntry('z', oats, '2026-10-05', 0)]);
+  assert.equal(tie.find((i) => i.food.id === 'off:1')!.lastDate, '2026-10-05');
+  assert.deepEqual(tie.map((i) => i.food.name), ['Oats', 'Skyr']);
+});
+
+test('food history: an own food shows as it is now, other foods as last logged', () => {
+  const old = hFood('custom:1', 'Granola', { source: 'custom', per100: { kcal: 400, protein: 8, carbs: 60, fat: 12 } });
+  const edited = { ...old, name: 'Granola (less sugar)', per100: { ...old.per100, kcal: 380 } };
+  const offOld = hFood('off:2', 'Milk 3.5%', { per100: { kcal: 64, protein: 3, carbs: 5, fat: 3.5 } });
+  const offNew = { ...offOld, per100: { ...offOld.per100, kcal: 65 } };
+  const entries = [hEntry('a', old, '2026-10-01', 1), hEntry('b', offOld, '2026-10-01', 2), hEntry('c', offNew, '2026-10-03', 3)];
+  const h = foodHistory(entries, [edited]);
+  assert.equal(h.find((i) => i.food.id === 'custom:1')!.food.name, 'Granola (less sugar)');
+  assert.equal(h.find((i) => i.food.id === 'off:2')!.food.per100.kcal, 65, 'the version from the last entry');
+  // a deleted own food falls back to the version in the diary
+  assert.equal(foodHistory(entries, []).find((i) => i.food.id === 'custom:1')!.food.name, 'Granola');
+});
+
+test('food history: removing hides a food until it is logged again; the hidden list is checked', () => {
+  const skyr = hFood('off:1', 'Skyr');
+  const entries = [hEntry('a', skyr, '2026-10-01', 100)];
+  const hidden = hideFromHistory([], 'off:1', 200);
+  assert.equal(foodHistory(entries, [], hidden).length, 0);
+  assert.equal(entries.length, 1, 'the diary is untouched');
+  assert.equal(foodHistory([...entries, hEntry('b', skyr, '2026-10-02', 300)], [], hidden).length, 1, 'logged again → back in the list');
+  // hiding twice keeps one row, newest time
+  assert.deepEqual(hideFromHistory(hidden, 'off:1', 500), [{ id: 'off:1', at: 500 }]);
+  assert.deepEqual(normalizeHidden([{ id: 'a', at: 1 }, { id: 'a', at: 2 }, { id: 3, at: 1 }, { id: 'b', at: -1 }, null, { id: 'c', at: NaN }, 'x']), [{ id: 'a', at: 1 }]);
+  assert.deepEqual(normalizeHidden('nope'), []);
+  // backups carry it; older backups without it import with none
+  const exported = JSON.parse(JSON.stringify(buildBackup({ ...parseBackup(JSON.stringify({ app: 'OpenPlate' })), hiddenHistory: hidden })));
+  assert.deepEqual(parseBackup(JSON.stringify(exported)).hiddenHistory, hidden);
+  assert.equal(parseBackup(JSON.stringify({ app: 'OpenPlate' })).hiddenHistory, undefined);
+  assert.deepEqual(parseBackup(JSON.stringify({ app: 'OpenPlate', hiddenHistory: [{ id: 'x', at: 1, evil: '<script>' }] })).hiddenHistory, [{ id: 'x', at: 1 }]);
+});
+
+test('food history: the filter matches every word in name or brand', () => {
+  const items = foodHistory([
+    hEntry('a', hFood('off:1', 'Skyr Natur', { brand: 'Milbona' }), '2026-10-01', 1),
+    hEntry('b', hFood('off:2', 'Skyr Vanille', { brand: 'Arla' }), '2026-10-01', 2),
+    hEntry('c', hFood('off:3', 'Apple'), '2026-10-01', 3),
+  ]);
+  assert.deepEqual(filterHistory(items, 'skyr').map((i) => i.food.id), ['off:2', 'off:1']);
+  assert.deepEqual(filterHistory(items, 'SKYR milbona').map((i) => i.food.id), ['off:1']);
+  assert.equal(filterHistory(items, '  ').length, 3);
+  assert.ok(matchesFood(hFood('x', 'Haferflocken'), 'hafer') && !matchesFood(hFood('x', 'Haferflocken'), 'reis'));
+  assert.equal(HISTORY_FILTER_FROM, 30);
+});
+
+test('show more: ten more per tap, and only when there is another item', () => {
+  assert.equal(shownCount('mine', 0), 6);
+  assert.equal(shownCount('bls', 2), 30);
+  assert.equal(shownCount('pack', 1), 30);
+  assert.equal(shownCount('generic', -3), 5);
+  const ten = Array.from({ length: 10 }, (_, i) => i);
+  assert.deepEqual(sectionPage(ten, 6), { visible: [0, 1, 2, 3, 4, 5], more: true });
+  assert.deepEqual(sectionPage(ten.slice(0, 6), 6), { visible: [0, 1, 2, 3, 4, 5], more: false }, 'exactly full: no Show more');
+  const a = hFood('off:1', 'A');
+  const b = hFood('off:2', 'B');
+  assert.deepEqual(appendPage([a], [a, b]).map((f) => f.id), ['off:1', 'off:2']);
+  assert.equal(OFF_PAGE_SIZE, 40);
+});
+
+test('open food facts: Load more asks for the next page, counts toward the limit and knows the end', async () => {
+  _resetSearchState();
+  const calls: string[] = [];
+  const product = (code: string) => ({ code, product_name: `Skyr ${code}`, nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 } });
+  const server = async (url: string) => {
+    calls.push(url);
+    const page = Number(new URL(url).searchParams.get('page'));
+    const hits = page === 1 ? [product('4001'), product('4002')] : page === 2 ? [product('4003')] : [];
+    return { ok: true, json: async () => ({ hits, count: 3, page, page_size: 2 }) } as any;
+  };
+  const t0 = 5_000_000;
+  const first = await searchOFFPage('skyr', 'de', 1, 2, server, t0);
+  assert.deepEqual([first.foods.length, first.more], [2, true]);
+  assert.match(calls[0], /search\.openfoodfacts\.org\/search\?q=skyr&page=1&page_size=2/);
+  const second = await searchOFFPage('skyr', 'de', 2, 2, server, t0 + 1);
+  assert.deepEqual([second.foods.map((f) => f.barcode), second.more], [['4003'], false]);
+  assert.match(calls[1], /&page=2&/);
+  // a page already fetched comes from the cache; each new page takes one of the 8 searches a minute
+  await searchOFFPage('skyr', 'de', 2, 2, server, t0 + 2);
+  assert.equal(calls.length, 2);
+  for (let i = 0; i < 6; i++) await searchOFFPage(`quark ${i}`, 'de', 1, 2, server, t0 + 10 + i);
+  await assert.rejects(searchOFFPage('skyr', 'de', 3, 2, server, t0 + 20), (e) => e instanceof RateLimitedError);
+  assert.equal(calls.length, 8);
+  // the classic endpoint gets the page too, but only when the new one could not be reached
+  _resetSearchState();
+  const classic: string[] = [];
+  const down = async (url: string) => {
+    classic.push(url);
+    if (url.includes('search.openfoodfacts.org')) throw new TypeError('Failed to fetch');
+    return { ok: true, json: async () => ({ products: [product('4004')], count: 1 }) } as any;
+  };
+  const viaClassic = await searchOFFPage('skyr', 'de', 2, 40, down, t0);
+  assert.match(classic[1], /cgi\/search\.pl\?.*&page=2&page_size=40/);
+  assert.equal(viaClassic.more, false);
+  // after a 4xx on a page, no second endpoint
+  _resetSearchState();
+  const limited: string[] = [];
+  await assert.rejects(searchOFFPage('skyr', 'de', 2, 40, async (url: string) => (limited.push(url), { ok: false, status: 400, json: async () => ({}) } as any), t0));
+  assert.equal(limited.length, 1);
+  // without a total: a full page means there may be more
+  assert.equal(hasMorePages(1, 40, 40), true);
+  assert.equal(hasMorePages(1, 40, 39), false);
+  assert.equal(hasMorePages(3, 40, 40, 120), false);
+  assert.equal(hasMorePages(1, 40, 0, 500), false);
+  _resetSearchState();
 });

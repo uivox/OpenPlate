@@ -58,6 +58,21 @@ const MONTH_BACKUP = {
   goalCheck: { enabled: true, weekday: today.getDay(), excluded: [], history: [] },
 };
 
+// 45 different foods logged over 45 days: more than the 40 the old recent list kept.
+const HISTORY_BACKUP = {
+  app: 'OpenPlate',
+  profile: MONTH_BACKUP.profile,
+  language: 'en',
+  entries: Array.from({ length: 45 }, (_, i) => ({
+    id: `h${i}`,
+    date: dayBefore(45 - i),
+    meal: 'lunch',
+    grams: 100,
+    food: { id: `smoke-hist-${i}`, source: 'custom', name: `History food ${i}`, per100: { kcal: 100 + i, protein: 5, carbs: 10, fat: 2 }, servings: [] },
+    createdAt: 1_000 + i,
+  })),
+};
+
 // 1×1 PNG, as a photo from the camera would arrive through the file input.
 const PHOTO_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -1064,6 +1079,75 @@ async function run(scheme) {
       await page.getByRole('button', { name: /^Streak/ }).filter({ visible: true }).first().click();
       await text('Well above goal (more than 20 %, still counts)').waitFor();
       if (await text('Over goal', { exact: true }).count()) throw new Error('a gain profile shows "Over goal"');
+      await page.goBack();
+    });
+    await step('search: Show more in a section, and Load more from Open Food Facts only on a tap', async () => {
+      const hdr = { 'access-control-allow-origin': '*' };
+      const hit = (n) => ({ code: String(4000000000000 + n), product_name: `Smoke milk ${n}`, nutriments: { 'energy-kcal_100g': 64, proteins_100g: 3.4, carbohydrates_100g: 4.8, fat_100g: 3.5 } });
+      const pages = [];
+      await page.route('https://search.openfoodfacts.org/search**', (r) => {
+        const p = Number(new URL(r.request().url()).searchParams.get('page') ?? 1);
+        pages.push(p);
+        const hits = p === 1 ? Array.from({ length: 40 }, (_, i) => hit(i + 1)) : Array.from({ length: 5 }, (_, i) => hit(i + 41));
+        r.fulfill({ status: 200, contentType: 'application/json', headers: hdr, body: JSON.stringify({ hits, count: 45, page: p, page_size: 40 }) });
+      });
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Lunch').click();
+      await field('Search foods and products').fill('milk');
+      const more = page.getByTestId('show-more-bls').filter({ visible: true }).first();
+      await more.waitFor();
+      const rows = () => page.getByRole('button').filter({ visible: true }).count();
+      const before = await rows();
+      await more.click();
+      await page.waitForTimeout(200);
+      if ((await rows()) <= before) throw new Error('Show more added nothing');
+      if (pages.length) throw new Error('Open Food Facts was asked while typing');
+      await btn('Search products for “milk”').click();
+      await text('Smoke milk 40', { exact: true }).waitFor();
+      if (await text('Smoke milk 41', { exact: true }).count()) throw new Error('the second page came without a tap');
+      await page.getByTestId('load-more-off').filter({ visible: true }).first().click();
+      await text('Smoke milk 45', { exact: true }).waitFor();
+      if (pages.join(',') !== '1,2') throw new Error(`pages asked: ${pages.join(',')}`);
+      if (await page.getByTestId('load-more-off').filter({ visible: true }).count()) throw new Error('Load more stayed after the last page');
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      await page.goBack();
+    });
+    await step('history: every food ever logged, filter, search and removing one', async () => {
+      await page.getByRole('tab', { name: 'Profile' }).click();
+      const chooser = page.waitForEvent('filechooser');
+      await text('Import data', { exact: true }).click();
+      await (await chooser).setFiles({ name: 'history.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(HISTORY_BACKUP)) });
+      await btn('Replace').click();
+      await btn('OK').click();
+      await page.getByRole('tab', { name: 'Diary' }).click();
+      await btn('Add food: Dinner').click();
+      await text('History food 44', { exact: true }).waitFor();
+      await text(/^1×, last on /).waitFor();
+      // 45 foods: 30 shown, the rest behind Show more, and a filter field
+      if (await text('History food 0', { exact: true }).count()) throw new Error('more than 30 foods drawn at once');
+      await page.getByTestId('show-more-history').filter({ visible: true }).first().click();
+      await text('History food 0', { exact: true }).waitFor();
+      await field('Filter your history').fill('food 33');
+      await text('History food 33', { exact: true }).waitFor();
+      if (await text('History food 44', { exact: true }).count()) throw new Error('the filter kept a food that doesn’t match');
+      // removing hides it from the list, never from the diary
+      const row = text('History food 33', { exact: true });
+      const box = await row.boundingBox();
+      await page.mouse.move(box.x + 10, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(900);
+      await page.mouse.up();
+      await text('Remove “History food 33” from your history?', { exact: true }).waitFor();
+      await btn('Remove').click();
+      await text('Nothing in your history matches “food 33”.', { exact: true }).waitFor();
+      await field('Filter your history').fill('');
+      // the main search looks through the whole history, not only the last 40
+      await field('Search foods and products').fill('history food 0');
+      await text('History food 0', { exact: true }).waitFor();
+      await page.waitForTimeout(800); // let the save finish
+      const main = JSON.parse((await idbGet('openplate-v1')) ?? '{}');
+      if (!main.state?.hiddenHistory?.some((h) => h.id === 'smoke-hist-33')) throw new Error('the removal was not saved');
+      if (!(await idbKeys()).some((k) => k.includes(':entries:'))) throw new Error('diary entries missing after removing');
       await page.goBack();
     });
     console.log(`✓ ${scheme}: all steps passed`);
