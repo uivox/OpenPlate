@@ -65,6 +65,11 @@ Every change is checked against these three, and every pull request description 
 - `src/lib/barcodeFlow.ts`: `resolveBarcode` (own foods → Open Food Facts → Robotoff), `flowParams`.
 - `src/lib/openFoodFacts.ts`: barcode lookup, search, Robotoff, fair-use limits, and `lookupFailure`, which sorts errors into invalid / rate limited / server / offline.
 
+## Where things are (food search and history)
+
+- `app/add-food.tsx`: while typing, one card per section (own foods and history, basics, restaurants, BLS, offline pack), each with *Show more* (+10, local only); each search asks for one item more than it shows, so the button only appears when there is another. Open Food Facts only on submit, then *Load more* fetches the next page (`searchOFFPage`, counts toward the 8 searches a minute like any search). The *Recent* tab is the full history.
+- `src/lib/foodHistory.ts` (pure): `foodHistory` (every logged food from the diary entries, newest first, count and last day; own foods as they are now, others as last logged; quick add left out), `hideFromHistory` / `normalizeHidden` (`hiddenHistory` in the store, part of backups; a food logged again after being hidden comes back), `matchesFood`, `shownCount` / `sectionPage` / `appendPage`. `recentFoods` (40) stays for older code paths and backups.
+
 ## Where things are (meal reminders)
 
 - `src/lib/reminders.ts` (pure): settings and `normalizeReminders`, suggested times (`suggestTime`: median first log of the day over 21 days, ≥ 5 days, same-day entries only), `planReminders` (time + delay, only empty meals, not inside a running fast or a coming fast of the fixed eating window, 14 days ahead), `reminderFigure` / `reminderText` (meal share for breakfast and lunch, optionally adjusted; what's left for dinner and snacks), `reminderDiff`.

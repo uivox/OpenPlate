@@ -5,6 +5,7 @@ import { normalizeSchedule, planById, type FastingSchedule } from './fasting';
 import { RECIPE_TAGS } from './recipes';
 import { normalizeReminders, type ReminderPrefs } from './reminders';
 import { normalizeMealSplit } from './mealSplit';
+import { normalizeHidden, type HiddenFood } from './foodHistory';
 import {
   MEALS,
   type Activity,
@@ -56,6 +57,8 @@ export interface BackupData {
   fastingSchedule?: FastingSchedule;
   /** Weekly goal check-in settings and goal history; optional, normalised on import. */
   goalCheck?: GoalCheckPrefs;
+  /** Foods removed from the history on the *Recent* tab; optional (older exports have none). */
+  hiddenHistory?: HiddenFood[];
 }
 
 const BACKUP_KEYS: (keyof BackupData)[] = [
@@ -76,6 +79,7 @@ const BACKUP_KEYS: (keyof BackupData)[] = [
   'reminders',
   'fastingSchedule',
   'goalCheck',
+  'hiddenHistory',
 ];
 
 /** Picks exactly the exported fields from the app state (which also holds functions and UI settings). */
@@ -369,6 +373,7 @@ export function parseBackupReport(input: string, now = new Date()): BackupReport
     reminders: isObj(raw.reminders) ? normalizeReminders(raw.reminders) : undefined,
     fastingSchedule: isObj(raw.fastingSchedule) ? normalizeSchedule(raw.fastingSchedule) : undefined,
     goalCheck: isObj(raw.goalCheck) ? normalizeGoalCheck(raw.goalCheck) : undefined,
+    hiddenHistory: Array.isArray(raw.hiddenHistory) ? normalizeHidden(raw.hiddenHistory) : undefined,
     recipes: uniqueById(keep(raw.recipes, sanitizeRecipe, counter)),
     meals: uniqueById(keep(raw.meals, sanitizeMeal, counter)),
   };

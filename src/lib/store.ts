@@ -7,6 +7,7 @@ import type { BackupData } from './backup';
 import { newId } from './id';
 import { DEFAULT_SCHEDULE, normalizeSchedule, type FastingSchedule, type SyncResult } from './fasting';
 import { DEFAULT_INSIGHTS, normalizeInsights, type InsightPrefs } from './insights';
+import { hideFromHistory, normalizeHidden, type HiddenFood } from './foodHistory';
 import { DEFAULT_LAYOUT, normalizeLayout } from './layout';
 import { normalizePending, type OffPending } from './offWrite';
 import { entriesForMeal, removeFoodFromMeals, replaceFoodInMeals } from './meals';
@@ -43,6 +44,8 @@ interface State {
   entries: DiaryEntry[];
   customFoods: Food[];
   recentFoods: Food[];
+  /** Foods removed from the history on the *Recent* tab (foodHistory.ts); the diary keeps them. Part of backups. */
+  hiddenHistory: HiddenFood[];
   water: Record<string, number>;
   weights: WeightEntry[];
   fastingActive: FastingSession | null;
@@ -85,6 +88,8 @@ interface State {
   updateCustomFood: (f: Food) => void;
   /** Deletes an own food; it also leaves every saved meal (a meal left empty goes too). The diary keeps it. */
   removeCustomFood: (id: string) => void;
+  /** Hides a food from the history on the *Recent* tab; logging it again brings it back. */
+  hideFromHistory: (foodId: string) => void;
   saveMeal: (m: SavedMeal) => void;
   removeMeal: (id: string) => void;
   /** Adds every item of a saved meal as its own diary entry; returns how many were added. */
@@ -130,6 +135,7 @@ type Persisted = Pick<
   | 'entries'
   | 'customFoods'
   | 'recentFoods'
+  | 'hiddenHistory'
   | 'water'
   | 'weights'
   | 'fastingActive'
@@ -156,6 +162,7 @@ const initial = {
   entries: [],
   customFoods: [],
   recentFoods: [],
+  hiddenHistory: [] as HiddenFood[],
   water: {},
   weights: [],
   fastingActive: null,
@@ -225,6 +232,8 @@ export const useStore = create<State>()(
           offPending: s.offPending.filter((p) => p.foodId !== id),
           recentFoods: s.recentFoods.filter((f) => f.id !== id),
         })),
+
+      hideFromHistory: (foodId) => set((s) => ({ hiddenHistory: hideFromHistory(s.hiddenHistory, foodId, Date.now()) })),
 
       saveMeal: (m) => set((s) => ({ meals: [m, ...s.meals.filter((x) => x.id !== m.id)] })),
       removeMeal: (id) => set((s) => ({ meals: s.meals.filter((m) => m.id !== id) })),
@@ -312,6 +321,7 @@ export const useStore = create<State>()(
           reminders: d.reminders ? normalizeReminders(d.reminders) : s.reminders,
           fastingSchedule: d.fastingSchedule ? normalizeSchedule(d.fastingSchedule) : s.fastingSchedule,
           goalCheck: d.goalCheck ? normalizeGoalCheck(d.goalCheck) : s.goalCheck,
+          hiddenHistory: normalizeHidden(d.hiddenHistory),
           insights: s.insights, // a choice on this device, not in backups
           offPending: s.offPending.filter((p) => (d.customFoods ?? []).some((f) => f.id === p.foodId)),
           // Only model names come from the file; providers and server addresses stay as set on this
@@ -337,6 +347,7 @@ export const useStore = create<State>()(
         entries: s.entries,
         customFoods: s.customFoods,
         recentFoods: s.recentFoods,
+        hiddenHistory: s.hiddenHistory,
         water: s.water,
         weights: s.weights,
         fastingActive: s.fastingActive,
@@ -373,6 +384,7 @@ export const useStore = create<State>()(
           insights: normalizeInsights(p.insights),
           offPending: normalizePending(p.offPending),
           goalCheck: normalizeGoalCheck(p.goalCheck),
+          hiddenHistory: normalizeHidden(p.hiddenHistory),
           security: normalizeSecurity(p.security),
           connections: normalizeLog(p.connections, Date.now()),
           lastBackupAt: typeof p.lastBackupAt === 'number' ? p.lastBackupAt : null,
